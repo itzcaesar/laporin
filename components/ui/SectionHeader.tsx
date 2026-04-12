@@ -14,13 +14,13 @@ export function SectionHeader({
   return (
     <div
       className={cn(
-        "mb-12 max-w-3xl md:mb-16",
+        "mb-8 max-w-3xl sm:mb-12 md:mb-16",
         isCenter && "mx-auto text-center",
         className
       )}
     >
       {eyebrow && (
-        <span className="mb-3 inline-block rounded-full bg-blue-light px-4 py-1.5 font-display text-sm font-semibold text-blue">
+        <span className="mb-2 inline-block rounded-full bg-blue-light px-3 py-1 font-display text-xs font-semibold text-blue sm:mb-3 sm:px-4 sm:py-1.5 sm:text-sm">
           {eyebrow}
         </span>
       )}

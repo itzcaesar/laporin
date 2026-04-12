@@ -3,9 +3,9 @@ import { cn } from "@/lib/utils";
 import type { CardProps } from "@/types";
 
 const PADDING_STYLES: Record<string, string> = {
-  sm: "p-4",
-  md: "p-6",
-  lg: "p-8",
+  sm: "p-3 sm:p-4",
+  md: "p-4 sm:p-6",
+  lg: "p-4 sm:p-8",
 };
 
 export function Card({

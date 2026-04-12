@@ -41,7 +41,7 @@ export function TestimonialCard({
         {/* Avatar */}
         <div
           className={cn(
-            "flex h-10 w-10 items-center justify-center rounded-full font-display text-sm font-bold text-white",
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-display text-sm font-bold text-white",
             testimonial.isGovernment ? "bg-teal" : "bg-navy"
           )}
         >
