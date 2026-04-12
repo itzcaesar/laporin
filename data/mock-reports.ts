@@ -57,6 +57,12 @@ export const MOCK_REPORTS: MockReport[] = [
     reportedAt: "2 jam lalu",
     upvotes: 24,
     comments: 8,
+    downvotes: 4,
+    priority: "Sedang",
+    mockComments: [
+      { author: "Budi S.", text: "Tolong segera diperbaiki, sangat bahaya kalau malam hari.", time: "1 jam lalu" },
+      { author: "Citra W.", text: "Setuju, kemarin saya hampir jatuh di sini.", time: "30 menit lalu" }
+    ],
     photoPlaceholder: "🕳️",
   },
   {
@@ -75,6 +81,12 @@ export const MOCK_REPORTS: MockReport[] = [
     pic: "Ir. Dedi Supriyadi",
     upvotes: 47,
     comments: 13,
+    downvotes: 3,
+    priority: "Tinggi",
+    mockComments: [
+      { author: "Budi S.", text: "Tolong segera diperbaiki, sangat bahaya kalau malam hari.", time: "1 jam lalu" },
+      { author: "Citra W.", text: "Setuju, kemarin saya hampir jatuh di sini.", time: "30 menit lalu" }
+    ],
     photoPlaceholder: "🌑",
   },
   {
@@ -93,6 +105,12 @@ export const MOCK_REPORTS: MockReport[] = [
     pic: "Budi Hartono, S.T.",
     upvotes: 62,
     comments: 21,
+    downvotes: 4,
+    priority: "Kritis",
+    mockComments: [
+      { author: "Budi S.", text: "Tolong segera diperbaiki, sangat bahaya kalau malam hari.", time: "1 jam lalu" },
+      { author: "Citra W.", text: "Setuju, kemarin saya hampir jatuh di sini.", time: "30 menit lalu" }
+    ],
     photoPlaceholder: "💧",
   },
   {
@@ -111,6 +129,12 @@ export const MOCK_REPORTS: MockReport[] = [
     pic: "Agung Prasetyo, S.T.",
     upvotes: 89,
     comments: 34,
+    downvotes: 2,
+    priority: "Kritis",
+    mockComments: [
+      { author: "Budi S.", text: "Tolong segera diperbaiki, sangat bahaya kalau malam hari.", time: "1 jam lalu" },
+      { author: "Citra W.", text: "Setuju, kemarin saya hampir jatuh di sini.", time: "30 menit lalu" }
+    ],
     photoPlaceholder: "🚶",
   },
   {
@@ -129,6 +153,12 @@ export const MOCK_REPORTS: MockReport[] = [
     pic: "Rina Agustina, S.Si.",
     upvotes: 112,
     comments: 45,
+    downvotes: 2,
+    priority: "Kritis",
+    mockComments: [
+      { author: "Budi S.", text: "Tolong segera diperbaiki, sangat bahaya kalau malam hari.", time: "1 jam lalu" },
+      { author: "Citra W.", text: "Setuju, kemarin saya hampir jatuh di sini.", time: "30 menit lalu" }
+    ],
     photoPlaceholder: "🗑️",
   },
   {
@@ -146,6 +176,12 @@ export const MOCK_REPORTS: MockReport[] = [
     reportedAt: "45 menit lalu",
     upvotes: 15,
     comments: 4,
+    downvotes: 7,
+    priority: "Rendah",
+    mockComments: [
+      { author: "Budi S.", text: "Tolong segera diperbaiki, sangat bahaya kalau malam hari.", time: "1 jam lalu" },
+      { author: "Citra W.", text: "Setuju, kemarin saya hampir jatuh di sini.", time: "30 menit lalu" }
+    ],
     photoPlaceholder: "⚡",
   },
   {
@@ -164,6 +200,12 @@ export const MOCK_REPORTS: MockReport[] = [
     pic: "Ir. Andi Permana",
     upvotes: 38,
     comments: 11,
+    downvotes: 9,
+    priority: "Tinggi",
+    mockComments: [
+      { author: "Budi S.", text: "Tolong segera diperbaiki, sangat bahaya kalau malam hari.", time: "1 jam lalu" },
+      { author: "Citra W.", text: "Setuju, kemarin saya hampir jatuh di sini.", time: "30 menit lalu" }
+    ],
     photoPlaceholder: "🚏",
   },
   {
@@ -182,6 +224,12 @@ export const MOCK_REPORTS: MockReport[] = [
     pic: "Yanto Sugiarto",
     upvotes: 33,
     comments: 9,
+    downvotes: 1,
+    priority: "Sedang",
+    mockComments: [
+      { author: "Budi S.", text: "Tolong segera diperbaiki, sangat bahaya kalau malam hari.", time: "1 jam lalu" },
+      { author: "Citra W.", text: "Setuju, kemarin saya hampir jatuh di sini.", time: "30 menit lalu" }
+    ],
     photoPlaceholder: "🌊",
   },
   {
@@ -200,6 +248,12 @@ export const MOCK_REPORTS: MockReport[] = [
     pic: "Dinas Pertamanan Kota Bandung",
     upvotes: 156,
     comments: 52,
+    downvotes: 2,
+    priority: "Kritis",
+    mockComments: [
+      { author: "Budi S.", text: "Tolong segera diperbaiki, sangat bahaya kalau malam hari.", time: "1 jam lalu" },
+      { author: "Citra W.", text: "Setuju, kemarin saya hampir jatuh di sini.", time: "30 menit lalu" }
+    ],
     photoPlaceholder: "🌿",
   },
   {
@@ -218,6 +272,12 @@ export const MOCK_REPORTS: MockReport[] = [
     pic: "Dinas Perhubungan Kota Bandung",
     upvotes: 74,
     comments: 19,
+    downvotes: 8,
+    priority: "Kritis",
+    mockComments: [
+      { author: "Budi S.", text: "Tolong segera diperbaiki, sangat bahaya kalau malam hari.", time: "1 jam lalu" },
+      { author: "Citra W.", text: "Setuju, kemarin saya hampir jatuh di sini.", time: "30 menit lalu" }
+    ],
     photoPlaceholder: "🚦",
   },
   {
@@ -235,6 +295,12 @@ export const MOCK_REPORTS: MockReport[] = [
     reportedAt: "3 jam lalu",
     upvotes: 28,
     comments: 7,
+    downvotes: 9,
+    priority: "Sedang",
+    mockComments: [
+      { author: "Budi S.", text: "Tolong segera diperbaiki, sangat bahaya kalau malam hari.", time: "1 jam lalu" },
+      { author: "Citra W.", text: "Setuju, kemarin saya hampir jatuh di sini.", time: "30 menit lalu" }
+    ],
     photoPlaceholder: "📶",
   },
   {
@@ -253,6 +319,12 @@ export const MOCK_REPORTS: MockReport[] = [
     pic: "Tim Pemeliharaan Dinas PU",
     upvotes: 55,
     comments: 16,
+    downvotes: 2,
+    priority: "Kritis",
+    mockComments: [
+      { author: "Budi S.", text: "Tolong segera diperbaiki, sangat bahaya kalau malam hari.", time: "1 jam lalu" },
+      { author: "Citra W.", text: "Setuju, kemarin saya hampir jatuh di sini.", time: "30 menit lalu" }
+    ],
     photoPlaceholder: "🌉",
   },
 ] as const;

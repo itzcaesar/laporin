@@ -18,6 +18,9 @@ export interface MockReport {
   pic?: string;
   upvotes: number;
   comments: number;
+  downvotes: number;
+  priority: "Rendah" | "Sedang" | "Tinggi" | "Kritis";
+  mockComments: { author: string; text: string; time: string }[];
   photoPlaceholder: string;
 }
 

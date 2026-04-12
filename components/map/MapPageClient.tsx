@@ -57,10 +57,10 @@ export function MapPageClient() {
           </div>
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="sm" href="/">
-              ← Kembali
+              <span className="hidden sm:inline">← </span>Kembali
             </Button>
             <Button variant="primary" size="sm" href="#lapor">
-              + Buat Laporan
+              <span className="hidden sm:inline">+ </span>Buat Laporan
             </Button>
           </div>
         </div>

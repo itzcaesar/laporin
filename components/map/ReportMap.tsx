@@ -12,6 +12,8 @@ import {
 import L from "leaflet";
 import { cn } from "@/lib/utils";
 import { MOCK_REPORTS, STATUS_CONFIG } from "@/data/mock-reports";
+import { ReportDetailModal } from "@/components/map/ReportDetailModal";
+import { X, ThumbsUp, ThumbsDown } from "lucide-react";
 import type { MockReport, ReportStatusMap } from "@/types/report";
 
 // ── Custom marker icon factory ──
@@ -189,16 +191,13 @@ function MapView({
           key={report.id}
           position={[report.lat, report.lng]}
           icon={createMarkerIcon(report.status)}
-          eventHandlers={{
-            click: () => onReportClick(report.id),
-          }}
         >
           <Popup maxWidth={280} className="report-popup">
-            <div className="p-1">
+            <div className="p-1 pt-2">
               <div className="mb-2 flex items-center gap-2">
                 <span className="text-xl">{report.categoryEmoji}</span>
                 <div>
-                  <h3 className="font-display text-sm font-bold text-navy">
+                  <h3 className="font-display text-sm font-bold text-navy line-clamp-1">
                     {report.title}
                   </h3>
                   <span className="text-[10px] text-muted">
@@ -207,7 +206,7 @@ function MapView({
                 </div>
               </div>
 
-              <p className="mb-2 text-xs leading-relaxed text-ink">
+              <p className="mb-2 text-xs leading-relaxed text-ink line-clamp-2">
                 {report.description}
               </p>
 
@@ -215,7 +214,8 @@ function MapView({
                 📍 {report.location}
               </div>
 
-              <div className="flex items-center justify-between border-t border-gray-100 pt-2">
+              {/* Status & Priority */}
+              <div className="mb-2 flex flex-wrap items-center gap-1.5">
                 <span
                   className="rounded-full px-2 py-0.5 text-[10px] font-bold"
                   style={{
@@ -225,17 +225,61 @@ function MapView({
                 >
                   {STATUS_CONFIG[report.status].label}
                 </span>
-                <div className="flex gap-2 text-[10px] text-muted">
-                  <span>👍 {report.upvotes}</span>
-                  <span>💬 {report.comments}</span>
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 text-[10px] font-bold border",
+                    report.priority === "Kritis" || report.priority === "Tinggi"
+                      ? "border-red-200 bg-red-50 text-red-600"
+                      : "border-gray-200 bg-gray-50 text-gray-600"
+                  )}
+                >
+                  {report.priority === "Kritis" ? "🚨 " : ""}{report.priority}
+                </span>
+              </div>
+
+              {/* Upvote & Downvote Buttons */}
+              <div className="mb-3 flex items-center gap-2 border-y border-gray-100 py-2">
+                <div className="flex items-center gap-1.5 rounded-md bg-blue-50 px-2 py-1 text-[11px] font-bold text-blue">
+                  <ThumbsUp size={12} className="fill-blue" />
+                  <span>{report.upvotes}</span>
+                </div>
+                <div className="flex items-center gap-1.5 rounded-md bg-gray-100 px-2 py-1 text-[11px] font-bold text-muted">
+                  <ThumbsDown size={12} />
+                  <span>{report.downvotes}</span>
+                </div>
+                <div className="ml-auto text-[10px] text-muted">
+                  💬 {report.comments} Komentar
                 </div>
               </div>
 
+              {/* Recent Comments */}
+              {report.mockComments && report.mockComments.length > 0 && (
+                <div className="mb-3 space-y-1.5">
+                  <h4 className="text-[10px] font-bold uppercase text-navy">Komentar Terbaru</h4>
+                  {report.mockComments.map((comment, i) => (
+                    <div key={i} className="rounded border border-gray-50 bg-gray-50/50 p-1.5 text-[10px]">
+                      <div className="flex justify-between">
+                        <span className="font-semibold text-navy">{comment.author}</span>
+                        <span className="text-muted">{comment.time}</span>
+                      </div>
+                      <p className="mt-0.5 text-muted line-clamp-1">{comment.text}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {report.pic && (
-                <div className="mt-2 rounded-lg bg-teal-light/50 px-2 py-1 text-[10px] text-teal">
+                <div className="mb-3 rounded-lg bg-teal-light/50 px-2 py-1 text-[10px] text-teal">
                   PIC: {report.pic}
                 </div>
               )}
+
+              <button
+                className="w-full rounded-lg bg-navy py-1.5 text-center text-[11px] font-semibold text-white transition-colors hover:bg-navy/90"
+                onClick={() => onReportClick(report.id)}
+              >
+                Lihat Detail →
+              </button>
             </div>
           </Popup>
         </Marker>
@@ -251,6 +295,7 @@ export function ReportMap() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [mobileView, setMobileView] = useState<MobileView>("map");
   const [isLoading, setIsLoading] = useState(true);
+  const [detailReportId, setDetailReportId] = useState<string | null>(null);
 
   // Simulate loading
   useEffect(() => {
@@ -272,6 +317,10 @@ export function ReportMap() {
     setSelectedReport(reportId);
     // On mobile, switch to map view when a report is clicked from list
     setMobileView("map");
+  };
+
+  const handleReportDetailOpen = (reportId: string) => {
+    setDetailReportId(reportId);
   };
 
   const handleToggleSidebar = () => {
@@ -320,15 +369,15 @@ export function ReportMap() {
       </div>
 
       {/* ═══ Mobile: Filter bar (always visible) ═══ */}
-      <div className="shrink-0 overflow-x-auto border-b border-gray-100 bg-white px-3 py-2 md:hidden">
-        <div className="flex gap-1.5">
+      <div className="shrink-0 border-b border-gray-100 bg-white px-3 py-2 md:hidden">
+        <div className="grid grid-cols-3 gap-1.5 w-full">
           {FILTER_OPTIONS.map((opt) => (
             <button
               key={opt.value}
               type="button"
               onClick={() => handleFilterChange(opt.value)}
               className={cn(
-                "flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold",
+                "flex items-center w-full justify-center gap-1 rounded-lg px-1 py-1.5 text-[10px] font-semibold sm:text-[11px]",
                 "min-h-[32px] transition-all duration-200",
                 activeFilter === opt.value
                   ? "bg-navy text-white"
@@ -336,7 +385,7 @@ export function ReportMap() {
               )}
             >
               <span>{opt.emoji}</span>
-              <span>{opt.label}</span>
+              <span className="truncate">{opt.label}</span>
             </button>
           ))}
         </div>
@@ -399,7 +448,7 @@ export function ReportMap() {
                   key={report.id}
                   report={report as MockReport}
                   isSelected={selectedReport === report.id}
-                  onClick={() => handleReportClick(report.id)}
+                  onClick={() => handleReportDetailOpen(report.id)}
                 />
               ))}
           {!isLoading && filteredReports.length === 0 && (
@@ -443,7 +492,7 @@ export function ReportMap() {
                   key={report.id}
                   report={report as MockReport}
                   isSelected={selectedReport === report.id}
-                  onClick={() => handleReportClick(report.id)}
+                  onClick={() => handleReportDetailOpen(report.id)}
                 />
               ))}
         </div>
@@ -492,9 +541,21 @@ export function ReportMap() {
 
         <MapView
           filteredReports={filteredReports}
-          onReportClick={handleReportClick}
+          onReportClick={handleReportDetailOpen}
         />
       </div>
+
+      {/* ═══ Report Detail Modal ═══ */}
+      {detailReportId && (() => {
+        const report = MOCK_REPORTS.find((r) => r.id === detailReportId);
+        if (!report) return null;
+        return (
+          <ReportDetailModal
+            report={report}
+            onClose={() => setDetailReportId(null)}
+          />
+        );
+      })()}
     </div>
   );
 }
