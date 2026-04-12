@@ -24,7 +24,6 @@
 .DS_Store
 *.pem
 .context
-CLAUDE.md
 
 # debug
 npm-debug.log*
