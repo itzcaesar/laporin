@@ -26,7 +26,7 @@ const FOOTER_COLUMNS: FooterColumn[] = [
   {
     heading: "Kontak",
     links: [
-      { label: "halo@Laporin.id", href: "mailto:halo@Laporin.id" },
+      { label: "halo@Laporin.site", href: "mailto:halo@Laporin.site" },
       { label: "Panduan Pengguna", href: "#panduan" },
       { label: "FAQ", href: "#faq" },
       { label: "Kebijakan Privasi", href: "#privasi" },
@@ -43,8 +43,8 @@ const SOCIAL_LINKS = [
 export function Footer() {
   return (
     <footer className="border-t border-gray-100 bg-white">
-      <div className="container-width px-4 py-12 sm:px-6 lg:px-8">
-        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
+      <div className="container-width px-4 py-8 sm:py-12 sm:px-6 lg:px-8">
+        <div className="grid gap-6 grid-cols-2 sm:gap-8 md:grid-cols-2 lg:grid-cols-4">
           {/* Brand column */}
           <div className="lg:col-span-1">
             <Link
@@ -52,11 +52,11 @@ export function Footer() {
               className="mb-4 flex items-center gap-2 font-display text-xl font-bold text-navy"
             >
               <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-md shadow-sm">
-                <Image 
-                  src="/icons/icon-192.png" 
-                  alt="Laporin Logo" 
-                  width={28} 
-                  height={28} 
+                <Image
+                  src="/icons/icon-192.png"
+                  alt="Laporin Logo"
+                  width={28}
+                  height={28}
                   className="scale-[1.15] object-cover"
                 />
               </div>

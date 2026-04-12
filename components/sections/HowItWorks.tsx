@@ -127,7 +127,7 @@ export function HowItWorks() {
         </div>
 
         {/* Steps grid */}
-        <div className="grid gap-8 md:grid-cols-4">
+        <div className="grid gap-6 md:grid-cols-4">
           {steps.map((step, index) => (
             <StepCard
               key={`${activeTab}-${step.number}`}

@@ -18,7 +18,7 @@ export function FinalCTA() {
   return (
     <section
       id="cta"
-      className="relative overflow-hidden py-16 md:py-20 lg:py-24"
+      className="relative overflow-hidden py-10 sm:py-16 md:py-20 lg:py-24"
       ref={sectionRef}
     >
       {/* Gradient background */}
@@ -31,26 +31,26 @@ export function FinalCTA() {
 
       <div className="container-width relative z-10 px-4 text-center sm:px-6 lg:px-8 reveal">
         {/* Heading */}
-        <h2 className="mb-4 font-display text-3xl font-bold text-white md:text-4xl lg:text-5xl">
+        <h2 className="mb-3 font-display text-2xl font-bold text-white sm:mb-4 sm:text-3xl md:text-4xl lg:text-5xl">
           Mulai Ubah Kotamu Hari Ini
         </h2>
-        <p className="mx-auto mb-8 max-w-2xl text-base leading-relaxed text-white/80 md:text-lg">
+        <p className="mx-auto mb-6 max-w-2xl text-sm leading-relaxed text-white/80 sm:mb-8 sm:text-base md:text-lg">
           Jalan berlubang di depan sekolah anakmu? Lampu jalan mati di
           persimpangan? Jangan tunggu lagi. Laporkan sekarang dan pantau sampai
           benar-benar diperbaiki.
         </p>
 
         {/* CTA buttons */}
-        <div className="mb-12 flex flex-col items-center justify-center gap-4 sm:flex-row">
+        <div className="mb-8 flex flex-col items-center justify-center gap-3 sm:mb-12 sm:flex-row sm:gap-4">
           <Button
             variant="primary"
             size="lg"
             href="#lapor"
-            className="bg-white text-navy hover:bg-white/90"
+            className="w-full bg-white text-navy hover:bg-white/90 sm:w-auto"
           >
             Buat Laporan Sekarang →
           </Button>
-          <Button variant="outline-white" size="lg" href="/peta">
+          <Button variant="outline-white" size="lg" href="/peta" className="w-full sm:w-auto">
             Lihat Peta Laporan
           </Button>
         </div>

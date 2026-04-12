@@ -49,16 +49,25 @@ export function Problem() {
           subheading="Setiap hari, jutaan warga Indonesia menghadapi infrastruktur rusak tanpa tahu cara melaporkannya secara efektif."
         />
 
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
           {PAIN_POINTS.map((point) => (
-            <Card key={point.title} hover padding="lg">
-              <div className="mb-4 text-4xl">{point.emoji}</div>
-              <h3 className="mb-2 font-display text-lg font-bold text-navy">
-                {point.title}
-              </h3>
-              <p className="text-sm leading-relaxed text-muted">
-                {point.description}
-              </p>
+            <Card 
+              key={point.title} 
+              hover 
+              padding="md"
+              className="group flex flex-row items-start gap-4 border-red-50 transition-colors hover:border-red-100 sm:flex-col sm:items-start sm:gap-0"
+            >
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-red-50 text-xl transition-colors group-hover:bg-red-100/50 sm:mb-4 sm:h-14 sm:w-14 sm:text-3xl">
+                <span className="drop-shadow-sm">{point.emoji}</span>
+              </div>
+              <div className="flex flex-col">
+                <h3 className="mb-1 font-display text-base font-bold text-navy sm:mb-2 sm:text-lg">
+                  {point.title}
+                </h3>
+                <p className="text-sm leading-relaxed text-muted">
+                  {point.description}
+                </p>
+              </div>
             </Card>
           ))}
         </div>

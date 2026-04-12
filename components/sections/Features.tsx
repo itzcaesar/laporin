@@ -57,7 +57,7 @@ export function Features() {
           subheading="Setiap fitur dibangun dengan satu tujuan: memastikan infrastruktur publik benar-benar diperbaiki."
         />
 
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
           {FEATURES_DATA.map((feature) => (
             <FeatureCard key={feature.title} feature={feature} />
           ))}
