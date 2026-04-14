@@ -50,7 +50,7 @@ export function Hero() {
             {/* Eyebrow */}
             <div className="stagger-item mb-4 sm:mb-6">
               <Badge variant="info" className="bg-white/10 text-white text-xs">
-                🏆 IO Fest 2026 — Civic Technology
+                🏆 IO/Fest 2026 — Civic Technology
               </Badge>
             </div>
 
