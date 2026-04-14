@@ -38,6 +38,14 @@ export const metadata: Metadata = {
     type: "website",
     locale: "id_ID",
   },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Laporin",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export const viewport = {
@@ -45,6 +53,8 @@ export const viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

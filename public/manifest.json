@@ -31,7 +31,7 @@
       "name": "Buat Laporan",
       "short_name": "Lapor",
       "description": "Buat laporan infrastruktur baru",
-      "url": "/#lapor",
+      "url": "/lapor",
       "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
     },
     {
