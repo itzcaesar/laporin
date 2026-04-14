@@ -71,7 +71,7 @@ export function Hero() {
 
             {/* CTAs */}
             <div className="stagger-item mb-8 flex flex-col items-center gap-3 sm:mb-10 sm:flex-row sm:gap-4 lg:justify-start sm:justify-center">
-              <Button variant="primary" size="lg" href="#lapor" className="w-full sm:w-auto">
+              <Button variant="primary" size="lg" href="/lapor" className="w-full sm:w-auto">
                 Buat Laporan Sekarang →
               </Button>
               <Button variant="outline-white" size="lg" href="/peta" className="w-full sm:w-auto">

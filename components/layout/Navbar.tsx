@@ -90,7 +90,7 @@ export function Navbar() {
           <Button
             variant="primary"
             size="sm"
-            href="#lapor"
+            href="/lapor"
           >
             Buat Laporan
           </Button>
@@ -137,7 +137,7 @@ export function Navbar() {
             <Button
               variant="primary"
               size="md"
-              href="#lapor"
+              href="/lapor"
               className="w-full"
             >
               Buat Laporan

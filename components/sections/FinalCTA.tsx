@@ -45,7 +45,7 @@ export function FinalCTA() {
           <Button
             variant="primary"
             size="lg"
-            href="#lapor"
+            href="/lapor"
             className="w-full bg-white text-navy hover:bg-white/90 sm:w-auto"
           >
             Buat Laporan Sekarang →

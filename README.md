@@ -22,8 +22,6 @@ Project ini dibangun dengan menggunakan arsitektur modern web ecosystem:
 - **Styling:** Tailwind CSS v3
 - **Komponen UI:** Kombinasi kustom Vanilla CSS, CSS Modules & class-variance-authority (`cva`)
 - **Peta (Geopatial):** React Leaflet (OpenStreetMap)
-- **Ikonografi:** Lucide React
-- **Tools:** ESLint, Prettier, PostCSS
 
 ---
 
