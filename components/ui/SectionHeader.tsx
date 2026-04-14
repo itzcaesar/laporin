@@ -25,7 +25,7 @@ export function SectionHeader({
         </span>
       )}
       <h2 className="section-heading">{heading}</h2>
-      {subheading && <p className="section-sub">{subheading}</p>}
+      {subheading && <p className={cn("section-sub", isCenter && "mx-auto")}>{subheading}</p>}
     </div>
   );
 }

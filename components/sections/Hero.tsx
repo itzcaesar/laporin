@@ -267,7 +267,7 @@ export function Hero() {
       </div>
 
       {/* Learn More Scroll Indicator */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 sm:bottom-10 pointer-events-none">
+      <div className="absolute hidden md:block bottom-10 left-1/2 -translate-x-1/2 pointer-events-none">
         <div className="flex animate-bounce flex-col items-center gap-2">
           {/* Glassmorphic Pill */}
           <div className="flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-5 py-2.5 backdrop-blur-xl">

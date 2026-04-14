@@ -39,7 +39,7 @@ export function Navbar() {
             : "bg-transparent"
       )}
     >
-      <div className="container-width flex items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+      <div className="container-width relative flex items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
         {/* Logo */}
         <Link
           href="/"
@@ -60,7 +60,7 @@ export function Navbar() {
         </Link>
 
         {/* Desktop nav links */}
-        <div className="hidden items-center gap-1 md:flex">
+        <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 md:flex">
           {NAV_LINKS.map((link) => (
             <Link
               key={link.href}
