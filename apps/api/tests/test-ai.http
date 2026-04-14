@@ -1,0 +1,138 @@
+### AI Routes Test File
+### Base URL
+@baseUrl = http://localhost:4000/api/v1
+@token = YOUR_TOKEN_HERE
+
+### ============================================
+### AI CLASSIFICATION
+### ============================================
+
+### Classify Photo
+POST {{baseUrl}}/ai/classify-photo
+Content-Type: application/json
+
+{
+  "base64Image": "/9j/4AAQSkZJRgABAQEAYABgAAD...",
+  "mimeType": "image/jpeg"
+}
+
+### ============================================
+### DUPLICATE DETECTION
+### ============================================
+
+### Check for Duplicates
+POST {{baseUrl}}/ai/check-duplicate
+Content-Type: application/json
+
+{
+  "reportId": "REPORT_UUID_HERE"
+}
+
+### ============================================
+### CHATBOT
+### ============================================
+
+### Chatbot - Simple Question
+POST {{baseUrl}}/ai/chatbot
+Content-Type: application/json
+
+{
+  "message": "Bagaimana cara melaporkan jalan rusak?",
+  "history": []
+}
+
+### Chatbot - With History
+POST {{baseUrl}}/ai/chatbot
+Content-Type: application/json
+
+{
+  "message": "Berapa lama prosesnya?",
+  "history": [
+    {
+      "role": "user",
+      "content": "Bagaimana cara melaporkan jalan rusak?"
+    },
+    {
+      "role": "assistant",
+      "content": "Anda bisa melaporkan jalan rusak melalui aplikasi Laporin dengan mengisi formulir laporan dan mengunggah foto kerusakan."
+    }
+  ]
+}
+
+### Chatbot - Streaming Response
+POST {{baseUrl}}/ai/chatbot/stream
+Content-Type: application/json
+
+{
+  "message": "Apa saja kategori laporan yang tersedia?",
+  "history": []
+}
+
+### ============================================
+### AI SUGGESTIONS (Requires Auth)
+### ============================================
+
+### Get Report Suggestions
+GET {{baseUrl}}/ai/suggestions?reportId=REPORT_UUID_HERE
+Authorization: Bearer {{token}}
+
+### ============================================
+### EXAMPLE REQUESTS
+### ============================================
+
+### Example: Classify Road Damage Photo
+# Note: Replace with actual base64 image data
+POST {{baseUrl}}/ai/classify-photo
+Content-Type: application/json
+
+{
+  "base64Image": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+  "mimeType": "image/png"
+}
+
+### Example: Common Chatbot Questions
+
+### Question 1: How to report
+POST {{baseUrl}}/ai/chatbot
+Content-Type: application/json
+
+{
+  "message": "Bagaimana cara membuat laporan?",
+  "history": []
+}
+
+### Question 2: Report status
+POST {{baseUrl}}/ai/chatbot
+Content-Type: application/json
+
+{
+  "message": "Bagaimana cara mengecek status laporan saya?",
+  "history": []
+}
+
+### Question 3: Categories
+POST {{baseUrl}}/ai/chatbot
+Content-Type: application/json
+
+{
+  "message": "Apa saja jenis kerusakan yang bisa dilaporkan?",
+  "history": []
+}
+
+### Question 4: Anonymous reporting
+POST {{baseUrl}}/ai/chatbot
+Content-Type: application/json
+
+{
+  "message": "Apakah bisa melaporkan tanpa login?",
+  "history": []
+}
+
+### Question 5: Response time
+POST {{baseUrl}}/ai/chatbot
+Content-Type: application/json
+
+{
+  "message": "Berapa lama laporan akan ditanggapi?",
+  "history": []
+}

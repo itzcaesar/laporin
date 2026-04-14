@@ -1,0 +1,144 @@
+### Test Statistics Endpoints
+### Base URL
+@baseUrl = http://localhost:4000/api/v1
+
+### 1. Get Region Statistics (30 days)
+GET {{baseUrl}}/statistics/region?regionCode=3273&period=30d
+Content-Type: application/json
+
+### 2. Get Region Statistics (90 days)
+GET {{baseUrl}}/statistics/region?regionCode=3273&period=90d
+Content-Type: application/json
+
+### 3. Get Region Statistics (1 year)
+GET {{baseUrl}}/statistics/region?regionCode=3273&period=365d
+Content-Type: application/json
+
+### 4. Get Leaderboard (Top 10 Regions This Month)
+GET {{baseUrl}}/statistics/leaderboard
+Content-Type: application/json
+
+### 5. Get Overall Platform Statistics
+GET {{baseUrl}}/statistics/overview
+Content-Type: application/json
+
+### 6. Get Trends (Last 30 Days)
+GET {{baseUrl}}/statistics/trends?days=30
+Content-Type: application/json
+
+### 7. Get Trends for Specific Region (Last 90 Days)
+GET {{baseUrl}}/statistics/trends?days=90&regionCode=3273
+Content-Type: application/json
+
+### 8. Get Trends (Last 7 Days)
+GET {{baseUrl}}/statistics/trends?days=7
+Content-Type: application/json
+
+### Expected Responses:
+
+### /statistics/region Response:
+# {
+#   "regionCode": "3273",
+#   "regionName": "Kota Bandung",
+#   "period": {
+#     "days": 30,
+#     "label": "30d",
+#     "startDate": "2026-03-15T00:00:00.000Z"
+#   },
+#   "summary": {
+#     "totalReports": 150,
+#     "resolvedCount": 120,
+#     "resolutionRate": 80.0,
+#     "avgDaysToResolve": 5,
+#     "satisfactionAvg": 4.2
+#   },
+#   "topCategories": [
+#     {
+#       "categoryId": 1,
+#       "categoryName": "Jalan Rusak",
+#       "categoryEmoji": "🛣️",
+#       "count": 45
+#     }
+#   ],
+#   "statusBreakdown": {
+#     "new": 10,
+#     "verified": 5,
+#     "in_progress": 15,
+#     "completed": 100,
+#     "verified_complete": 20,
+#     "rejected": 0,
+#     "disputed": 0,
+#     "closed": 0
+#   }
+# }
+
+### /statistics/leaderboard Response:
+# {
+#   "period": {
+#     "month": "April 2026",
+#     "startDate": "2026-04-01T00:00:00.000Z"
+#   },
+#   "leaderboard": [
+#     {
+#       "regionCode": "3273",
+#       "regionName": "Kota Bandung",
+#       "totalReports": 150,
+#       "resolvedReports": 135,
+#       "resolutionRate": 90.0,
+#       "avgDaysToResolve": 3
+#     }
+#   ],
+#   "meta": {
+#     "totalRegions": 25,
+#     "minReportsRequired": 5
+#   }
+# }
+
+### /statistics/overview Response:
+# {
+#   "totalReports": 5420,
+#   "totalResolved": 4230,
+#   "totalUsers": 12500,
+#   "totalOfficers": 150,
+#   "reportsThisMonth": 450,
+#   "resolutionRate": 78.0,
+#   "avgSatisfaction": 4.3,
+#   "generatedAt": "2026-04-14T12:00:00.000Z"
+# }
+
+### /statistics/trends Response:
+# {
+#   "period": {
+#     "days": 30,
+#     "startDate": "2026-03-15T00:00:00.000Z"
+#   },
+#   "data": [
+#     {
+#       "date": "2026-03-15",
+#       "totalReports": 15,
+#       "resolvedReports": 12,
+#       "resolutionRate": 80.0
+#     },
+#     {
+#       "date": "2026-03-16",
+#       "totalReports": 18,
+#       "resolvedReports": 14,
+#       "resolutionRate": 77.8
+#     }
+#   ]
+# }
+
+### Notes:
+# - All endpoints are cached for 5 minutes (leaderboard: 10 minutes)
+# - Region codes use BPS (Badan Pusat Statistik) codes
+# - Leaderboard requires minimum 5 reports per region
+# - Resolution rate is percentage with 1 decimal place
+# - Satisfaction ratings are 1-5 scale
+# - Trends show daily aggregated data
+
+### Common Region Codes (Indonesia):
+# 3273 - Kota Bandung
+# 3174 - Jakarta Selatan
+# 3578 - Surabaya
+# 3471 - Yogyakarta
+# 3374 - Semarang
