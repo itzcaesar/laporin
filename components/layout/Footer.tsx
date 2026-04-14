@@ -114,7 +114,7 @@ export function Footer() {
           <div className="flex flex-col items-center gap-2 text-center text-xs text-muted sm:flex-row sm:justify-between sm:text-left">
             <p>© 2026 Laporin. Hak cipta dilindungi.</p>
             <p>
-              IO Fest 2026 · Civic Technology · Platform non-komersial
+              I/O Fest 2026 · Civic Technology · Platform non-komersial
             </p>
           </div>
         </div>
