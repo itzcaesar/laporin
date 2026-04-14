@@ -1,0 +1,439 @@
+// ── apps/api/prisma/schema.prisma ──
+// Laporin Database Schema
+// PostgreSQL + PostGIS + pgvector on Supabase
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
+  extensions = [postgis, vector, uuidOssp(map: "uuid-ossp")]
+}
+
+// ─────────────────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────────────────
+
+enum Role {
+  citizen
+  officer
+  admin
+  super_admin
+}
+
+enum ReportStatus {
+  new
+  verified
+  in_progress
+  completed
+  verified_complete
+  rejected
+  disputed
+  closed
+}
+
+enum Priority {
+  low       // P4 — 30 days SLA
+  medium    // P3 — 14 days SLA
+  high      // P2 — 7 days SLA
+  urgent    // P1 — 2 days SLA
+}
+
+enum MediaType {
+  photo
+  video
+  progress_photo
+  completion_photo
+}
+
+enum NotificationChannel {
+  push
+  email
+  whatsapp
+  sms
+}
+
+enum NotificationStatus {
+  pending
+  sent
+  failed
+}
+
+enum VerificationResult {
+  valid
+  hoax
+  duplicate
+  out_of_jurisdiction
+}
+
+// ─────────────────────────────────────────────────────────
+// USERS
+// ─────────────────────────────────────────────────────────
+
+model User {
+  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name          String?  @db.VarChar(100)
+  email         String   @unique @db.VarChar(255)
+  passwordHash  String   @map("password_hash") @db.Text
+  nikEncrypted  String?  @map("nik_encrypted") @db.Text     // AES-256 encrypted NIK
+  phone         String?  @db.VarChar(20)
+  role          Role     @default(citizen)
+  agencyId      String?  @map("agency_id") @db.Uuid
+  nip           String?  @db.VarChar(20)                   // Government employee ID
+  isActive      Boolean  @default(true) @map("is_active")
+  isVerified    Boolean  @default(false) @map("is_verified")
+  lastLoginAt   DateTime? @map("last_login_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  agency            Agency?           @relation(fields: [agencyId], references: [id])
+  reports           Report[]          @relation("ReporterReports")
+  assignedReports   Report[]          @relation("AssignedReports")
+  statusChanges     StatusHistory[]
+  comments          Comment[]
+  votes             Vote[]
+  bookmarks         Bookmark[]
+  notifications     Notification[]
+  ratings           SatisfactionRating[]
+  auditLogs         AuditLog[]
+  refreshTokens     RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  token     String   @unique @db.Text
+  isRevoked Boolean  @default(false) @map("is_revoked")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+// ─────────────────────────────────────────────────────────
+// AGENCIES (Dinas)
+// ─────────────────────────────────────────────────────────
+
+model Agency {
+  id           String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name         String  @db.VarChar(200)               // e.g. "Dinas PU Bina Marga Kota Bandung"
+  shortName    String  @map("short_name") @db.VarChar(50)  // e.g. "Dinas PU"
+  regionCode   String  @map("region_code") @db.VarChar(10) // BPS region code
+  regionName   String  @map("region_name") @db.VarChar(100)
+  email        String? @db.VarChar(255)
+  phone        String? @db.VarChar(20)
+  isActive     Boolean @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  users         User[]
+  reports       Report[]
+  slaRules      SlaRule[]
+
+  @@map("agencies")
+}
+
+// ─────────────────────────────────────────────────────────
+// CATEGORIES
+// ─────────────────────────────────────────────────────────
+
+model Category {
+  id           Int     @id
+  name         String  @db.VarChar(100)          // Bahasa Indonesia name
+  emoji        String  @db.VarChar(10)
+  leadAgency   String  @map("lead_agency") @db.VarChar(100)
+  defaultPriority Priority @default(medium) @map("default_priority")
+  isActive     Boolean @default(true) @map("is_active")
+
+  reports  Report[]
+  slaRules SlaRule[]
+
+  @@map("categories")
+}
+
+// ─────────────────────────────────────────────────────────
+// REPORTS (core entity)
+// ─────────────────────────────────────────────────────────
+
+model Report {
+  id            String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  trackingCode  String       @unique @map("tracking_code") @db.VarChar(25) // LP-2026-BDG-00142
+
+  // Reporter
+  reporterId    String?      @map("reporter_id") @db.Uuid
+  isAnonymous   Boolean      @default(false) @map("is_anonymous")
+  anonymousToken String?     @map("anonymous_token") @db.VarChar(64) // session token for anon
+
+  // Content
+  categoryId    Int          @map("category_id")
+  title         String       @db.VarChar(200)
+  description   String       @db.Text
+  aiSummary     String?      @map("ai_summary") @db.Text             // AI-generated summary
+
+  // Location (PostGIS)
+  locationAddress  String    @map("location_address") @db.Text
+  locationLat      Decimal   @map("location_lat") @db.Decimal(10, 8)
+  locationLng      Decimal   @map("location_lng") @db.Decimal(11, 8)
+  regionCode       String    @map("region_code") @db.VarChar(10)  // BPS region code
+  regionName       String    @map("region_name") @db.VarChar(100)
+  // Note: actual PostGIS GEOMETRY column managed via raw SQL migration
+
+  // Classification
+  status        ReportStatus @default(new)
+  priority      Priority     @default(medium)
+  dangerLevel   Int          @default(1) @map("danger_level") // 1–5, AI predicted
+  priorityScore Int          @default(0) @map("priority_score") // 0–100, AI calculated
+  upvoteCount   Int          @default(0) @map("upvote_count")
+  commentCount  Int          @default(0) @map("comment_count")
+  viewCount     Int          @default(0) @map("view_count")
+
+  // Assignment
+  agencyId      String?      @map("agency_id") @db.Uuid
+  assignedOfficerId String?  @map("assigned_officer_id") @db.Uuid
+  picNip        String?      @map("pic_nip") @db.VarChar(20)
+
+  // Timeline & Budget
+  estimatedStart DateTime?   @map("estimated_start") @db.Date
+  estimatedEnd   DateTime?   @map("estimated_end") @db.Date
+  actualEnd      DateTime?   @map("actual_end")
+  budgetIdr      BigInt?     @map("budget_idr")                      // in Rupiah
+
+  // AI Analysis
+  embeddingVector Unsupported("vector(1536)")?  @map("embedding_vector") // pgvector
+  aiClassifiedAt  DateTime?  @map("ai_classified_at")
+  isDuplicateOf   String?    @map("is_duplicate_of") @db.Uuid        // FK to original
+
+  // Timestamps
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+  completedAt   DateTime?    @map("completed_at")
+  verifiedAt    DateTime?    @map("verified_at")                      // citizen verification
+
+  // Relations
+  reporter        User?            @relation("ReporterReports", fields: [reporterId], references: [id])
+  assignedOfficer User?            @relation("AssignedReports", fields: [assignedOfficerId], references: [id])
+  category        Category         @relation(fields: [categoryId], references: [id])
+  agency          Agency?          @relation(fields: [agencyId], references: [id])
+  media           Media[]
+  statusHistory   StatusHistory[]
+  comments        Comment[]
+  votes           Vote[]
+  bookmarks       Bookmark[]
+  notifications   Notification[]
+  rating          SatisfactionRating?
+  aiAnalysis      AiAnalysisCache?
+
+  @@index([status])
+  @@index([categoryId])
+  @@index([agencyId])
+  @@index([reporterId])
+  @@index([createdAt])
+  @@index([priorityScore(sort: Desc)])
+  @@map("reports")
+}
+
+// ─────────────────────────────────────────────────────────
+// MEDIA
+// ─────────────────────────────────────────────────────────
+
+model Media {
+  id           String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  reportId     String    @map("report_id") @db.Uuid
+  uploaderId   String?   @map("uploader_id") @db.Uuid
+  mediaType    MediaType @map("media_type")
+  fileUrl      String    @map("file_url") @db.Text       // CDN URL
+  fileKey      String    @map("file_key") @db.VarChar(500) // S3/R2 key
+  fileSizeKb   Int?      @map("file_size_kb")
+  mimeType     String?   @map("mime_type") @db.VarChar(50)
+  isAiAnalyzed Boolean   @default(false) @map("is_ai_analyzed")
+  sortOrder    Int       @default(0) @map("sort_order")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@map("media")
+}
+
+// ─────────────────────────────────────────────────────────
+// STATUS HISTORY (immutable audit)
+// ─────────────────────────────────────────────────────────
+
+model StatusHistory {
+  id           String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  reportId     String       @map("report_id") @db.Uuid
+  changedById  String?      @map("changed_by_id") @db.Uuid
+  oldStatus    ReportStatus @map("old_status")
+  newStatus    ReportStatus @map("new_status")
+  note         String       @db.Text                 // required on every transition
+  officerNip   String?      @map("officer_nip") @db.VarChar(20)
+  createdAt    DateTime     @default(now()) @map("created_at")
+
+  report    Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  changedBy User?  @relation(fields: [changedById], references: [id])
+
+  @@map("status_history")
+}
+
+// ─────────────────────────────────────────────────────────
+// COMMENTS
+// ─────────────────────────────────────────────────────────
+
+model Comment {
+  id           String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  reportId     String    @map("report_id") @db.Uuid
+  authorId     String?   @map("author_id") @db.Uuid
+  parentId     String?   @map("parent_id") @db.Uuid   // for threaded replies
+  content      String    @db.Text
+  isGovernment Boolean   @default(false) @map("is_government")
+  isModerated  Boolean   @default(false) @map("is_moderated")
+  upvoteCount  Int       @default(0) @map("upvote_count")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  report  Report    @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  author  User?     @relation(fields: [authorId], references: [id])
+  parent  Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies Comment[] @relation("CommentReplies")
+
+  @@map("comments")
+}
+
+// ─────────────────────────────────────────────────────────
+// VOTES, BOOKMARKS, NOTIFICATIONS
+// ─────────────────────────────────────────────────────────
+
+model Vote {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  reportId  String   @map("report_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, userId])
+  @@map("votes")
+}
+
+model Bookmark {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  reportId  String   @map("report_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, userId])
+  @@map("bookmarks")
+}
+
+model Notification {
+  id        String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId    String              @map("user_id") @db.Uuid
+  reportId  String?             @map("report_id") @db.Uuid
+  channel   NotificationChannel
+  status    NotificationStatus  @default(pending)
+  title     String              @db.VarChar(200)
+  body      String              @db.Text
+  isRead    Boolean             @default(false) @map("is_read")
+  sentAt    DateTime?           @map("sent_at")
+  createdAt DateTime            @default(now()) @map("created_at")
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  report Report? @relation(fields: [reportId], references: [id])
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+// ─────────────────────────────────────────────────────────
+// SATISFACTION RATING
+// ─────────────────────────────────────────────────────────
+
+model SatisfactionRating {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  reportId  String   @unique @map("report_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  rating    Int                                    // 1–5
+  review    String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@map("satisfaction_ratings")
+}
+
+// ─────────────────────────────────────────────────────────
+// SLA RULES
+// ─────────────────────────────────────────────────────────
+
+model SlaRule {
+  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  agencyId     String?  @map("agency_id") @db.Uuid  // null = default for all
+  categoryId   Int?     @map("category_id")          // null = applies to all categories
+  priority     Priority
+  targetDays   Int      @map("target_days")           // business days
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  agency   Agency?   @relation(fields: [agencyId], references: [id])
+  category Category? @relation(fields: [categoryId], references: [id])
+
+  @@map("sla_rules")
+}
+
+// ─────────────────────────────────────────────────────────
+// AI ANALYSIS CACHE
+// ─────────────────────────────────────────────────────────
+
+model AiAnalysisCache {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  reportId        String   @unique @map("report_id") @db.Uuid
+  suggestedCategory Int?   @map("suggested_category")
+  dangerLevel     Int?     @map("danger_level")
+  priorityScore   Int?     @map("priority_score")
+  isDuplicate     Boolean  @default(false) @map("is_duplicate")
+  duplicateOfId   String?  @map("duplicate_of_id") @db.Uuid
+  isHoax          Boolean  @default(false) @map("is_hoax")
+  hoaxConfidence  Float?   @map("hoax_confidence")
+  impactSummary   String?  @map("impact_summary") @db.Text
+  budgetEstimate  BigInt?  @map("budget_estimate")
+  analysedAt      DateTime @default(now()) @map("analysed_at")
+
+  report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@map("ai_analysis_cache")
+}
+
+// ─────────────────────────────────────────────────────────
+// AUDIT LOG (immutable, append-only)
+// ─────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  actorId    String?  @map("actor_id") @db.Uuid
+  action     String   @db.VarChar(100)   // e.g. "report.verify", "report.assign"
+  targetType String   @map("target_type") @db.VarChar(50)  // "report", "user", etc.
+  targetId   String   @map("target_id") @db.Uuid
+  metadata   Json?                        // extra context as JSON
+  ipAddress  String?  @map("ip_address") @db.VarChar(45)
+  userAgent  String?  @map("user_agent") @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([actorId])
+  @@index([targetType, targetId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
