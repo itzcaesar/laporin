@@ -11,11 +11,12 @@ import { Button } from "@/components/ui/Button";
 import type { NavLink } from "@/types";
 
 const NAV_LINKS: NavLink[] = [
-  { label: "Cara Kerja", href: "#cara-kerja" },
-  { label: "Fitur", href: "#fitur" },
-  { label: "Kategori", href: "#kategori" },
-  { label: "Statistik", href: "#statistik" },
-  { label: "Testimoni", href: "#testimoni" },
+  { label: "Cara Kerja", href: "/#cara-kerja" },
+  { label: "Fitur", href: "/#fitur" },
+  { label: "Kategori", href: "/#kategori" },
+  { label: "Statistik", href: "/#statistik" },
+  { label: "Testimoni", href: "/#testimoni" },
+  { label: "Tentang", href: "/tentang" },
 ] as const;
 
 export function Navbar() {
@@ -83,7 +84,7 @@ export function Navbar() {
           <Button
             variant={isWhiteNav ? "ghost" : "outline-white"}
             size="sm"
-            href="#masuk"
+            href="/#masuk"
           >
             Masuk
           </Button>
@@ -131,7 +132,7 @@ export function Navbar() {
             ))}
           </div>
           <div className="mt-4 flex flex-col gap-3">
-            <Button variant="outline-white" size="md" href="#masuk" className="w-full">
+            <Button variant="outline-white" size="md" href="/#masuk" className="w-full">
               Masuk
             </Button>
             <Button

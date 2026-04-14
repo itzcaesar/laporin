@@ -211,18 +211,20 @@ export function ReportForm() {
     <div className="min-h-screen bg-surface">
       {/* ── Top Bar ── */}
       <header className="sticky top-0 z-50 border-b border-gray-100 bg-white/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4 sm:px-6">
+        <div className="relative mx-auto flex h-16 max-w-3xl items-center justify-between px-4 sm:px-6">
           <Link
             href="/"
-            className="flex items-center gap-2 text-sm font-semibold text-muted transition-colors hover:text-navy"
+            className="flex items-center gap-2 text-sm font-semibold text-muted transition-colors hover:text-navy z-10"
           >
             <ArrowLeft size={18} />
             <span className="hidden sm:inline">Kembali</span>
           </Link>
-          <h1 className="font-display text-base font-bold text-navy sm:text-lg">
-            📝 Buat Laporan
-          </h1>
-          <div className="w-16" /> {/* spacer */}
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+            <h1 className="whitespace-nowrap font-display text-base font-bold text-navy sm:text-lg">
+              📝 Buat Laporan
+            </h1>
+          </div>
+          <div className="w-10 sm:w-20" /> {/* dummy spacer for flex alignment */}
         </div>
       </header>
 
@@ -675,7 +677,7 @@ export function ReportForm() {
       </div>
 
       {/* ── Bottom Navigation ── */}
-      <div className="sticky bottom-0 z-40 border-t border-gray-100 bg-white/90 backdrop-blur-xl">
+      <div className="sticky bottom-0 z-40 border-t border-gray-100 bg-white/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4">
           {step > 0 ? (
             <button
