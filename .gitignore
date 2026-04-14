@@ -25,11 +25,13 @@ test-results/
 # ⚡ Next.js & Framework Builds
 # =========================================
 .next/
+.turbo/
 out/
 dist/
 build/
 .cache/
 .parcel-cache/
+
 
 # =========================================
 # 🚀 Production / Deployment
@@ -67,6 +69,8 @@ lerna-debug.log*
 # =========================================
 .vscode/
 .idea/
+.documents/
+.kiro/
 *.swp
 *.swo
 *.swn
