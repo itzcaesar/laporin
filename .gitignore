@@ -69,7 +69,7 @@ lerna-debug.log*
 # =========================================
 .vscode/
 .idea/
-.documents/
+.docs/
 .kiro/
 *.swp
 *.swo
