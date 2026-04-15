@@ -1,7 +1,6 @@
 // ── components/sections/Hero.tsx ──
 "use client";
 
-import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { MapPin, CheckCircle, Clock, AlertTriangle, ChevronDown, Heart, MessageCircle, Send } from "lucide-react";
@@ -14,25 +13,8 @@ const HERO_STATS = [
 ] as const;
 
 export function Hero() {
-  const sectionRef = useRef<HTMLElement>(null);
-
-  useEffect(() => {
-    const section = sectionRef.current;
-    if (!section) return;
-
-    const items = section.querySelectorAll(".stagger-item");
-    items.forEach((item, index) => {
-      setTimeout(() => {
-        item.classList.add("is-visible");
-      }, index * 100);
-    });
-
-    return () => { };
-  }, []);
-
   return (
     <section
-      ref={sectionRef}
       id="hero"
       className="relative flex min-h-[100dvh] items-center overflow-hidden bg-gradient-to-br from-navy via-navy to-blue sm:min-h-screen"
     >

@@ -30,7 +30,7 @@ async function testEmail() {
       },
     })
 
-    const testEmail = 'elsherlus@gmail.com'
+    const testEmail = 'cantikaismaya@gmail.com'
     const trackingCode = `LP-2026-TEST-${Date.now().toString().slice(-5)}`
 
     const htmlContent = `
@@ -158,7 +158,7 @@ async function testWhatsApp() {
       return false
     }
 
-    const testPhone = '081219713472'
+    const testPhone = '085155476885'
     const trackingCode = `LP-2026-TEST-${Date.now().toString().slice(-5)}`
 
     const message = `✅ *Test Notification - Laporin*

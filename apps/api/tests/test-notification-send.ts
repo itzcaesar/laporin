@@ -29,14 +29,14 @@ async function testNotification() {
     console.log('\n1. Setting up test user...')
     
     let testUser = await db.user.findUnique({
-      where: { email: 'elsherlus@gmail.com' },
+      where: { email: 'cantikaismaya@gmail.com' },
     })
 
     if (!testUser) {
       console.log('Creating test user...')
       testUser = await db.user.create({
         data: {
-          email: 'elsherlus@gmail.com',
+          email: 'cantikaismaya@gmail.com',
           name: 'Test User',
           passwordHash: 'dummy-hash-for-testing',
           phone: '082144562841',
@@ -48,10 +48,10 @@ async function testNotification() {
       console.log(`✓ Test user created: ${testUser.id}`)
     } else {
       // Update phone if needed
-      if (testUser.phone !== '082144562841') {
+      if (testUser.phone !== '085155476885') {
         testUser = await db.user.update({
           where: { id: testUser.id },
-          data: { phone: '082144562841' },
+          data: { phone: '085155476885' },
         })
       }
       console.log(`✓ Test user found: ${testUser.id}`)
@@ -132,7 +132,7 @@ async function testNotification() {
     console.log('\n✅ Test completed!')
     console.log('\nCheck:')
     console.log(`   📧 Email: elsherlus@gmail.com`)
-    console.log(`   📱 WhatsApp: 082144562841`)
+    console.log(`   📱 WhatsApp: 085155476885`)
     console.log(`   🔗 Report: ${testReport.trackingCode}`)
 
     // Cleanup

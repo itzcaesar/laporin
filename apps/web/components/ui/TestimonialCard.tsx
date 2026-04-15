@@ -1,9 +1,10 @@
 // ── components/ui/TestimonialCard.tsx ──
+import { memo } from "react";
 import { cn } from "@/lib/utils";
 import { Star } from "lucide-react";
 import type { TestimonialCardProps } from "@/types";
 
-export function TestimonialCard({
+export const TestimonialCard = memo(function TestimonialCard({
   testimonial,
   className,
 }: TestimonialCardProps) {
@@ -58,4 +59,4 @@ export function TestimonialCard({
       </div>
     </div>
   );
-}
+});

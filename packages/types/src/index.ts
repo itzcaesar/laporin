@@ -178,3 +178,123 @@ export interface BadgeProps {
   children: React.ReactNode;
   className?: string;
 }
+
+// ── Dashboard Types ─────────────────────────────────────────────────────
+
+export interface User {
+  id: string;
+  name: string | null;
+  email: string;
+  role: "citizen" | "officer" | "admin" | "super_admin";
+  agencyId: string | null;
+  nip: string | null;
+}
+
+export interface Report {
+  id: string;
+  trackingCode: string;
+  title: string;
+  locationAddress: string;
+  status: ReportStatus;
+  priority: "low" | "medium" | "high" | "urgent";
+  dangerLevel: number;
+  upvoteCount: number;
+  commentCount: number;
+  categoryId: number;
+  categoryName: string;
+  categoryEmoji: string;
+  picName: string | null;
+  picNip: string | null;
+  estimatedEnd: string | null;
+  budgetIdr: number | null;
+  isAnonymous: boolean;
+  reporterId: string | null;
+  agencyId: string | null;
+  thumbnailUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReportDetail extends Report {
+  description: string;
+  aiSummary: string | null;
+  locationLat: number;
+  locationLng: number;
+  estimatedStart: string | null;
+  completedAt: string | null;
+  media: MediaItem[];
+  statusHistory: StatusHistoryItem[];
+  comments: Comment[];
+  aiAnalysis: AiAnalysis | null;
+  hasVoted: boolean;
+  hasBookmarked: boolean;
+}
+
+export interface MediaItem {
+  id: string;
+  mediaType: "photo" | "video" | "progress_photo" | "completion_photo";
+  fileUrl: string;
+  createdAt: string;
+}
+
+export interface StatusHistoryItem {
+  id: string;
+  oldStatus: ReportStatus;
+  newStatus: ReportStatus;
+  note: string;
+  officerNip: string | null;
+  changedBy: string | null;
+  createdAt: string;
+}
+
+export interface Comment {
+  id: string;
+  content: string;
+  authorName: string | null;
+  isGovernment: boolean;
+  upvoteCount: number;
+  replies: Comment[];
+  createdAt: string;
+}
+
+export interface AiAnalysis {
+  suggestedCategory: number | null;
+  dangerLevel: number | null;
+  isHoax: boolean;
+  hoaxConfidence: number | null;
+  impactSummary: string | null;
+  budgetEstimate: number | null;
+}
+
+export interface ListReportsMeta {
+  total: number;
+  page: number;
+  limit: number;
+  pages: number;
+}
+
+export interface Notification {
+  id: string;
+  title: string;
+  body: string;
+  isRead: boolean;
+  reportId: string | null;
+  createdAt: string;
+}
+
+export interface DashboardStats {
+  totalReports: number;
+  newToday: number;
+  slaBreached: number;
+  avgResolutionDays: number;
+  satisfactionAvg: number;
+  recentReports: Array<{
+    id: string;
+    trackingCode: string;
+    status: string;
+    categoryName: string;
+    locationAddress: string;
+    createdAt: string;
+  }>;
+  aiInsight: string;
+}

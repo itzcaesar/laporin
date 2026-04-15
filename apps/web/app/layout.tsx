@@ -1,6 +1,8 @@
 // ── app/layout.tsx ──
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, DM_Sans } from "next/font/google";
+import { AuthProvider } from "@/hooks/useAuth";
+import { ToastProvider } from "@/components/dashboard/shared/ToastProvider";
 import "./globals.css";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -64,7 +66,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id" className={`${jakarta.variable} ${dmSans.variable}`}>
-      <body className="font-body antialiased">{children}</body>
+      <body className="font-body antialiased">
+        <AuthProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </AuthProvider>
+      </body>
     </html>
   );
 }
+

@@ -1,8 +1,9 @@
 // ── components/ui/CategoryChip.tsx ──
+import { memo } from "react";
 import { cn } from "@/lib/utils";
 import type { CategoryChipProps } from "@/types";
 
-export function CategoryChip({ category, className }: CategoryChipProps) {
+export const CategoryChip = memo(function CategoryChip({ category, className }: CategoryChipProps) {
   return (
     <div
       className={cn(
@@ -18,4 +19,4 @@ export function CategoryChip({ category, className }: CategoryChipProps) {
       <span className="leading-tight">{category.name}</span>
     </div>
   );
-}
+});

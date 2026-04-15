@@ -1,6 +1,4 @@
 /* ── app/globals.css ── */
-@import "leaflet/dist/leaflet.css";
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -48,6 +46,41 @@
   --color-status-urgent: #DC2626;
 }
 
+/* ── Performance Optimizations ── */
+.reveal,
+.stagger-item,
+.fade-in-up {
+  will-change: opacity, transform;
+}
+
+.reveal.is-visible,
+.stagger-item.is-visible {
+  will-change: auto;
+}
+
+/* ── Stagger Animation (CSS-based for better performance) ── */
+.stagger-item {
+  opacity: 0;
+  transform: translateY(24px);
+  animation: fade-in-up 0.6s ease-out forwards;
+}
+
+.stagger-item:nth-child(1) { animation-delay: 0ms; }
+.stagger-item:nth-child(2) { animation-delay: 100ms; }
+.stagger-item:nth-child(3) { animation-delay: 200ms; }
+.stagger-item:nth-child(4) { animation-delay: 300ms; }
+.stagger-item:nth-child(5) { animation-delay: 400ms; }
+.stagger-item:nth-child(6) { animation-delay: 500ms; }
+.stagger-item:nth-child(7) { animation-delay: 600ms; }
+.stagger-item:nth-child(8) { animation-delay: 700ms; }
+
+@keyframes fade-in-up {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* ── Base ── */
 html {
   scroll-behavior: smooth;
@@ -83,6 +116,24 @@ body {
 
   .section-sub {
     @apply mt-3 max-w-2xl font-body text-sm leading-relaxed text-muted sm:mt-4 sm:text-base md:text-lg;
+  }
+
+  /* Dashboard page wrapper (accounts for sidebar) */
+  .dashboard-page {
+    @apply p-4 md:p-6 lg:p-8;
+  }
+
+  /* Input base */
+  .input-base {
+    @apply w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5
+           text-sm font-body text-ink placeholder:text-muted
+           focus:outline-none focus:ring-2 focus:ring-blue focus:border-transparent
+           transition-all duration-200;
+  }
+
+  /* Table row hover */
+  .table-row-hover {
+    @apply hover:bg-blue-light/50 cursor-pointer transition-colors duration-150;
   }
 }
 

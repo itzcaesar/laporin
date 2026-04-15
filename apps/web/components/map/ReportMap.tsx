@@ -1,7 +1,8 @@
 // ── components/map/ReportMap.tsx ──
 "use client";
 
-import { useEffect, useState } from "react";
+import "leaflet/dist/leaflet.css";
+import { useEffect, useState, useMemo, memo } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -16,10 +17,17 @@ import { ReportDetailModal } from "@/components/map/ReportDetailModal";
 import { X, ThumbsUp, ThumbsDown } from "lucide-react";
 import type { MockReport, ReportStatusMap } from "@/types/report";
 
-// ── Custom marker icon factory ──
+// ── Marker icon cache for performance ──
+const markerIconCache = new Map<ReportStatusMap, L.DivIcon>();
+
+// ── Custom marker icon factory (cached) ──
 function createMarkerIcon(status: ReportStatusMap): L.DivIcon {
+  if (markerIconCache.has(status)) {
+    return markerIconCache.get(status)!;
+  }
+
   const config = STATUS_CONFIG[status];
-  return L.divIcon({
+  const icon = L.divIcon({
     className: "custom-marker",
     html: `
       <div style="
@@ -43,21 +51,25 @@ function createMarkerIcon(status: ReportStatusMap): L.DivIcon {
     iconAnchor: [16, 32],
     popupAnchor: [0, -32],
   });
+
+  markerIconCache.set(status, icon);
+  return icon;
 }
 
-// ── Fit bounds component ──
-function FitBounds({ reports }: { reports: MockReport[] }) {
+// ── Fit bounds component (memoized) ──
+const FitBounds = memo(function FitBounds({ reports }: { reports: MockReport[] }) {
   const map = useMap();
+  
   useEffect(() => {
     if (reports.length === 0) return;
     const bounds = L.latLngBounds(
       reports.map((r) => [r.lat, r.lng] as [number, number])
     );
     map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
-    return () => {};
   }, [map, reports]);
+  
   return null;
-}
+});
 
 // ── Status filter type ──
 type FilterStatus = "semua" | ReportStatusMap;
@@ -72,8 +84,8 @@ const FILTER_OPTIONS: { value: FilterStatus; label: string; emoji: string }[] = 
   { value: "terverifikasi", label: "Terverifikasi", emoji: "✅" },
 ] as const;
 
-// ── Report card in sidebar ──
-function ReportCard({
+// ── Report card in sidebar (memoized) ──
+const ReportCard = memo(function ReportCard({
   report,
   isSelected,
   onClick,

@@ -1,8 +1,9 @@
 // ── components/ui/FeatureCard.tsx ──
+import { memo } from "react";
 import { cn } from "@/lib/utils";
 import type { FeatureCardProps } from "@/types";
 
-export function FeatureCard({ feature, className }: FeatureCardProps) {
+export const FeatureCard = memo(function FeatureCard({ feature, className }: FeatureCardProps) {
   return (
     <div
       className={cn(
@@ -37,4 +38,4 @@ export function FeatureCard({ feature, className }: FeatureCardProps) {
       </div>
     </div>
   );
-}
+});
