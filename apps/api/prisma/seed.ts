@@ -3,6 +3,7 @@
 // Run with: pnpm --filter @laporin/api db:seed
 
 import { PrismaClient, Priority } from '@prisma/client'
+import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
@@ -43,6 +44,112 @@ const DEFAULT_SLA_RULES = [
 
 async function main() {
   console.log('🌱 Starting database seed...\n')
+
+  // Seed test users
+  console.log('👤 Seeding test users...')
+  
+  const passwordHash = await bcrypt.hash('password123', 10)
+  
+  // Citizen user
+  const citizenUser = await prisma.user.upsert({
+    where: { email: 'citizen@laporin.com' },
+    update: {
+      name: 'Test Citizen',
+      passwordHash,
+      role: 'citizen',
+      isActive: true,
+      isVerified: true,
+    },
+    create: {
+      email: 'citizen@laporin.com',
+      name: 'Test Citizen',
+      passwordHash,
+      role: 'citizen',
+      isActive: true,
+      isVerified: true,
+    },
+  })
+  console.log(`✅ Created citizen user: ${citizenUser.email}`)
+
+  // Create a test agency first for government users
+  const testAgency = await prisma.agency.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000001' },
+    update: {
+      name: 'Dinas Pekerjaan Umum Kota Bandung',
+      shortName: 'Dinas PU',
+      regionCode: '3273',
+      regionName: 'Kota Bandung',
+      email: 'pu@bandung.go.id',
+      phone: '022-1234567',
+      isActive: true,
+    },
+    create: {
+      id: '00000000-0000-0000-0000-000000000001',
+      name: 'Dinas Pekerjaan Umum Kota Bandung',
+      shortName: 'Dinas PU',
+      regionCode: '3273',
+      regionName: 'Kota Bandung',
+      email: 'pu@bandung.go.id',
+      phone: '022-1234567',
+      isActive: true,
+    },
+  })
+  console.log(`✅ Created test agency: ${testAgency.shortName}`)
+
+  // Government officer user
+  const officerUser = await prisma.user.upsert({
+    where: { email: 'officer@laporin.com' },
+    update: {
+      name: 'Test Officer',
+      passwordHash,
+      role: 'officer',
+      agencyId: testAgency.id,
+      nip: '198501012010011001',
+      isActive: true,
+      isVerified: true,
+    },
+    create: {
+      email: 'officer@laporin.com',
+      name: 'Test Officer',
+      passwordHash,
+      role: 'officer',
+      agencyId: testAgency.id,
+      nip: '198501012010011001',
+      isActive: true,
+      isVerified: true,
+    },
+  })
+  console.log(`✅ Created officer user: ${officerUser.email}`)
+
+  // Government admin user
+  const adminUser = await prisma.user.upsert({
+    where: { email: 'admin@laporin.com' },
+    update: {
+      name: 'Test Admin',
+      passwordHash,
+      role: 'admin',
+      agencyId: testAgency.id,
+      nip: '198001012005011001',
+      isActive: true,
+      isVerified: true,
+    },
+    create: {
+      email: 'admin@laporin.com',
+      name: 'Test Admin',
+      passwordHash,
+      role: 'admin',
+      agencyId: testAgency.id,
+      nip: '198001012005011001',
+      isActive: true,
+      isVerified: true,
+    },
+  })
+  console.log(`✅ Created admin user: ${adminUser.email}\n`)
+
+  console.log('📝 Test user credentials:')
+  console.log('  Citizen: citizen@laporin.com / password123')
+  console.log('  Officer: officer@laporin.com / password123')
+  console.log('  Admin:   admin@laporin.com / password123\n')
 
   // Seed categories
   console.log('📦 Seeding categories...')

@@ -152,7 +152,7 @@ const ReportCard = memo(function ReportCard({
       </div>
     </button>
   );
-}
+});
 
 // ── Skeleton card for loading state ──
 function SkeletonCard() {
@@ -534,7 +534,7 @@ export function ReportMap() {
         </button>
 
         {/* Legend */}
-        <div className="absolute bottom-6 right-3 z-[1000] rounded-xl bg-white p-3 shadow-lg">
+        <div className="absolute bottom-24 md:bottom-6 right-3 z-[1000] rounded-xl bg-white p-3 shadow-lg">
           <p className="mb-2 font-display text-[10px] font-bold uppercase tracking-wider text-navy">
             Status Laporan
           </p>

@@ -1,7 +1,8 @@
 // ── components/map/ReportDetailModal.tsx ──
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { STATUS_CONFIG } from "@/data/mock-reports";
 import type { MockReport } from "@/types/report";
@@ -60,6 +61,16 @@ export function ReportDetailModal({ report, onClose }: ReportDetailModalProps) {
   const [downvoteCount, setDownvoteCount] = useState(report.downvotes);
   const [commentText, setCommentText] = useState("");
   const [localComments, setLocalComments] = useState(report.mockComments);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    // Prevent body scroll when modal is open
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, []);
 
   const handleUpvote = () => {
     if (userVote === "up") {
@@ -94,18 +105,20 @@ export function ReportDetailModal({ report, onClose }: ReportDetailModalProps) {
 
   const netVotes = upvoteCount - downvoteCount;
 
-  return (
+  if (!mounted) return null;
+
+  const modalContent = (
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-[2000] bg-black/60 backdrop-blur-sm transition-opacity duration-300"
+        className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm transition-opacity duration-300"
         onClick={onClose}
       />
 
       {/* Modal Container */}
-      <div className="fixed inset-0 z-[2001] flex items-center justify-center p-4 sm:p-6">
+      <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 sm:p-6">
         <div
-          className="relative flex w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl max-h-[90vh] sm:max-h-[85vh]"
+          className="relative flex w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl max-h-[90vh] sm:max-h-[85vh] mx-auto"
           onClick={(e) => e.stopPropagation()}
         >
           {/* ═══ Header ═══ */}
@@ -379,4 +392,6 @@ export function ReportDetailModal({ report, onClose }: ReportDetailModalProps) {
       </div>
     </>
   );
+
+  return createPortal(modalContent, document.body);
 }

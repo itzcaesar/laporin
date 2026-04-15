@@ -84,7 +84,7 @@ export function Navbar() {
           <Button
             variant={isWhiteNav ? "ghost" : "outline-white"}
             size="sm"
-            href="/#masuk"
+            href="/login"
           >
             Masuk
           </Button>
@@ -132,7 +132,7 @@ export function Navbar() {
             ))}
           </div>
           <div className="mt-4 flex flex-col gap-3">
-            <Button variant="outline-white" size="md" href="/#masuk" className="w-full">
+            <Button variant="outline-white" size="md" href="/login" className="w-full">
               Masuk
             </Button>
             <Button
