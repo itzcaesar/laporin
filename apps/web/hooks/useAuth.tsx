@@ -10,6 +10,7 @@ import {
   useContext,
   useCallback,
 } from "react";
+import { usePathname } from "next/navigation";
 import { api } from "@/lib/api-client";
 import type { User } from "@/types";
 
@@ -25,25 +26,47 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setLoading] = useState(true);
+  const pathname = usePathname();
+
+  // Check if we're on an auth page
+  const isAuthPage = pathname?.startsWith("/login") || pathname?.startsWith("/register");
 
   useEffect(() => {
+    // Skip auth check on auth pages
+    if (isAuthPage) {
+      setLoading(false);
+      return;
+      
+    }
+
+    // Only fetch user if we have a token
+    const hasToken = document.cookie.includes("laporin_token=");
+    if (!hasToken) {
+      setLoading(false);
+      return;
+    }
+
     api
-      .get<{ data: User }>("/user/me")
+      .get<{ data: User }>("/auth/me")
       .then((res) => setUser(res.data))
-      .catch(() => setUser(null))
+      .catch(() => {
+        setUser(null);
+        // Clear invalid tokens
+        api.clearTokens();
+      })
       .finally(() => setLoading(false));
-  }, []);
+  }, [isAuthPage]);
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await api.post<{
-      data: { accessToken: string; role: string; user: User };
+      data: { accessToken: string; refreshToken: string; user: User };
     }>("/auth/login", { email, password }, { skipAuth: true });
-    api.setTokens(res.data.accessToken, res.data.role);
+    api.setTokens(res.data.accessToken, res.data.user.role);
     setUser(res.data.user);
   }, []);
 
   const logout = useCallback(async () => {
-    await api.post("/auth/logout", {}).catch(() => {});
+    // Clear tokens locally (we don't have refresh token to send to API)
     api.clearTokens();
     setUser(null);
     window.location.href = "/login";

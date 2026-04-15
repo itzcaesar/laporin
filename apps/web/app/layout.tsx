@@ -65,7 +65,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="id" className={`${jakarta.variable} ${dmSans.variable}`}>
+    <html
+      lang="id"
+      className={`${jakarta.variable} ${dmSans.variable}`}
+      data-scroll-behavior="smooth"
+    >
       <body className="font-body antialiased">
         <AuthProvider>
           <ToastProvider>{children}</ToastProvider>

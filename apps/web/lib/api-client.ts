@@ -52,7 +52,12 @@ async function request<T>(
       return request<T>(path, options); // retry once
     }
     clearTokens();
-    window.location.href = "/login";
+    // Only redirect if not already on auth pages
+    if (typeof window !== 'undefined' && 
+        !window.location.pathname.startsWith('/login') && 
+        !window.location.pathname.startsWith('/register')) {
+      window.location.href = "/login";
+    }
     throw new Error("Session expired");
   }
 
