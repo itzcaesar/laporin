@@ -28,9 +28,6 @@ const nextConfig: NextConfig = {
     removeConsole: process.env.NODE_ENV === 'production',
   },
 
-  // Enable SWC minification
-  swcMinify: true,
-
   // Optimize production builds
   productionBrowserSourceMaps: false,
 
