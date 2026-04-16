@@ -188,14 +188,14 @@ export function ReportForm() {
           </p>
           <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center sm:gap-4">
             <Link
-              href="/"
+              href="/citizen"
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-6 py-3 font-display font-semibold text-navy shadow-lg transition-all hover:bg-white/90 sm:w-auto"
             >
               <ArrowLeft size={18} />
               Kembali ke Beranda
             </Link>
             <Link
-              href="/peta"
+              href="/citizen/map"
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl border-2 border-white/30 px-6 py-3 font-display font-semibold text-white transition-all hover:bg-white/10 sm:w-auto"
             >
               <MapPin size={18} />
@@ -211,9 +211,9 @@ export function ReportForm() {
     <div className="min-h-screen bg-surface">
       {/* ── Top Bar ── */}
       <header className="sticky top-0 z-50 border-b border-gray-100 bg-white/80 backdrop-blur-xl">
-        <div className="relative mx-auto flex h-16 max-w-3xl items-center justify-between px-4 sm:px-6">
+        <div className="relative mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link
-            href="/"
+            href="/citizen/my-reports"
             className="flex items-center gap-2 text-sm font-semibold text-muted transition-colors hover:text-navy z-10"
           >
             <ArrowLeft size={18} />
@@ -230,7 +230,7 @@ export function ReportForm() {
 
       {/* ── Progress bar ── */}
       <div className="border-b border-gray-100 bg-white">
-        <div className="mx-auto max-w-3xl px-4 py-4 sm:px-6 sm:py-5">
+        <div className="mx-auto max-w-5xl px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
           <div className="flex items-center justify-between gap-1">
             {STEPS.map((s, i) => {
               const Icon = s.icon;
@@ -284,7 +284,7 @@ export function ReportForm() {
       </div>
 
       {/* ── Form Content ── */}
-      <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
+      <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         <div
           className={`transition-all duration-200 ${
             isAnimating
@@ -305,7 +305,7 @@ export function ReportForm() {
                   Pilih jenis kerusakan infrastruktur yang ingin Anda laporkan
                 </p>
               </div>
-              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4">
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                 {CATEGORIES.map((cat) => {
                   const isSelected = formData.category === cat.id;
                   return (
