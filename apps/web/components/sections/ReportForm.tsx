@@ -209,24 +209,15 @@ export function ReportForm() {
 
   return (
     <div className="min-h-screen bg-surface">
-      {/* ── Top Bar ── */}
-      <header className="sticky top-0 z-50 border-b border-gray-100 bg-white/80 backdrop-blur-xl">
-        <div className="relative flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link
-            href="/citizen"
-            className="flex items-center gap-2 text-sm font-semibold text-muted transition-colors hover:text-navy z-10"
-          >
-            <ArrowLeft size={18} />
-            <span className="hidden sm:inline">Kembali</span>
-          </Link>
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-            <h1 className="whitespace-nowrap font-display text-base font-bold text-navy sm:text-lg">
-              📝 Buat Laporan
-            </h1>
-          </div>
-          <div className="w-10 sm:w-20" /> {/* dummy spacer for flex alignment */}
-        </div>
-      </header>
+      {/* Page Title */}
+      <div className="bg-white border-b border-gray-100 px-4 py-4 sm:px-6 lg:px-8">
+        <h1 className="font-display text-xl font-bold text-navy sm:text-2xl">
+          📝 Buat Laporan Baru
+        </h1>
+        <p className="text-sm text-muted mt-1">
+          Laporkan kerusakan infrastruktur di area kamu
+        </p>
+      </div>
 
       {/* ── Progress bar ── */}
       <div className="border-b border-gray-100 bg-white">
