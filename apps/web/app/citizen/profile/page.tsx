@@ -4,6 +4,7 @@
 "use client";
 
 import { useAuth } from "@/hooks/useAuth";
+import { MOCK_REPORTS } from "@/data/mock-reports";
 import { User, Mail, Phone, MapPin, Calendar, LogOut, FileText, Bookmark } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useRouter } from "next/navigation";
@@ -13,12 +14,17 @@ export default function ProfilePage() {
   const { user, logout } = useAuth();
   const router = useRouter();
 
-  // Mock stats - replace with actual data
+  // Calculate stats from mock data (first 5 reports are "mine")
+  const myReports = MOCK_REPORTS.slice(0, 5);
   const stats = {
-    totalReports: 12,
-    activeReports: 5,
-    completedReports: 7,
-    bookmarks: 3,
+    totalReports: myReports.length,
+    activeReports: myReports.filter(
+      (r) => r.status === "baru" || r.status === "diverifikasi" || r.status === "diproses"
+    ).length,
+    completedReports: myReports.filter(
+      (r) => r.status === "selesai" || r.status === "terverifikasi"
+    ).length,
+    bookmarks: 4, // Reports 5-8 are bookmarked
   };
 
   return (

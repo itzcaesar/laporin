@@ -3,109 +3,57 @@
 
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { useReports } from "@/hooks/useReports";
+import { useState, useMemo } from "react";
+import { MOCK_REPORTS } from "@/data/mock-reports";
+import { mockToReport } from "@/lib/mock-adapter";
 import { FilterChips } from "@/components/dashboard/shared/FilterChips";
-import { LoadingSkeleton } from "@/components/dashboard/shared/LoadingSkeleton";
 import { EmptyState } from "@/components/dashboard/shared/EmptyState";
 import { ReportCard } from "@/components/dashboard/citizen/ReportCard";
 import { Search, FileText } from "lucide-react";
-import { useRouter } from "next/navigation";
 
 const FILTER_OPTIONS = [
   { label: "Semua", value: "all" },
-  { label: "Terdekat", value: "nearby" },
-  { label: "Laporan Saya", value: "mine" },
-  { label: "Baru", value: "new" },
-  { label: "Diproses", value: "in_progress" },
-  { label: "Selesai", value: "completed" },
+  { label: "Baru", value: "baru" },
+  { label: "Diverifikasi", value: "diverifikasi" },
+  { label: "Diproses", value: "diproses" },
+  { label: "Selesai", value: "selesai" },
+  { label: "Terverifikasi", value: "terverifikasi" },
 ];
 
 export default function CitizenHomePage() {
-  const router = useRouter();
   const [activeFilter, setActiveFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [page, setPage] = useState(1);
-  const [allReports, setAllReports] = useState<any[]>([]);
-  const observerTarget = useRef<HTMLDivElement>(null);
 
-  // Build query params based on active filter
-  const getQueryParams = () => {
-    const params: any = { page, limit: 20 };
+  // Filter reports based on active filter and search query
+  const filteredReports = useMemo(() => {
+    let reports = [...MOCK_REPORTS];
 
-    if (searchQuery) {
-      params.search = searchQuery;
+    // Filter by status
+    if (activeFilter !== "all") {
+      reports = reports.filter((r) => r.status === activeFilter);
     }
 
-    switch (activeFilter) {
-      case "mine":
-        // This would need user ID from auth context
-        // For now, we'll just filter on frontend or add a flag
-        break;
-      case "new":
-        params.status = "new";
-        break;
-      case "in_progress":
-        params.status = "in_progress";
-        break;
-      case "completed":
-        params.status = "completed";
-        break;
-      case "nearby":
-        // Would need geolocation - skip for now
-        break;
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      reports = reports.filter(
+        (r) =>
+          r.title.toLowerCase().includes(query) ||
+          r.description.toLowerCase().includes(query) ||
+          r.location.toLowerCase().includes(query) ||
+          r.category.toLowerCase().includes(query)
+      );
     }
 
-    return params;
-  };
-
-  const { reports, meta, isLoading, error } = useReports(getQueryParams());
-
-  // Append new reports when page changes
-  useEffect(() => {
-    if (reports.length > 0) {
-      if (page === 1) {
-        setAllReports(reports);
-      } else {
-        setAllReports((prev) => [...prev, ...reports]);
-      }
-    }
-  }, [reports, page]);
-
-  // Reset to page 1 when filter or search changes
-  useEffect(() => {
-    setPage(1);
-    setAllReports([]);
+    // Convert to Report format
+    return reports.map(mockToReport);
   }, [activeFilter, searchQuery]);
-
-  // Infinite scroll observer
-  const handleObserver = useCallback(
-    (entries: IntersectionObserverEntry[]) => {
-      const [target] = entries;
-      if (target.isIntersecting && !isLoading && meta && page < meta.pages) {
-        setPage((prev) => prev + 1);
-      }
-    },
-    [isLoading, meta, page]
-  );
-
-  useEffect(() => {
-    const element = observerTarget.current;
-    if (!element) return;
-
-    const observer = new IntersectionObserver(handleObserver, {
-      threshold: 0.5,
-    });
-
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [handleObserver]);
 
   const handleFilterChange = (value: string) => {
     setActiveFilter(value);
   };
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
   };
 
@@ -146,68 +94,31 @@ export default function CitizenHomePage() {
         className="mb-6"
       />
 
-      {/* Error State */}
-      {error && (
-        <div className="card-base p-4 mb-4 bg-red-50 border-red-200">
-          <p className="text-sm font-body text-red-800">⚠️ {error}</p>
-        </div>
-      )}
-
-      {/* Loading State (first load) */}
-      {isLoading && page === 1 && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <LoadingSkeleton variant="report-card" count={6} />
-        </div>
-      )}
-
       {/* Empty State */}
-      {!isLoading && allReports.length === 0 && !error && (
+      {filteredReports.length === 0 && (
         <EmptyState
           icon={FileText}
-          title="Belum ada laporan"
+          title="Tidak ada laporan"
           description={
-            activeFilter === "mine"
-              ? "Kamu belum membuat laporan. Buat laporan pertamamu sekarang!"
-              : "Belum ada laporan yang sesuai dengan filter ini."
-          }
-          actionLabel={activeFilter === "mine" ? "Buat Laporan" : undefined}
-          onAction={
-            activeFilter === "mine"
-              ? () => router.push("/citizen/reports/new")
-              : undefined
+            searchQuery
+              ? `Tidak ada laporan yang cocok dengan "${searchQuery}"`
+              : "Tidak ada laporan dengan status ini."
           }
         />
       )}
 
       {/* Report List - Grid on Desktop, Stack on Mobile */}
-      {allReports.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {allReports.map((report) => (
-            <ReportCard key={report.id} report={report} />
-          ))}
-
-          {/* Infinite Scroll Trigger */}
-          <div ref={observerTarget} className="h-4 md:col-span-2 lg:col-span-3" />
-
-          {/* Loading More Indicator */}
-          {isLoading && page > 1 && (
-            <div className="flex justify-center py-4 md:col-span-2 lg:col-span-3">
-              <div className="flex items-center gap-2 text-sm font-body text-muted">
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted border-t-blue" />
-                <span>Memuat lebih banyak...</span>
-              </div>
-            </div>
-          )}
-
-          {/* End of List */}
-          {meta && page >= meta.pages && allReports.length > 0 && (
-            <div className="text-center py-4 md:col-span-2 lg:col-span-3">
-              <p className="text-sm font-body text-muted">
-                Semua laporan telah dimuat
-              </p>
-            </div>
-          )}
-        </div>
+      {filteredReports.length > 0 && (
+        <>
+          <div className="mb-4 text-sm text-muted">
+            Menampilkan {filteredReports.length} laporan
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {filteredReports.map((report) => (
+              <ReportCard key={report.id} report={report} />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

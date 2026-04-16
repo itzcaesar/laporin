@@ -3,10 +3,10 @@
 
 "use client";
 
-import { useState } from "react";
-import { useReports } from "@/hooks/useReports";
+import { useState, useMemo } from "react";
+import { MOCK_REPORTS } from "@/data/mock-reports";
+import { mockToReport } from "@/lib/mock-adapter";
 import { FilterChips } from "@/components/dashboard/shared/FilterChips";
-import { LoadingSkeleton } from "@/components/dashboard/shared/LoadingSkeleton";
 import { EmptyState } from "@/components/dashboard/shared/EmptyState";
 import { ReportCard } from "@/components/dashboard/citizen/ReportCard";
 import { FileText, Plus } from "lucide-react";
@@ -24,22 +24,33 @@ export default function MyReportsPage() {
   const router = useRouter();
   const [activeFilter, setActiveFilter] = useState("all");
 
-  // TODO: Add userId filter when auth context is available
-  const { reports, isLoading, error } = useReports({
-    // reporterId: user?.id, // Add this when auth is integrated
-  });
+  // For demo purposes, show first 5 reports as "my reports"
+  const myReports = MOCK_REPORTS.slice(0, 5);
 
   // Filter reports based on active filter
-  const filteredReports = reports.filter((report) => {
-    if (activeFilter === "all") return true;
-    if (activeFilter === "active")
-      return ["new", "verified", "in_progress"].includes(report.status);
-    if (activeFilter === "completed")
-      return ["completed", "verified_complete"].includes(report.status);
-    if (activeFilter === "rejected")
-      return ["rejected", "disputed", "closed"].includes(report.status);
-    return true;
-  });
+  const filteredReports = useMemo(() => {
+    let reports = [...myReports];
+
+    switch (activeFilter) {
+      case "active":
+        reports = reports.filter(
+          (r) => r.status === "baru" || r.status === "diverifikasi" || r.status === "diproses"
+        );
+        break;
+      case "completed":
+        reports = reports.filter(
+          (r) => r.status === "selesai" || r.status === "terverifikasi"
+        );
+        break;
+      case "rejected":
+        // No rejected reports in mock data
+        reports = [];
+        break;
+    }
+
+    // Convert to Report format
+    return reports.map(mockToReport);
+  }, [activeFilter, myReports]);
 
   return (
     <div className="dashboard-page max-w-4xl mx-auto">
@@ -71,38 +82,37 @@ export default function MyReportsPage() {
         className="mb-6"
       />
 
-      {/* Error State */}
-      {error && (
-        <div className="card-base p-4 mb-4 bg-red-50 border-red-200">
-          <p className="text-sm font-body text-red-800">⚠️ {error}</p>
-        </div>
-      )}
-
-      {/* Loading State */}
-      {isLoading && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <LoadingSkeleton variant="report-card" count={6} />
-        </div>
-      )}
-
       {/* Empty State */}
-      {!isLoading && filteredReports.length === 0 && !error && (
+      {filteredReports.length === 0 && (
         <EmptyState
           icon={FileText}
           title="Belum ada laporan"
-          description="Kamu belum membuat laporan. Buat laporan pertamamu sekarang!"
-          actionLabel="Buat Laporan"
-          onAction={() => router.push("/citizen/reports/new")}
+          description={
+            activeFilter === "all"
+              ? "Kamu belum membuat laporan. Buat laporan pertamamu sekarang!"
+              : `Tidak ada laporan dengan status "${FILTER_OPTIONS.find((f) => f.value === activeFilter)?.label}"`
+          }
+          actionLabel={activeFilter === "all" ? "Buat Laporan" : undefined}
+          onAction={
+            activeFilter === "all"
+              ? () => router.push("/citizen/reports/new")
+              : undefined
+          }
         />
       )}
 
       {/* Report List - Grid on Desktop */}
-      {!isLoading && filteredReports.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredReports.map((report) => (
-            <ReportCard key={report.id} report={report} />
-          ))}
-        </div>
+      {filteredReports.length > 0 && (
+        <>
+          <div className="mb-4 text-sm text-muted">
+            {filteredReports.length} laporan
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {filteredReports.map((report) => (
+              <ReportCard key={report.id} report={report} />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

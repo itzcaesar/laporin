@@ -3,20 +3,21 @@
 
 "use client";
 
-import { useState } from "react";
-import { LoadingSkeleton } from "@/components/dashboard/shared/LoadingSkeleton";
+import { useState, useMemo } from "react";
+import { MOCK_REPORTS } from "@/data/mock-reports";
+import { mockToReport } from "@/lib/mock-adapter";
 import { EmptyState } from "@/components/dashboard/shared/EmptyState";
 import { ReportCard } from "@/components/dashboard/citizen/ReportCard";
 import { Bookmark } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-// Mock bookmarked reports - replace with actual API call
-const MOCK_BOOKMARKS: any[] = [];
-
 export default function BookmarksPage() {
   const router = useRouter();
-  const [bookmarks] = useState(MOCK_BOOKMARKS);
-  const [isLoading] = useState(false);
+  
+  // For demo purposes, show reports 5-8 as bookmarked
+  const bookmarks = useMemo(() => {
+    return MOCK_REPORTS.slice(5, 9).map(mockToReport);
+  }, []);
 
   return (
     <div className="dashboard-page max-w-4xl mx-auto">
@@ -30,15 +31,8 @@ export default function BookmarksPage() {
         </p>
       </div>
 
-      {/* Loading State */}
-      {isLoading && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <LoadingSkeleton variant="report-card" count={6} />
-        </div>
-      )}
-
       {/* Empty State */}
-      {!isLoading && bookmarks.length === 0 && (
+      {bookmarks.length === 0 && (
         <EmptyState
           icon={Bookmark}
           title="Belum ada bookmark"
@@ -49,12 +43,17 @@ export default function BookmarksPage() {
       )}
 
       {/* Bookmark List - Grid on Desktop */}
-      {!isLoading && bookmarks.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {bookmarks.map((report) => (
-            <ReportCard key={report.id} report={report} />
-          ))}
-        </div>
+      {bookmarks.length > 0 && (
+        <>
+          <div className="mb-4 text-sm text-muted">
+            {bookmarks.length} laporan disimpan
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {bookmarks.map((report) => (
+              <ReportCard key={report.id} report={report} />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

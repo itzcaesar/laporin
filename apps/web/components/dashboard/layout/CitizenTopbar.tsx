@@ -125,8 +125,8 @@ export function CitizenTopbar() {
           </nav>
         </div>
 
-        {/* Center: Search (desktop only) */}
-        <div className="hidden flex-1 max-w-md mx-8 lg:block">
+        {/* Center: Search (desktop only) - Absolutely centered */}
+        <div className="absolute left-1/2 -translate-x-1/2 hidden lg:block w-full max-w-2xl px-4">
           <div className="relative">
             <Search
               className="absolute left-3 top-1/2 -translate-y-1/2 text-muted"
@@ -151,7 +151,7 @@ export function CitizenTopbar() {
             <button
               type="button"
               onClick={() => setIsNotificationOpen(!isNotificationOpen)}
-              className="relative flex items-center gap-1 h-10 px-2 rounded-lg text-muted hover:bg-surface hover:text-ink transition-colors min-h-[44px]"
+              className="relative flex items-center gap-1.5 h-10 px-2.5 rounded-lg text-muted hover:bg-surface hover:text-ink transition-colors min-h-[44px]"
               aria-label="Notifikasi"
             >
               <div className="relative">
@@ -179,6 +179,9 @@ export function CitizenTopbar() {
                   className="fixed inset-0 z-40 md:hidden"
                   onClick={() => setIsNotificationOpen(false)}
                 />
+
+                {/* Invisible bridge to prevent dropdown from closing */}
+                <div className="absolute right-0 top-full h-2 w-full" />
 
                 {/* Dropdown */}
                 <div 
@@ -287,18 +290,22 @@ export function CitizenTopbar() {
           </div>
 
           {/* Avatar dropdown */}
-          <div className="relative">
+          <div 
+            className="relative"
+            onMouseEnter={() => setIsDropdownOpen(true)}
+            onMouseLeave={() => setIsDropdownOpen(false)}
+          >
             <button
               type="button"
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface transition-colors min-h-[44px]"
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 hover:bg-surface transition-colors min-h-[44px]"
               aria-label="Menu pengguna"
             >
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-navy text-sm font-semibold text-white">
                 {user?.name?.charAt(0).toUpperCase() || "U"}
               </div>
               <ChevronDown
-                size={16}
+                size={14}
                 className={cn(
                   "text-muted transition-transform hidden sm:block",
                   isDropdownOpen && "rotate-180"
@@ -309,14 +316,21 @@ export function CitizenTopbar() {
             {/* Dropdown menu */}
             {isDropdownOpen && (
               <>
-                {/* Backdrop */}
+                {/* Backdrop - only on mobile */}
                 <div
-                  className="fixed inset-0 z-40"
+                  className="fixed inset-0 z-40 md:hidden"
                   onClick={() => setIsDropdownOpen(false)}
                 />
 
+                {/* Invisible bridge to prevent dropdown from closing */}
+                <div className="absolute right-0 top-full h-2 w-full" />
+
                 {/* Menu */}
-                <div className="absolute right-0 top-full mt-2 w-48 rounded-xl border border-border bg-white shadow-lg z-50">
+                <div 
+                  className="absolute right-0 top-full mt-0.5 w-48 rounded-xl border border-border bg-white shadow-lg z-50"
+                  onMouseEnter={() => setIsDropdownOpen(true)}
+                  onMouseLeave={() => setIsDropdownOpen(false)}
+                >
                   <div className="p-3 border-b border-border">
                     <p className="text-sm font-semibold text-ink truncate">
                       {user?.name || "Pengguna"}
