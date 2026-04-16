@@ -188,7 +188,7 @@ export function ReportForm() {
           </p>
           <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center sm:gap-4">
             <Link
-              href="/citizen"
+              href="/citizen/my-reports"
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-6 py-3 font-display font-semibold text-navy shadow-lg transition-all hover:bg-white/90 sm:w-auto"
             >
               <ArrowLeft size={18} />
@@ -208,7 +208,7 @@ export function ReportForm() {
   }
 
   return (
-    <div className="fixed inset-0 top-0 bg-surface overflow-y-auto z-50">
+    <div className="min-h-screen bg-surface">
       {/* ── Top Bar ── */}
       <header className="sticky top-0 z-50 border-b border-gray-100 bg-white/80 backdrop-blur-xl">
         <div className="relative flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
