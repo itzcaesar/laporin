@@ -53,7 +53,7 @@ export default function MyReportsPage() {
   }, [activeFilter, myReports]);
 
   return (
-    <div className="dashboard-page max-w-4xl mx-auto">
+    <div className="dashboard-page">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>

@@ -20,7 +20,7 @@ export default function BookmarksPage() {
   }, []);
 
   return (
-    <div className="dashboard-page max-w-4xl mx-auto">
+    <div className="dashboard-page">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold font-display text-navy">
