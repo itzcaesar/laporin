@@ -208,20 +208,20 @@ export function ReportForm() {
   }
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="fixed inset-0 top-16 bottom-0 md:bottom-0 flex flex-col bg-surface overflow-hidden">
       {/* Page Title */}
-      <div className="bg-white border-b border-gray-100 px-4 py-4 sm:px-6 lg:px-8">
-        <h1 className="font-display text-xl font-bold text-navy sm:text-2xl">
+      <div className="shrink-0 bg-white border-b border-gray-100 px-4 py-3 sm:px-6 lg:px-8">
+        <h1 className="font-display text-lg font-bold text-navy sm:text-xl">
           📝 Buat Laporan Baru
         </h1>
-        <p className="text-sm text-muted mt-1">
+        <p className="text-xs text-muted mt-0.5 sm:text-sm">
           Laporkan kerusakan infrastruktur di area kamu
         </p>
       </div>
 
       {/* ── Progress bar ── */}
-      <div className="border-b border-gray-100 bg-white">
-        <div className="px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
+      <div className="shrink-0 border-b border-gray-100 bg-white">
+        <div className="px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between gap-1">
             {STEPS.map((s, i) => {
               const Icon = s.icon;
@@ -235,7 +235,7 @@ export function ReportForm() {
                   className="group flex flex-1 flex-col items-center gap-1.5 transition-all"
                 >
                   <div
-                    className={`flex h-9 w-9 items-center justify-center rounded-full border-2 transition-all duration-300 sm:h-10 sm:w-10 ${
+                    className={`flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all duration-300 sm:h-9 sm:w-9 ${
                       isCompleted
                         ? "border-emerald-500 bg-emerald-500 text-white"
                         : isActive
@@ -275,7 +275,7 @@ export function ReportForm() {
       </div>
 
       {/* ── Form Content ── */}
-      <div className="px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+      <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
         <div
           className={`transition-all duration-200 ${
             isAnimating
@@ -668,8 +668,8 @@ export function ReportForm() {
       </div>
 
       {/* ── Bottom Navigation ── */}
-      <div className="sticky bottom-0 z-40 border-t border-gray-100 bg-white/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl">
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4">
+      <div className="shrink-0 border-t border-gray-100 bg-white pb-20 md:pb-0">
+        <div className="flex items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
           {step > 0 ? (
             <button
               onClick={() => goToStep(step - 1)}
