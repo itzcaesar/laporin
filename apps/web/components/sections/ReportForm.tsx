@@ -208,12 +208,12 @@ export function ReportForm() {
   }
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="fixed inset-0 top-0 bg-surface overflow-y-auto z-50">
       {/* ── Top Bar ── */}
       <header className="sticky top-0 z-50 border-b border-gray-100 bg-white/80 backdrop-blur-xl">
-        <div className="relative mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <div className="relative flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link
-            href="/citizen/my-reports"
+            href="/citizen"
             className="flex items-center gap-2 text-sm font-semibold text-muted transition-colors hover:text-navy z-10"
           >
             <ArrowLeft size={18} />
@@ -230,7 +230,7 @@ export function ReportForm() {
 
       {/* ── Progress bar ── */}
       <div className="border-b border-gray-100 bg-white">
-        <div className="mx-auto max-w-5xl px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
+        <div className="px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
           <div className="flex items-center justify-between gap-1">
             {STEPS.map((s, i) => {
               const Icon = s.icon;
@@ -284,7 +284,7 @@ export function ReportForm() {
       </div>
 
       {/* ── Form Content ── */}
-      <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+      <div className="px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         <div
           className={`transition-all duration-200 ${
             isAnimating
