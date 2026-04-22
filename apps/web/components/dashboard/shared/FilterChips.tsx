@@ -36,7 +36,7 @@ export function FilterChips({
             type="button"
             onClick={() => onChange(option.value)}
             className={cn(
-              "min-h-[44px] shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-all duration-200",
+              "min-h-[44px] shrink-0 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue",
               isActive
                 ? "bg-navy text-white shadow-sm"

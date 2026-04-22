@@ -61,13 +61,32 @@ export function Navbar() {
         </Link>
 
         {/* Desktop nav links */}
-        <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 md:flex">
+        <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-0.5 lg:flex">
           {NAV_LINKS.map((link) => (
             <Link
               key={link.href}
               href={link.href}
               className={cn(
-                "rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-200",
+                "rounded-lg px-2.5 py-2 text-sm font-medium transition-colors duration-200",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue",
+                isWhiteNav
+                  ? "text-muted hover:bg-gray-50 hover:text-navy"
+                  : "text-white/80 hover:bg-white/10 hover:text-white"
+              )}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </div>
+
+        {/* Tablet nav links - reduced set */}
+        <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-0.5 md:flex lg:hidden">
+          {NAV_LINKS.slice(0, 4).map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className={cn(
+                "rounded-lg px-2 py-2 text-xs font-medium transition-colors duration-200",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue",
                 isWhiteNav
                   ? "text-muted hover:bg-gray-50 hover:text-navy"
@@ -80,7 +99,7 @@ export function Navbar() {
         </div>
 
         {/* Desktop CTA buttons */}
-        <div className="hidden items-center gap-3 md:flex">
+        <div className="hidden items-center gap-2 lg:flex">
           <Button
             variant={isWhiteNav ? "ghost" : "outline-white"}
             size="sm"
@@ -94,6 +113,26 @@ export function Navbar() {
             href="/lapor"
           >
             Buat Laporan
+          </Button>
+        </div>
+
+        {/* Tablet CTA buttons - compact */}
+        <div className="hidden items-center gap-1.5 md:flex lg:hidden">
+          <Button
+            variant={isWhiteNav ? "ghost" : "outline-white"}
+            size="sm"
+            href="/login"
+            className="text-xs px-3"
+          >
+            Masuk
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            href="/lapor"
+            className="text-xs px-3"
+          >
+            Lapor
           </Button>
         </div>
 
