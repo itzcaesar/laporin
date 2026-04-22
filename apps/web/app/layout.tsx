@@ -69,8 +69,9 @@ export default function RootLayout({
       lang="id"
       className={`${jakarta.variable} ${dmSans.variable}`}
       data-scroll-behavior="smooth"
+      suppressHydrationWarning
     >
-      <body className="font-body antialiased">
+      <body className="font-body antialiased" suppressHydrationWarning>
         <AuthProvider>
           <ToastProvider>{children}</ToastProvider>
         </AuthProvider>
