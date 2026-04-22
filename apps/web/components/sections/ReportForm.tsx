@@ -3,6 +3,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import {
   ArrowLeft,
   ArrowRight,
@@ -14,8 +15,13 @@ import {
   ImagePlus,
   FileText,
   AlertTriangle,
-  ChevronDown,
 } from "lucide-react";
+
+// Dynamic import for LocationPicker (SSR-safe)
+const LocationPicker = dynamic(
+  () => import("@/components/map/LocationPicker").then((mod) => mod.LocationPicker),
+  { ssr: false }
+);
 
 // ── Category Data ──
 const CATEGORIES = [
@@ -66,6 +72,8 @@ interface FormData {
   description: string;
   priority: string;
   location: string;
+  locationLat: number | null;
+  locationLng: number | null;
   photos: File[];
   photoURLs: string[];
   reporter: string;
@@ -85,6 +93,8 @@ export function ReportForm() {
     description: "",
     priority: "Sedang",
     location: "",
+    locationLat: null,
+    locationLng: null,
     photos: [],
     photoURLs: [],
     reporter: "",
@@ -484,53 +494,32 @@ export function ReportForm() {
                     <input
                       id="report-location"
                       type="text"
-                      placeholder="Contoh: Jl. Telekomunikasi No. 1, depan Telkom University"
+                      placeholder="Klik pada peta atau ketik alamat manual"
                       value={formData.location}
                       onChange={(e) => updateField("location", e.target.value)}
                       className="w-full rounded-xl border-2 border-gray-200 bg-white py-3 pl-11 pr-4 text-sm text-navy outline-none transition-all duration-200 placeholder:text-gray-400 focus:border-blue focus:bg-blue/[0.02] focus:shadow-[0_0_0_4px_rgba(37,99,235,0.1)] sm:text-base"
                     />
                   </div>
-                  <p className="mt-1 text-xs text-muted">Minimum 5 karakter</p>
+                  <p className="mt-1 text-xs text-muted">
+                    {formData.locationLat && formData.locationLng
+                      ? `Koordinat: ${formData.locationLat.toFixed(6)}, ${formData.locationLng.toFixed(6)}`
+                      : "Minimum 5 karakter"}
+                  </p>
                 </div>
 
-                {/* Map placeholder */}
-                <div className="overflow-hidden rounded-2xl border-2 border-dashed border-gray-200 bg-gradient-to-br from-blue-light/30 to-teal-light/20">
-                  <div className="relative flex min-h-[280px] flex-col items-center justify-center p-8 sm:min-h-[320px]">
-                    {/* Decorative grid */}
-                    <div className="absolute inset-0 opacity-20">
-                      {Array.from({ length: 6 }).map((_, i) => (
-                        <div
-                          key={`h-${i}`}
-                          className="absolute h-px w-full bg-navy/20"
-                          style={{ top: `${(i + 1) * 16.6}%` }}
-                        />
-                      ))}
-                      {Array.from({ length: 6 }).map((_, i) => (
-                        <div
-                          key={`v-${i}`}
-                          className="absolute h-full w-px bg-navy/20"
-                          style={{ left: `${(i + 1) * 16.6}%` }}
-                        />
-                      ))}
-                    </div>
-
-                    {/* Center pin */}
-                    <div className="relative mb-4">
-                      <div className="absolute -inset-4 animate-ping rounded-full bg-blue/20" />
-                      <div className="relative flex h-14 w-14 items-center justify-center rounded-full bg-blue/10 ring-4 ring-blue/20">
-                        <MapPin size={28} className="text-blue" />
-                      </div>
-                    </div>
-                    <p className="mb-1 font-display text-sm font-semibold text-navy">
-                      Peta Interaktif
-                    </p>
-                    <p className="text-center text-xs text-muted">
-                      Fitur peta akan tersedia di versi berikutnya.
-                      <br />
-                      Untuk saat ini, silakan tuliskan alamat di kolom di atas.
-                    </p>
-                  </div>
-                </div>
+                {/* Interactive Map */}
+                <LocationPicker
+                  onLocationSelect={(lat, lng, address) => {
+                    setFormData((prev) => ({
+                      ...prev,
+                      location: address,
+                      locationLat: lat,
+                      locationLng: lng,
+                    }));
+                  }}
+                  initialLat={formData.locationLat || undefined}
+                  initialLng={formData.locationLng || undefined}
+                />
 
                 {/* Tips */}
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
@@ -541,9 +530,10 @@ export function ReportForm() {
                         Tips Penulisan Lokasi
                       </p>
                       <ul className="space-y-1 text-xs leading-relaxed text-amber-700">
-                        <li>• Sertakan nama jalan dan nomor rumah terdekat</li>
-                        <li>• Sebutkan patokan (landmark) yang mudah dikenali</li>
-                        <li>• Cantumkan kelurahan atau kecamatan jika memungkinkan</li>
+                        <li>• Gunakan peta interaktif untuk akurasi maksimal</li>
+                        <li>• Klik tombol "Lokasi Saat Ini" untuk deteksi otomatis</li>
+                        <li>• Atau klik langsung pada peta untuk menandai lokasi</li>
+                        <li>• Anda juga bisa mengetik alamat manual jika diperlukan</li>
                       </ul>
                     </div>
                   </div>
