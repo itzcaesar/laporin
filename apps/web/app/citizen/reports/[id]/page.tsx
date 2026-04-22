@@ -23,16 +23,48 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import type { ReportDetail } from "@/types";
+import { CommentThread, type Comment } from "@/components/dashboard/shared/CommentThread";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function ReportDetailPage() {
   const params = useParams();
   const router = useRouter();
   const reportId = params.id as string;
+  const { user } = useAuth();
 
   const [report, setReport] = useState<ReportDetail | null>(null);
   const [isUpvoted, setIsUpvoted] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [comments, setComments] = useState<Comment[]>([
+    {
+      id: "1",
+      content: "Sudah 3 hari belum ada tindakan. Mohon segera ditangani.",
+      authorName: "Ahmad Rizki",
+      isGovernment: false,
+      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      replies: [
+        {
+          id: "2",
+          content:
+            "Terima kasih atas laporannya. Tim kami sudah meninjau lokasi dan akan segera melakukan perbaikan dalam 2 hari ke depan.",
+          authorName: "Budi Santosa",
+          isGovernment: true,
+          isOfficial: true,
+          createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+          replies: [],
+        },
+      ],
+    },
+    {
+      id: "3",
+      content: "Saya juga mengalami hal yang sama di area ini. Terima kasih sudah melaporkan!",
+      authorName: "Siti Nurhaliza",
+      isGovernment: false,
+      createdAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+      replies: [],
+    },
+  ]);
 
   // Placeholder images - in production, these would come from the report data
   const reportImages = [
@@ -99,6 +131,34 @@ export default function ReportDetailPage() {
       // Fallback: copy to clipboard
       navigator.clipboard.writeText(window.location.href);
       alert("Link disalin ke clipboard!");
+    }
+  };
+
+  const handleAddComment = async (content: string) => {
+    // TODO: API call to POST /api/v1/reports/{reportId}/comments
+    console.log("Adding comment:", content);
+    
+    // Simulate API call
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    // Add new comment to state
+    const newComment: Comment = {
+      id: `temp-${Date.now()}`,
+      content,
+      authorName: user?.name || "Anda",
+      isGovernment: false,
+      createdAt: new Date().toISOString(),
+      replies: [],
+    };
+
+    setComments((prev) => [...prev, newComment]);
+    
+    // Update comment count
+    if (report) {
+      setReport({
+        ...report,
+        commentCount: report.commentCount + 1,
+      });
     }
   };
 
@@ -426,12 +486,15 @@ export default function ReportDetailPage() {
         {/* Comments Section */}
         <div className="card-base p-5">
           <h2 className="text-lg font-bold font-display text-navy mb-4">
-            Komentar ({report.commentCount})
+            Komentar ({comments.length})
           </h2>
-          <div className="text-center py-12 text-muted">
-            <MessageCircle size={48} className="mx-auto mb-3 opacity-30" />
-            <p className="text-sm">Fitur komentar akan segera hadir</p>
-          </div>
+          <CommentThread
+            comments={comments}
+            onAddComment={handleAddComment}
+            canComment={!!user}
+            currentUserName={user?.name || "Anda"}
+            placeholder="Tulis komentar Anda..."
+          />
         </div>
       </div>
     </div>
