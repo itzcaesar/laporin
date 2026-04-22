@@ -102,7 +102,9 @@ export default function RegisterPage() {
 
     try {
       // Register
-      await api.post(
+      const registerRes = await api.post<{
+        data: { accessToken: string; refreshToken: string; user: any };
+      }>(
         "/auth/register",
         {
           name: name.trim(),
@@ -113,12 +115,13 @@ export default function RegisterPage() {
         { skipAuth: true }
       );
 
-      // Auto-login
-      const loginRes = await api.post<{
-        data: { accessToken: string; role: string };
-      }>("/auth/login", { email, password }, { skipAuth: true });
-
-      api.setTokens(loginRes.data.accessToken, loginRes.data.role);
+      // Store tokens from registration
+      api.setTokens(
+        registerRes.data.accessToken,
+        registerRes.data.user.role,
+        registerRes.data.refreshToken
+      );
+      
       success("Akun berhasil dibuat! Selamat datang di Laporin.");
       router.push("/citizen");
     } catch (err) {

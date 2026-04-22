@@ -4,10 +4,10 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
-import { authMiddleware } from '../middleware/auth.js'
+import { authMiddleware, type AuthVariables } from '../middleware/auth.js'
 import { generateUploadUrl, validateFileMetadata } from '../services/storage.service.js'
 
-const app = new Hono()
+const app = new Hono<{ Variables: AuthVariables }>()
 
 /**
  * Request body schema for upload URL generation

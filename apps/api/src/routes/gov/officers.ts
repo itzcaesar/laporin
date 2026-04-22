@@ -250,9 +250,9 @@ govOfficers.post('/', zValidator('json', createOfficerSchema), async (c) => {
       data: {
         actorId: user.sub,
         action: 'create_officer',
-        resourceType: 'user',
-        resourceId: officer.id,
-        details: { email, name, nip, agencyId, role },
+        targetType: 'user',
+        targetId: officer.id,
+        metadata: { email, name, nip, agencyId, role },
       },
     })
 
@@ -326,9 +326,9 @@ govOfficers.patch('/:id', zValidator('json', updateOfficerSchema), async (c) => 
       data: {
         actorId: user.sub,
         action: 'update_officer',
-        resourceType: 'user',
-        resourceId: id,
-        details: updates,
+        targetType: 'user',
+        targetId: id,
+        metadata: updates,
       },
     })
 
@@ -379,9 +379,9 @@ govOfficers.delete('/:id', async (c) => {
       data: {
         actorId: user.sub,
         action: 'deactivate_officer',
-        resourceType: 'user',
-        resourceId: id,
-        details: {},
+        targetType: 'user',
+        targetId: id,
+        metadata: {},
       },
     })
 

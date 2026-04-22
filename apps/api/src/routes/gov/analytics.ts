@@ -391,4 +391,201 @@ govAnalytics.get('/insights', requireRole('admin'), async (c) => {
   }
 })
 
+/**
+ * GET /gov/analytics/anomalies
+ * Current anomaly alerts from CRON job
+ */
+govAnalytics.get('/anomalies', async (c) => {
+  const user = c.get('user')
+
+  try {
+    const cacheKey = `laporin:anomalies:gov:${user.agencyId || 'all'}`
+    const cached = await redis.get(cacheKey)
+
+    if (!cached) {
+      return c.json({ data: [] })
+    }
+
+    const anomalies = JSON.parse(cached)
+    return c.json({ data: anomalies })
+  } catch (error) {
+    console.error('Analytics anomalies error:', error)
+    return c.json({ error: 'Failed to fetch anomalies' }, 500)
+  }
+})
+
+/**
+ * GET /gov/analytics/category-trends
+ * Rising/falling categories with percentage change
+ */
+govAnalytics.get('/category-trends', zValidator('query', analyticsQuerySchema), async (c) => {
+  const user = c.get('user')
+  const { period } = c.req.valid('query')
+
+  try {
+    // Try cache first
+    const cacheKey = `laporin:trends:gov:${user.agencyId || 'all'}:${period}`
+    const cached = await redis.get(cacheKey)
+
+    if (cached) {
+      return c.json({ data: JSON.parse(cached), cached: true })
+    }
+
+    // Calculate date ranges
+    const now = new Date()
+    const daysMap = { '7d': 7, '30d': 30, '90d': 90, '365d': 365 }
+    const days = daysMap[period]
+    const currentStart = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
+    const previousStart = new Date(now.getTime() - days * 2 * 24 * 60 * 60 * 1000)
+
+    const where: any = {}
+    if (user.role !== 'super_admin' && user.agencyId) {
+      where.agencyId = user.agencyId
+    }
+
+    // Get current period counts
+    const currentCounts = await db.report.groupBy({
+      by: ['categoryId'],
+      where: { ...where, createdAt: { gte: currentStart } },
+      _count: true,
+    })
+
+    // Get previous period counts
+    const previousCounts = await db.report.groupBy({
+      by: ['categoryId'],
+      where: { ...where, createdAt: { gte: previousStart, lt: currentStart } },
+      _count: true,
+    })
+
+    // Calculate trends
+    const categoryIds = [
+      ...new Set([
+        ...currentCounts.map((c) => c.categoryId),
+        ...previousCounts.map((c) => c.categoryId),
+      ]),
+    ]
+
+    const categories = await db.category.findMany({
+      where: { id: { in: categoryIds } },
+      select: { id: true, name: true, emoji: true },
+    })
+
+    const categoryMap = new Map(categories.map((cat) => [cat.id, cat]))
+
+    const trends = categoryIds
+      .map((categoryId) => {
+        const current = currentCounts.find((c) => c.categoryId === categoryId)?._count || 0
+        const previous = previousCounts.find((c) => c.categoryId === categoryId)?._count || 0
+        const change = previous > 0 ? ((current - previous) / previous) * 100 : 0
+
+        return {
+          category: categoryMap.get(categoryId),
+          currentCount: current,
+          previousCount: previous,
+          changePercent: Math.round(change * 10) / 10,
+        }
+      })
+      .sort((a, b) => Math.abs(b.changePercent) - Math.abs(a.changePercent))
+      .slice(0, 10)
+
+    // Cache for 1 hour
+    await redis.setex(cacheKey, 3600, JSON.stringify(trends))
+
+    return c.json({ data: trends, cached: false })
+  } catch (error) {
+    console.error('Analytics category trends error:', error)
+    return c.json({ error: 'Failed to fetch category trends' }, 500)
+  }
+})
+
+/**
+ * GET /gov/analytics/ai-insights
+ * Daily AI insight text from CRON job
+ */
+govAnalytics.get('/ai-insights', async (c) => {
+  const user = c.get('user')
+
+  try {
+    const cacheKey = `laporin:insights:gov:${user.agencyId || 'all'}`
+    const cached = await redis.get(cacheKey)
+
+    if (!cached) {
+      return c.json({
+        data: {
+          insight: 'Insight harian akan tersedia setelah CRON job pertama berjalan',
+          generatedAt: null,
+        },
+      })
+    }
+
+    return c.json({
+      data: {
+        insight: cached,
+        generatedAt: new Date().toISOString(),
+      },
+    })
+  } catch (error) {
+    console.error('Analytics AI insights error:', error)
+    return c.json({ error: 'Failed to fetch AI insights' }, 500)
+  }
+})
+
+/**
+ * GET /gov/analytics/predicted-heatmap
+ * AI-predicted risk zones for next 30 days
+ */
+govAnalytics.get('/predicted-heatmap', async (c) => {
+  const user = c.get('user')
+
+  try {
+    // Try cache first (6 hour TTL)
+    const cacheKey = `laporin:map:predicted:${user.agencyId || 'all'}`
+    const cached = await redis.get(cacheKey)
+
+    if (cached) {
+      return c.json({ data: JSON.parse(cached), cached: true })
+    }
+
+    // Get historical hotspots (last 90 days)
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+
+    const where: any = { createdAt: { gte: ninetyDaysAgo } }
+    if (user.role !== 'super_admin' && user.agencyId) {
+      where.agencyId = user.agencyId
+    }
+
+    // Simple prediction: areas with high historical density are likely to have issues again
+    const predictedHotspots = await db.$queryRaw<
+      Array<{ lat: number; lng: number; intensity: number }>
+    >`
+      SELECT 
+        ST_Y(ST_Centroid(ST_Collect(location))) as lat,
+        ST_X(ST_Centroid(ST_Collect(location))) as lng,
+        COUNT(*) * 1.2 as intensity
+      FROM reports
+      WHERE created_at >= ${ninetyDaysAgo}
+        ${user.agencyId ? db.$queryRawUnsafe(`AND agency_id = '${user.agencyId}'`) : db.$queryRawUnsafe('')}
+        AND location IS NOT NULL
+      GROUP BY ST_SnapToGrid(location, 0.01)
+      HAVING COUNT(*) > 2
+      ORDER BY intensity DESC
+      LIMIT 200
+    `
+
+    const formattedData = predictedHotspots.map((item) => ({
+      lat: item.lat,
+      lng: item.lng,
+      intensity: Math.round(item.intensity * 10) / 10,
+    }))
+
+    // Cache for 6 hours
+    await redis.setex(cacheKey, 6 * 60 * 60, JSON.stringify(formattedData))
+
+    return c.json({ data: formattedData, cached: false })
+  } catch (error) {
+    console.error('Analytics predicted heatmap error:', error)
+    return c.json({ error: 'Failed to fetch predicted heatmap' }, 500)
+  }
+})
+
 export default govAnalytics

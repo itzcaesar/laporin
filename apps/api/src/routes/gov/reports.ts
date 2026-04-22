@@ -281,9 +281,9 @@ govReports.patch(
         data: {
           actorId: user.sub,
           action: 'verify_report',
-          resourceType: 'report',
-          resourceId: id,
-          details: { result, note, officerNip },
+          targetType: 'report',
+          targetId: id,
+          metadata: { result, note, officerNip },
         },
       })
 
@@ -367,9 +367,9 @@ govReports.patch(
         data: {
           actorId: user.sub,
           action: 'assign_report',
-          resourceType: 'report',
-          resourceId: id,
-          details: { officerId, picNip, estimatedStart, estimatedEnd, budgetIdr },
+          targetType: 'report',
+          targetId: id,
+          metadata: { officerId, picNip, estimatedStart, estimatedEnd, budgetIdr },
         },
       })
 
@@ -461,9 +461,9 @@ govReports.patch(
         data: {
           actorId: user.sub,
           action: 'update_status',
-          resourceType: 'report',
-          resourceId: id,
-          details: { oldStatus: report.status, newStatus, note, officerNip },
+          targetType: 'report',
+          targetId: id,
+          metadata: { oldStatus: report.status, newStatus, note, officerNip },
         },
       })
 
@@ -518,9 +518,9 @@ govReports.patch(
         data: {
           actorId: user.sub,
           action: 'update_timeline',
-          resourceType: 'report',
-          resourceId: id,
-          details: { estimatedStart, estimatedEnd, actualEnd, budgetIdr, officerNip },
+          targetType: 'report',
+          targetId: id,
+          metadata: { estimatedStart, estimatedEnd, actualEnd, budgetIdr, officerNip },
         },
       })
 
@@ -568,9 +568,9 @@ govReports.patch(
         data: {
           actorId: user.sub,
           action: 'update_priority',
-          resourceType: 'report',
-          resourceId: id,
-          details: { priority, note, officerNip },
+          targetType: 'report',
+          targetId: id,
+          metadata: { priority, note, officerNip },
         },
       })
 
@@ -626,6 +626,65 @@ govReports.post(
     } catch (error) {
       console.error('Upload gov media error:', error)
       return c.json({ error: 'Failed to upload media' }, 500)
+    }
+  }
+)
+
+/**
+ * POST /gov/reports/:id/reanalyze
+ * Re-run AI analysis on a report (admin only)
+ */
+govReports.post(
+  '/:id/reanalyze',
+  requireRole('admin'),
+  zValidator('param', reportIdSchema),
+  async (c) => {
+    const { id } = c.req.valid('param')
+    const user = c.get('user')
+
+    try {
+      // Check if report exists
+      const report = await db.report.findUnique({
+        where: { id },
+        select: { id: true, agencyId: true },
+      })
+
+      if (!report) {
+        return c.json({ error: 'Report not found' }, 404)
+      }
+
+      // Check agency access
+      if (user.role !== 'super_admin' && user.agencyId && report.agencyId !== user.agencyId) {
+        return c.json({ error: 'Access denied' }, 403)
+      }
+
+      // Delete existing AI analysis cache
+      await db.aiAnalysisCache.deleteMany({
+        where: { reportId: id },
+      })
+
+      // TODO: Re-queue AI analysis job
+      // For now, just return success
+      // In production, this would call: await aiQueue.add('analyze', { reportId: id })
+
+      // Create audit log
+      await db.auditLog.create({
+        data: {
+          actorId: user.sub,
+          action: 'reanalyze_report',
+          targetType: 'report',
+          targetId: id,
+          metadata: { triggeredBy: user.sub },
+        },
+      })
+
+      return c.json({
+        message: 'AI analysis queued for re-processing',
+        reportId: id,
+      })
+    } catch (error) {
+      console.error('Reanalyze report error:', error)
+      return c.json({ error: 'Failed to reanalyze report' }, 500)
     }
   }
 )

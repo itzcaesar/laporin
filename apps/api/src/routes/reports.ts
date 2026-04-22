@@ -10,6 +10,13 @@ import { calculatePriorityScore } from '../lib/priorityScore.js'
 import { generateUploadUrl, getPublicUrl } from '../services/storage.service.js'
 import { addAIAnalysisJob } from '../jobs/queue.js'
 import {
+  reportListSelect,
+  reportDetailInclude,
+  buildReportWhereClause,
+  buildOrderByClause,
+  calculatePagination,
+} from '../lib/queryHelpers.js'
+import {
   createReportSchema,
   listReportsSchema,
   requestUploadUrlSchema,
@@ -24,7 +31,7 @@ const reports = new Hono<{ Variables: AuthVariables }>()
 
 /**
  * GET /reports
- * List reports with filters and pagination
+ * List reports with filters and pagination (optimized)
  */
 reports.get('/', zValidator('query', listReportsSchema), async (c) => {
   const {
@@ -40,73 +47,36 @@ reports.get('/', zValidator('query', listReportsSchema), async (c) => {
   } = c.req.valid('query')
 
   try {
-    // Build where clause
-    const where: any = {}
-
-    if (status) where.status = status
-    if (categoryId) where.categoryId = categoryId
-    if (regionCode) where.regionCode = regionCode
-    if (priority) where.priority = priority
-    if (search) {
-      where.OR = [
-        { title: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
-        { trackingCode: { contains: search, mode: 'insensitive' } },
-      ]
-    }
-
-    // Get total count
-    const total = await db.report.count({ where })
-
-    // Get paginated reports
-    const reportsData = await db.report.findMany({
-      where,
-      skip: (page - 1) * limit,
-      take: limit,
-      orderBy: { [sortBy]: sortOrder },
-      select: {
-        id: true,
-        trackingCode: true,
-        title: true,
-        status: true,
-        priority: true,
-        dangerLevel: true,
-        categoryId: true,
-        category: {
-          select: {
-            id: true,
-            name: true,
-            emoji: true,
-          },
-        },
-        locationLat: true,
-        locationLng: true,
-        locationAddress: true,
-        regionCode: true,
-        regionName: true,
-        upvoteCount: true,
-        commentCount: true,
-        createdAt: true,
-        media: {
-          take: 1,
-          select: {
-            fileUrl: true,
-            mediaType: true,
-          },
-        },
-      },
+    // Build optimized where clause
+    const where = buildReportWhereClause({
+      status,
+      categoryId,
+      regionCode,
+      priority,
+      search,
     })
 
-    const pages = Math.ceil(total / limit)
+    // Build order by clause
+    const orderBy = buildOrderByClause(sortBy, sortOrder)
+
+    // Execute count and query in parallel for better performance
+    const [total, reportsData] = await Promise.all([
+      db.report.count({ where }),
+      db.report.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy,
+        select: reportListSelect,
+      }),
+    ])
+
+    // Calculate pagination metadata
+    const pagination = calculatePagination(total, page, limit)
 
     return c.json({
       data: reportsData,
-      meta: {
-        total,
-        page,
-        limit,
-        pages,
-      },
+      meta: pagination,
     })
   } catch (error) {
     console.error('List reports error:', error)
@@ -116,7 +86,7 @@ reports.get('/', zValidator('query', listReportsSchema), async (c) => {
 
 /**
  * GET /reports/:id
- * Get full report details
+ * Get full report details (optimized with proper includes)
  */
 reports.get('/:id', zValidator('param', reportIdSchema), async (c) => {
   const { id } = c.req.valid('param')
@@ -124,76 +94,20 @@ reports.get('/:id', zValidator('param', reportIdSchema), async (c) => {
   try {
     const report = await db.report.findUnique({
       where: { id },
-      include: {
-        category: {
-          select: {
-            id: true,
-            name: true,
-            emoji: true,
-            leadAgency: true,
-          },
-        },
-        reporter: {
-          select: {
-            id: true,
-            name: true,
-            createdAt: true,
-          },
-        },
-        assignedOfficer: {
-          select: {
-            id: true,
-            name: true,
-            nip: true,
-            agency: {
-              select: {
-                name: true,
-                shortName: true,
-              },
-            },
-          },
-        },
-        media: {
-          select: {
-            id: true,
-            fileUrl: true,
-            mediaType: true,
-            createdAt: true,
-          },
-          orderBy: {
-            createdAt: 'asc',
-          },
-        },
-        statusHistory: {
-          select: {
-            id: true,
-            oldStatus: true,
-            newStatus: true,
-            note: true,
-            createdAt: true,
-            changedBy: {
-              select: {
-                name: true,
-                role: true,
-              },
-            },
-          },
-          orderBy: {
-            createdAt: 'desc',
-          },
-        },
-        _count: {
-          select: {
-            comments: true,
-            votes: true,
-          },
-        },
-      },
+      include: reportDetailInclude,
     })
 
     if (!report) {
       return c.json({ error: 'Report not found' }, 404)
     }
+
+    // Increment view count asynchronously (don't wait)
+    db.report
+      .update({
+        where: { id },
+        data: { viewCount: { increment: 1 } },
+      })
+      .catch((err) => console.error('Failed to increment view count:', err))
 
     return c.json({ data: report })
   } catch (error) {

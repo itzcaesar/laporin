@@ -144,12 +144,121 @@ async function main() {
       isVerified: true,
     },
   })
-  console.log(`✅ Created admin user: ${adminUser.email}\n`)
+  console.log(`✅ Created admin user: ${adminUser.email}`)
 
-  console.log('📝 Test user credentials:')
-  console.log('  Citizen: citizen@laporin.com / password123')
-  console.log('  Officer: officer@laporin.com / password123')
-  console.log('  Admin:   admin@laporin.com / password123\n')
+  // Super admin user
+  const superAdminUser = await prisma.user.upsert({
+    where: { email: 'superadmin@laporin.com' },
+    update: {
+      name: 'Super Admin',
+      passwordHash,
+      role: 'super_admin',
+      agencyId: testAgency.id,
+      nip: '197501012000011001',
+      isActive: true,
+      isVerified: true,
+    },
+    create: {
+      email: 'superadmin@laporin.com',
+      name: 'Super Admin',
+      passwordHash,
+      role: 'super_admin',
+      agencyId: testAgency.id,
+      nip: '197501012000011001',
+      isActive: true,
+      isVerified: true,
+    },
+  })
+  console.log(`✅ Created super admin user: ${superAdminUser.email}`)
+
+  // Additional government users for testing
+  const officer2 = await prisma.user.upsert({
+    where: { email: 'budi.santoso@bandung.go.id' },
+    update: {
+      name: 'Budi Santoso',
+      passwordHash,
+      role: 'officer',
+      agencyId: testAgency.id,
+      nip: '199001012015011001',
+      isActive: true,
+      isVerified: true,
+    },
+    create: {
+      email: 'budi.santoso@bandung.go.id',
+      name: 'Budi Santoso',
+      passwordHash,
+      role: 'officer',
+      agencyId: testAgency.id,
+      nip: '199001012015011001',
+      isActive: true,
+      isVerified: true,
+    },
+  })
+  console.log(`✅ Created officer user: ${officer2.email}`)
+
+  const admin2 = await prisma.user.upsert({
+    where: { email: 'siti.rahayu@bandung.go.id' },
+    update: {
+      name: 'Siti Rahayu',
+      passwordHash,
+      role: 'admin',
+      agencyId: testAgency.id,
+      nip: '198501012010012001',
+      isActive: true,
+      isVerified: true,
+    },
+    create: {
+      email: 'siti.rahayu@bandung.go.id',
+      name: 'Siti Rahayu',
+      passwordHash,
+      role: 'admin',
+      agencyId: testAgency.id,
+      nip: '198501012010012001',
+      isActive: true,
+      isVerified: true,
+    },
+  })
+  console.log(`✅ Created admin user: ${admin2.email}\n`)
+
+  console.log('📝 Test user credentials (all use password: password123):')
+  console.log('┌─────────────────────────────────────────────────────────────────┐')
+  console.log('│ CITIZEN USERS                                                   │')
+  console.log('├─────────────────────────────────────────────────────────────────┤')
+  console.log('│ Email: citizen@laporin.com                                      │')
+  console.log('│ Role:  citizen                                                  │')
+  console.log('│ Access: /citizen/* pages                                        │')
+  console.log('├─────────────────────────────────────────────────────────────────┤')
+  console.log('│ GOVERNMENT USERS (Access: /gov/* pages)                         │')
+  console.log('├─────────────────────────────────────────────────────────────────┤')
+  console.log('│ 1. Officer (Basic)                                              │')
+  console.log('│    Email: officer@laporin.com                                   │')
+  console.log('│    Role:  officer                                               │')
+  console.log('│    NIP:   198501012010011001                                    │')
+  console.log('│    Can:   View reports, update status, add comments             │')
+  console.log('├─────────────────────────────────────────────────────────────────┤')
+  console.log('│ 2. Officer (Budi Santoso)                                       │')
+  console.log('│    Email: budi.santoso@bandung.go.id                            │')
+  console.log('│    Role:  officer                                               │')
+  console.log('│    NIP:   199001012015011001                                    │')
+  console.log('├─────────────────────────────────────────────────────────────────┤')
+  console.log('│ 3. Admin (Basic)                                                │')
+  console.log('│    Email: admin@laporin.com                                     │')
+  console.log('│    Role:  admin                                                 │')
+  console.log('│    NIP:   198001012005011001                                    │')
+  console.log('│    Can:   All officer permissions + manage officers, analytics  │')
+  console.log('├─────────────────────────────────────────────────────────────────┤')
+  console.log('│ 4. Admin (Siti Rahayu)                                          │')
+  console.log('│    Email: siti.rahayu@bandung.go.id                             │')
+  console.log('│    Role:  admin                                                 │')
+  console.log('│    NIP:   198501012010012001                                    │')
+  console.log('├─────────────────────────────────────────────────────────────────┤')
+  console.log('│ 5. Super Admin                                                  │')
+  console.log('│    Email: superadmin@laporin.com                                │')
+  console.log('│    Role:  super_admin                                           │')
+  console.log('│    NIP:   197501012000011001                                    │')
+  console.log('│    Can:   Full system access, manage agencies, system settings  │')
+  console.log('└─────────────────────────────────────────────────────────────────┘')
+  console.log('\n💡 All passwords: password123\n')
 
   // Seed categories
   console.log('📦 Seeding categories...')

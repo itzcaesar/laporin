@@ -11,8 +11,27 @@ import {
   detectHoax,
   generateEmbedding,
   detectDuplicate,
+  estimateBudget,
+  generateImpactSummary,
+  verifyBeforeAfterPhoto,
 } from '../../services/ai.service.js'
 import { calculatePriorityScore } from '../../lib/priorityScore.js'
+
+/**
+ * Safe AI call wrapper for graceful degradation
+ */
+async function safeAiCall<T>(
+  fn: () => Promise<T>,
+  fallback: T,
+  label: string
+): Promise<T> {
+  try {
+    return await fn()
+  } catch (error) {
+    console.error(`[AI:${label}] Failed:`, error)
+    return fallback
+  }
+}
 
 /**
  * Process AI analysis for a report
@@ -42,7 +61,7 @@ async function processAIAnalysis(job: Job<AIAnalysisJob>) {
     // Initialize results
     let categoryId = report.categoryId
     let classificationReasoning = ''
-    let dangerLevel = report.dangerLevel || 'medium'
+    let dangerLevel = report.dangerLevel || 3 // Default to medium (3)
     let dangerReasoning = ''
     let summary = ''
     let isHoax = false
@@ -51,6 +70,8 @@ async function processAIAnalysis(job: Job<AIAnalysisJob>) {
     let isDuplicate = false
     let similarReportId: string | undefined
     let embedding: number[] = []
+    let budgetEstimate: { minIdr: number; maxIdr: number; basis: string } | null = null
+    let impactSummary: string | null = null
 
     // Step 1: Classify photo if available
     if (hasPhoto && photoUrl) {
@@ -64,46 +85,44 @@ async function processAIAnalysis(job: Job<AIAnalysisJob>) {
     }
 
     // Step 2: Summarize report
-    try {
-      summary = await summarizeReport(report.description)
-      console.log(`✓ Summary generated: ${summary.substring(0, 50)}...`)
-    } catch (error) {
-      console.error('Summarize error:', error)
-      summary = report.description.substring(0, 150)
-    }
+    summary = await safeAiCall(
+      () => summarizeReport(report.description),
+      report.description.substring(0, 150),
+      'summarize'
+    )
+    console.log(`✓ Summary generated: ${summary.substring(0, 50)}...`)
 
     // Step 3: Predict danger level
-    try {
-      const dangerResult = await predictDangerLevel(
-        report.title,
-        report.description,
-        categoryId
-      )
-      dangerLevel = dangerResult.dangerLevel
-      dangerReasoning = dangerResult.reasoning
-      console.log(`✓ Danger level: ${dangerLevel}`)
-    } catch (error) {
-      console.error('Danger prediction error:', error)
+    const dangerResult = await safeAiCall(
+      () => predictDangerLevel(report.title, report.description, categoryId),
+      { dangerLevel: 'medium', reasoning: 'Analisis tidak tersedia' },
+      'predictDanger'
+    )
+    // Map string danger level to number (1-5)
+    const dangerLevelMap: Record<string, number> = {
+      low: 2,
+      medium: 3,
+      high: 4,
+      critical: 5,
     }
+    dangerLevel = dangerLevelMap[dangerResult.dangerLevel] || 3
+    dangerReasoning = dangerResult.reasoning
+    console.log(`✓ Danger level: ${dangerLevel}`)
 
     // Step 4: Detect hoax
-    try {
-      const hoaxResult = await detectHoax(
-        report.title,
-        report.description,
-        report.address
-      )
-      isHoax = hoaxResult.isHoax
-      hoaxConfidence = hoaxResult.confidence
-      hoaxReason = hoaxResult.reason
-      console.log(`✓ Hoax detection: ${isHoax ? 'HOAX' : 'VALID'} (${hoaxConfidence}%)`)
-    } catch (error) {
-      console.error('Hoax detection error:', error)
-    }
+    const hoaxResult = await safeAiCall(
+      () => detectHoax(report.title, report.description, report.locationAddress),
+      { isHoax: false, confidence: 0, reason: 'Analisis tidak tersedia' },
+      'detectHoax'
+    )
+    isHoax = hoaxResult.isHoax
+    hoaxConfidence = hoaxResult.confidence
+    hoaxReason = hoaxResult.reason
+    console.log(`✓ Hoax detection: ${isHoax ? 'HOAX' : 'VALID'} (${hoaxConfidence}%)`)
 
     // Step 5: Generate embedding for duplicate detection
     try {
-      const embeddingText = `${report.title} ${report.description} ${report.address}`
+      const embeddingText = `${report.title} ${report.description} ${report.locationAddress}`
       embedding = await generateEmbedding(embeddingText)
       console.log(`✓ Embedding generated (${embedding.length} dimensions)`)
     } catch (error) {
@@ -122,41 +141,74 @@ async function processAIAnalysis(job: Job<AIAnalysisJob>) {
       }
     }
 
-    // Step 7: Calculate priority score
+    // Step 7: Estimate budget
+    budgetEstimate = await safeAiCall(
+      () =>
+        estimateBudget({
+          categoryId,
+          description: report.description,
+          locationAddress: report.locationAddress,
+          dangerLevel: dangerResult.dangerLevel,
+        }),
+      null,
+      'estimateBudget'
+    )
+    if (budgetEstimate) {
+      console.log(
+        `✓ Budget estimate: Rp ${budgetEstimate.minIdr} - Rp ${budgetEstimate.maxIdr}`
+      )
+    }
+
+    // Step 8: Generate impact summary
+    impactSummary = await safeAiCall(
+      () =>
+        generateImpactSummary({
+          title: report.title,
+          description: report.description,
+          upvoteCount: report.upvoteCount,
+          categoryName: report.category.name,
+        }),
+      null,
+      'generateImpact'
+    )
+    if (impactSummary) {
+      console.log(`✓ Impact summary: ${impactSummary.substring(0, 50)}...`)
+    }
+
+    // Step 9: Calculate priority score
     let priorityScore = 50
     try {
+      const ageHours = (Date.now() - report.createdAt.getTime()) / (1000 * 60 * 60)
+      const slaBreached = report.estimatedEnd ? report.estimatedEnd < new Date() : false
+
       priorityScore = calculatePriorityScore({
         dangerLevel,
         upvoteCount: report.upvoteCount,
-        categoryWeight: report.category.weight,
-        createdAt: report.createdAt,
+        categoryId: report.categoryId,
+        ageHours,
+        slaBreached,
       })
       console.log(`✓ Priority score: ${priorityScore}`)
     } catch (error) {
       console.error('Priority score calculation error:', error)
     }
 
-    // Step 8: Save AI analysis to cache
+    // Step 10: Save AI analysis to cache
     await db.aiAnalysisCache.create({
       data: {
         reportId,
-        summary,
         dangerLevel,
-        dangerReasoning,
         isHoax,
         hoaxConfidence,
-        hoaxReason,
         isDuplicate,
-        similarReportId,
-        embedding: embedding.length > 0 ? JSON.stringify(embedding) : null,
-        classificationResult: classificationReasoning
-          ? JSON.stringify({ categoryId, reasoning: classificationReasoning })
-          : null,
-        processedAt: new Date(),
+        duplicateOfId: similarReportId,
+        budgetEstimate: budgetEstimate ? budgetEstimate.minIdr : null,
+        impactSummary,
+        priorityScore,
       },
     })
 
-    // Step 9: Update report with AI results
+    // Step 11: Update report with AI results
     await db.report.update({
       where: { id: reportId },
       data: {
@@ -177,6 +229,8 @@ async function processAIAnalysis(job: Job<AIAnalysisJob>) {
         isHoax,
         isDuplicate,
         priorityScore,
+        budgetEstimate,
+        impactSummary,
       },
     }
   } catch (error) {

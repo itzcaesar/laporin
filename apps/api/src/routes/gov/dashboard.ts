@@ -101,12 +101,12 @@ govDashboard.get('/stats', async (c) => {
     })
 
     // Get average satisfaction rating
-    const avgRating = await db.rating.aggregate({
+    const avgRating = await db.satisfactionRating.aggregate({
       where: {
         report: where.agencyId ? { agencyId: where.agencyId } : undefined,
       },
       _avg: {
-        score: true,
+        rating: true,
       },
     })
 
@@ -131,7 +131,7 @@ govDashboard.get('/stats', async (c) => {
       ),
       slaBreachedCount,
       newToday,
-      avgSatisfactionRating: avgRating._avg.score || 0,
+      avgSatisfactionRating: avgRating._avg.rating || 0,
     }
 
     // Cache for 60 seconds
@@ -287,6 +287,90 @@ govDashboard.get('/my-assignments', async (c) => {
   } catch (error) {
     console.error('My assignments error:', error)
     return c.json({ error: 'Failed to fetch assignments' }, 500)
+  }
+})
+
+/**
+ * GET /gov/dashboard/workload-forecast
+ * Predicted workload for next week from CRON job
+ */
+govDashboard.get('/workload-forecast', async (c) => {
+  const user = c.get('user')
+
+  try {
+    const cacheKey = `laporin:forecast:gov:${user.agencyId || 'all'}`
+    const cached = await redis.get(cacheKey)
+
+    if (!cached) {
+      return c.json({
+        data: {
+          predictedWeeklyTotal: 0,
+          bySubdistrict: [],
+          recommendation: null,
+          message: 'Prediksi akan tersedia setelah CRON job pertama berjalan',
+        },
+      })
+    }
+
+    const forecast = JSON.parse(cached)
+    return c.json({ data: forecast })
+  } catch (error) {
+    console.error('Workload forecast error:', error)
+    return c.json({ error: 'Failed to fetch workload forecast' }, 500)
+  }
+})
+
+/**
+ * GET /gov/dashboard/heatmap
+ * PostGIS density query for heatmap visualization
+ */
+govDashboard.get('/heatmap', async (c) => {
+  const user = c.get('user')
+
+  try {
+    // Try cache first (5 minute TTL)
+    const cacheKey = `laporin:map:heatmap:${user.agencyId || 'all'}`
+    const cached = await redis.get(cacheKey)
+
+    if (cached) {
+      return c.json({ data: JSON.parse(cached), cached: true })
+    }
+
+    // Build where conditions
+    let whereConditions = "status IN ('new', 'verified', 'in_progress')"
+    if (user.role !== 'super_admin' && user.agencyId) {
+      whereConditions += ` AND agency_id = '${user.agencyId}'`
+    }
+
+    // PostGIS query for heatmap data (leaflet.heat format: [[lat, lng, intensity], ...])
+    const heatmapData = await db.$queryRaw<
+      Array<{ lat: number; lng: number; intensity: number }>
+    >`
+      SELECT 
+        ST_Y(location) as lat,
+        ST_X(location) as lng,
+        priority_score / 100.0 as intensity
+      FROM reports
+      WHERE ${db.$queryRawUnsafe(whereConditions)}
+        AND location IS NOT NULL
+      ORDER BY priority_score DESC
+      LIMIT 1000
+    `
+
+    // Format for leaflet.heat: [[lat, lng, intensity], ...]
+    const formattedData = heatmapData.map((item) => [
+      item.lat,
+      item.lng,
+      Math.max(0.1, Math.min(1.0, item.intensity)), // Clamp between 0.1 and 1.0
+    ])
+
+    // Cache for 5 minutes
+    await redis.setex(cacheKey, 5 * 60, JSON.stringify(formattedData))
+
+    return c.json({ data: formattedData, cached: false })
+  } catch (error) {
+    console.error('Dashboard heatmap error:', error)
+    return c.json({ error: 'Failed to fetch heatmap data' }, 500)
   }
 })
 

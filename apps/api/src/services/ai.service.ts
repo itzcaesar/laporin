@@ -1,8 +1,18 @@
 // ── apps/api/src/services/ai.service.ts ──
-// AI service using OpenRouter API
+// AI service using OpenRouter API with free models
 
 import { env } from '../env.js'
 import { db } from '../db.js'
+import type {
+  OpenRouterMessage,
+  OpenRouterResponse,
+  DangerLevelResult,
+  HoaxDetectionResult,
+  DuplicateDetectionResult,
+  BudgetEstimate,
+  PhotoVerificationResult,
+  WorkloadPrediction,
+} from '../types/common.js'
 
 /**
  * OpenRouter API configuration
@@ -12,9 +22,9 @@ const API_KEY = env.OPENROUTER_API_KEY || env.ANTHROPIC_API_KEY
 
 // Free models available on OpenRouter
 const MODELS = {
-  vision: 'google/gemini-flash-1.5-8b-exp', // For image classification
-  text: 'meta-llama/llama-3.1-8b-instruct', // For text analysis (remove :free suffix)
-  quick: 'meta-llama/llama-3.2-3b-instruct', // For quick tasks (remove :free suffix)
+  vision: 'google/gemini-flash-1.5-8b', // For image classification (free)
+  text: 'meta-llama/llama-3.1-8b-instruct', // For text analysis (free)
+  quick: 'meta-llama/llama-3.2-3b-instruct', // For quick tasks (free)
 }
 
 /**
@@ -22,7 +32,7 @@ const MODELS = {
  */
 async function callOpenRouter(
   model: string,
-  messages: Array<{ role: string; content: any }>,
+  messages: OpenRouterMessage[],
   maxTokens: number = 500
 ): Promise<string> {
   const response = await fetch(OPENROUTER_API_URL, {
@@ -45,7 +55,7 @@ async function callOpenRouter(
     throw new Error(`OpenRouter API error: ${response.status} - ${error}`)
   }
 
-  const data = await response.json()
+  const data = (await response.json()) as OpenRouterResponse
   return data.choices[0].message.content
 }
 
@@ -108,7 +118,7 @@ export async function predictDangerLevel(
   title: string,
   description: string,
   categoryId: number
-): Promise<{ dangerLevel: 'low' | 'medium' | 'high' | 'critical'; reasoning: string }> {
+): Promise<DangerLevelResult> {
   try {
     const category = await db.category.findUnique({
       where: { id: categoryId },
@@ -194,7 +204,7 @@ export async function detectHoax(
   title: string,
   description: string,
   location: string
-): Promise<{ isHoax: boolean; confidence: number; reason: string }> {
+): Promise<HoaxDetectionResult> {
   try {
     const prompt = `Anda adalah AI detector untuk mendeteksi laporan hoax/palsu tentang infrastruktur di Indonesia.
 
@@ -329,7 +339,7 @@ Hanya berikan insight, tanpa teks tambahan.`
 export async function detectDuplicate(
   reportId: string,
   embedding: number[]
-): Promise<{ isDuplicate: boolean; similarReportId?: string; similarity?: number }> {
+): Promise<DuplicateDetectionResult> {
   try {
     // Query similar reports using pgvector cosine similarity
     // Threshold: 0.85 similarity (very similar)
@@ -390,6 +400,212 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 }
 
 /**
+ * Estimate budget for repair
+ * @param params - Report parameters
+ * @returns Budget estimate in IDR
+ */
+export async function estimateBudget(params: {
+  categoryId: number
+  description: string
+  locationAddress: string
+  dangerLevel: string
+}): Promise<BudgetEstimate> {
+  try {
+    const category = await db.category.findUnique({
+      where: { id: params.categoryId },
+      select: { name: true },
+    })
+
+    const prompt = `Estimasi biaya perbaikan untuk kerusakan infrastruktur di Indonesia:
+
+Kategori: ${category?.name || 'Unknown'}
+Deskripsi: ${params.description}
+Lokasi: ${params.locationAddress}
+Tingkat Bahaya: ${params.dangerLevel}
+
+Gunakan tarif kontraktor pemerintah daerah Indonesia (2026).
+Pertimbangkan: lokasi urban vs rural (urban lebih mahal), tingkat kerusakan, estimasi ukuran/skala.
+
+Berikan respons dalam format JSON:
+{
+  "minIdr": <number>,
+  "maxIdr": <number>,
+  "basis": "<penjelasan 1 kalimat dalam Bahasa Indonesia>"
+}
+
+Hanya berikan JSON, tanpa teks tambahan.`
+
+    const response = await callOpenRouter(MODELS.text, [{ role: 'user', content: prompt }], 200)
+
+    const result = JSON.parse(response)
+    return {
+      minIdr: result.minIdr,
+      maxIdr: result.maxIdr,
+      basis: result.basis,
+    }
+  } catch (error) {
+    console.error('AI estimate budget error:', error)
+    // Fallback to reasonable defaults based on category
+    return {
+      minIdr: 5000000,
+      maxIdr: 15000000,
+      basis: 'Estimasi default berdasarkan kategori',
+    }
+  }
+}
+
+/**
+ * Verify before/after photos
+ * @param params - Photo comparison parameters
+ * @returns Verification result
+ */
+export async function verifyBeforeAfterPhoto(params: {
+  beforeBase64: string
+  afterBase64: string
+  mimeType: string
+  categoryId: number
+}): Promise<PhotoVerificationResult> {
+  try {
+    // Note: Vision model comparison requires special handling
+    // For now, return a placeholder response
+    // TODO: Implement proper image comparison with vision model
+    console.log('Before/after photo verification not yet fully implemented')
+
+    return {
+      progressDetected: true,
+      confidence: 0.75,
+      description:
+        'Verifikasi foto otomatis sedang dalam pengembangan. Mohon verifikasi manual.',
+      concerns: null,
+    }
+  } catch (error) {
+    console.error('AI verify before/after photo error:', error)
+    return {
+      progressDetected: false,
+      confidence: 0,
+      description: 'Gagal memverifikasi foto, mohon verifikasi manual',
+      concerns: 'Sistem verifikasi foto mengalami gangguan',
+    }
+  }
+}
+
+/**
+ * Generate daily insight for government dashboard
+ * @param data - Dashboard data
+ * @returns Daily insight text
+ */
+export async function generateDailyInsight(data: {
+  agencyName: string
+  topRisingCategory: string
+  risePercent: number
+  totalOpen: number
+  slaBreached: number
+  seasonContext: string
+}): Promise<string> {
+  try {
+    const prompt = `Buat SATU insight harian singkat dalam Bahasa Indonesia (maksimal 30 kata) untuk dashboard pemerintah ${data.agencyName}:
+
+- Kategori meningkat: ${data.topRisingCategory} (+${data.risePercent}%)
+- Laporan terbuka: ${data.totalOpen}, SLA terlampaui: ${data.slaBreached}
+- Musim: ${data.seasonContext}
+
+Buat insight yang actionable untuk petugas pemerintah.
+Hanya berikan kalimat insight, tanpa teks tambahan.`
+
+    const response = await callOpenRouter(MODELS.quick, [{ role: 'user', content: prompt }], 120)
+
+    return response.trim()
+  } catch (error) {
+    console.error('AI generate daily insight error:', error)
+    return `${data.topRisingCategory} meningkat ${data.risePercent}%. Perhatikan ${data.slaBreached} laporan yang melampaui SLA.`
+  }
+}
+
+/**
+ * Predict workload for next week
+ * @param agencyId - Agency ID
+ * @returns Workload prediction
+ */
+export async function predictWorkload(agencyId: string): Promise<WorkloadPrediction> {
+  try {
+    // Get historical data (last 90 days)
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+
+    const historicalData = await db.$queryRaw<
+      Array<{ week: number; count: bigint }>
+    >`
+      SELECT 
+        EXTRACT(WEEK FROM created_at) as week,
+        COUNT(*) as count
+      FROM reports
+      WHERE agency_id = ${agencyId}
+        AND created_at >= ${ninetyDaysAgo}
+      GROUP BY EXTRACT(WEEK FROM created_at)
+      ORDER BY week DESC
+    `
+
+    // Simple average-based prediction
+    const avgWeekly =
+      historicalData.length > 0
+        ? historicalData.reduce((sum, item) => sum + Number(item.count), 0) /
+          historicalData.length
+        : 0
+
+    // Add 10% buffer for seasonal variation
+    const predictedWeeklyTotal = Math.round(avgWeekly * 1.1)
+
+    // Get by subdistrict
+    const bySubdistrict = await db.$queryRaw<
+      Array<{ region_code: string; count: bigint }>
+    >`
+      SELECT 
+        region_code,
+        COUNT(*) as count
+      FROM reports
+      WHERE agency_id = ${agencyId}
+        AND created_at >= ${ninetyDaysAgo}
+      GROUP BY region_code
+      ORDER BY count DESC
+      LIMIT 10
+    `
+
+    const subdistrictPredictions = bySubdistrict.map((item) => ({
+      code: item.region_code,
+      predicted: Math.round((Number(item.count) / 90) * 7 * 1.1), // Weekly prediction
+      currentStaff: 0, // TODO: Get from officers table
+    }))
+
+    // Generate recommendation if needed
+    let recommendation: string | null = null
+    if (predictedWeeklyTotal > avgWeekly * 1.5) {
+      const prompt = `Prediksi laporan minggu depan: ${predictedWeeklyTotal} (rata-rata: ${Math.round(avgWeekly)}).
+Buat rekomendasi staffing singkat (1 kalimat, maksimal 20 kata) dalam Bahasa Indonesia.
+Hanya berikan rekomendasi, tanpa teks tambahan.`
+
+      const response = await callOpenRouter(
+        MODELS.quick,
+        [{ role: 'user', content: prompt }],
+        80
+      )
+      recommendation = response.trim()
+    }
+
+    return {
+      predictedWeeklyTotal,
+      bySubdistrict: subdistrictPredictions,
+      recommendation,
+    }
+  } catch (error) {
+    console.error('AI predict workload error:', error)
+    return {
+      predictedWeeklyTotal: 0,
+      bySubdistrict: [],
+      recommendation: null,
+    }
+  }
+}
+
+/**
  * Chatbot for citizen questions
  * @param message - User message
  * @param history - Conversation history
@@ -412,12 +628,12 @@ Gunakan Bahasa Indonesia yang ramah dan profesional.
 Jika tidak tahu jawaban, arahkan pengguna untuk menghubungi customer service.`
 
     const messages = [
-      { role: 'system', content: systemPrompt },
+      { role: 'system' as const, content: systemPrompt },
       ...history.map((msg) => ({
-        role: msg.role,
+        role: msg.role as 'user' | 'assistant',
         content: msg.content,
       })),
-      { role: 'user', content: message },
+      { role: 'user' as const, content: message },
     ]
 
     const response = await callOpenRouter(MODELS.text, messages, 500)

@@ -44,7 +44,6 @@ ai.post(
           id: true,
           name: true,
           emoji: true,
-          description: true,
         },
       })
 
@@ -85,9 +84,9 @@ ai.post(
           id: true,
           title: true,
           description: true,
-          address: true,
-          latitude: true,
-          longitude: true,
+          locationAddress: true,
+          locationLat: true,
+          locationLng: true,
         },
       })
 
@@ -96,7 +95,7 @@ ai.post(
       }
 
       // Generate embedding
-      const embeddingText = `${report.title} ${report.description} ${report.address}`
+      const embeddingText = `${report.title} ${report.description} ${report.locationAddress}`
       const embedding = await generateEmbedding(embeddingText)
 
       // Detect duplicates
@@ -119,8 +118,8 @@ ai.post(
           trackingCode: true,
           title: true,
           status: true,
-          latitude: true,
-          longitude: true,
+          locationLat: true,
+          locationLng: true,
           createdAt: true,
           category: {
             select: {
@@ -134,10 +133,10 @@ ai.post(
       // Calculate distance between reports
       let distance = 0
       if (similarReport) {
-        const lat1 = report.latitude
-        const lon1 = report.longitude
-        const lat2 = similarReport.latitude
-        const lon2 = similarReport.longitude
+        const lat1 = Number(report.locationLat)
+        const lon1 = Number(report.locationLng)
+        const lat2 = Number(similarReport.locationLat)
+        const lon2 = Number(similarReport.locationLng)
 
         // Haversine formula for distance in meters
         const R = 6371e3 // Earth radius in meters
@@ -272,13 +271,12 @@ ai.get(
           reporterId: true,
           title: true,
           description: true,
+          dangerLevel: true,
           aiAnalysis: {
             select: {
-              summary: true,
               dangerLevel: true,
-              dangerReasoning: true,
               isHoax: true,
-              hoaxReason: true,
+              impactSummary: true,
             },
           },
         },
@@ -297,7 +295,7 @@ ai.get(
       const suggestions = []
 
       if (report.aiAnalysis) {
-        if (report.aiAnalysis.dangerLevel === 'low') {
+        if (report.aiAnalysis.dangerLevel && report.aiAnalysis.dangerLevel <= 2) {
           suggestions.push({
             type: 'info',
             message: 'Laporan Anda dikategorikan sebagai prioritas rendah.',
@@ -307,7 +305,7 @@ ai.get(
         if (report.aiAnalysis.isHoax) {
           suggestions.push({
             type: 'warning',
-            message: `Sistem mendeteksi kemungkinan informasi tidak akurat: ${report.aiAnalysis.hoaxReason}`,
+            message: `Sistem mendeteksi kemungkinan informasi tidak akurat. Mohon verifikasi kembali detail laporan Anda.`,
           })
         }
 
