@@ -37,11 +37,11 @@ export function CitizenBottomNav() {
               <Link
                 key={item.href}
                 href={item.href}
-                className="flex flex-col items-center justify-center -mt-6"
+                className="flex flex-col items-center justify-center -mt-8"
                 aria-label={item.label}
               >
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-navy text-white shadow-lg hover:bg-navy/90 transition-colors">
-                  <Icon size={24} />
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-navy text-white shadow-lg hover:bg-navy/90 transition-colors">
+                  <Icon size={28} />
                 </div>
               </Link>
             );

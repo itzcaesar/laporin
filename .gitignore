@@ -113,6 +113,7 @@ temp/
 *.backup
 *.old
 *.orig
+*.document
 
 # =========================================
 # 📸 Media / Generated Assets

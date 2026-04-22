@@ -8,8 +8,8 @@ import { STATUS_CONFIG } from "@/data/mock-reports";
 import type { MockReport } from "@/types/report";
 import {
   X,
-  ThumbsUp,
-  ThumbsDown,
+  ArrowBigUp,
+  ArrowBigDown,
   MessageCircle,
   MapPin,
   Clock,
@@ -196,6 +196,7 @@ export function ReportDetailModal({ report, onClose }: ReportDetailModalProps) {
                 <button
                   type="button"
                   onClick={handleUpvote}
+                  aria-label="Upvote laporan ini"
                   className={cn(
                     "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-semibold transition-all duration-200",
                     userVote === "up"
@@ -203,8 +204,8 @@ export function ReportDetailModal({ report, onClose }: ReportDetailModalProps) {
                       : "text-muted hover:bg-gray-50"
                   )}
                 >
-                  <ThumbsUp
-                    size={16}
+                  <ArrowBigUp
+                    size={18}
                     className={cn(
                       userVote === "up" && "fill-blue"
                     )}
@@ -216,6 +217,7 @@ export function ReportDetailModal({ report, onClose }: ReportDetailModalProps) {
                 <button
                   type="button"
                   onClick={handleDownvote}
+                  aria-label="Downvote laporan ini"
                   className={cn(
                     "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-semibold transition-all duration-200",
                     userVote === "down"
@@ -223,8 +225,8 @@ export function ReportDetailModal({ report, onClose }: ReportDetailModalProps) {
                       : "text-muted hover:bg-gray-50"
                   )}
                 >
-                  <ThumbsDown
-                    size={16}
+                  <ArrowBigDown
+                    size={18}
                     className={cn(
                       userVote === "down" && "fill-red-500"
                     )}

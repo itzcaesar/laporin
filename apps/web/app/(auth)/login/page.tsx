@@ -31,19 +31,19 @@ export default function LoginPage() {
 
     try {
       await login(email, password);
-      // The login function sets the user in context and cookies
-      // Wait a bit for cookies to be set, then redirect based on cookie
-      setTimeout(() => {
-        const roleFromCookie = document.cookie
-          .split("; ")
-          .find((row) => row.startsWith("laporin_role="))
-          ?.split("=")[1];
-        
-        console.log("Role from cookie:", roleFromCookie);
-        
-        const dest = roleFromCookie === "citizen" ? "/citizen" : "/gov";
-        router.push(dest);
-      }, 100);
+      
+      // Get role from cookie
+      const roleFromCookie = document.cookie
+        .split("; ")
+        .find((row) => row.startsWith("laporin_role="))
+        ?.split("=")[1];
+      
+      console.log("Role from cookie:", roleFromCookie);
+      
+      // Use window.location for hard redirect to ensure page loads fresh
+      const dest = roleFromCookie === "citizen" ? "/citizen" : "/gov";
+      console.log("Redirecting to:", dest);
+      window.location.href = dest;
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Login gagal. Coba lagi.";

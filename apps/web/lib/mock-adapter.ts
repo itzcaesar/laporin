@@ -1,7 +1,7 @@
 // ── lib/mock-adapter.ts ──
 // Adapter to convert MockReport to Report format for components
 
-import type { MockReport, Report, ReportStatus, ReportStatusMap } from "@/types";
+import type { MockReport, Report, ReportDetail, ReportStatus, ReportStatusMap } from "@/types";
 
 // Map Indonesian status to English status
 const STATUS_MAP: Record<ReportStatusMap, ReportStatus> = {
@@ -47,6 +47,29 @@ export function mockToReport(mock: MockReport): Report {
     thumbnailUrl: null,
     createdAt: convertRelativeTime(mock.reportedAt),
     updatedAt: convertRelativeTime(mock.reportedAt),
+  };
+}
+
+/**
+ * Convert MockReport to ReportDetail format (includes description and more)
+ */
+export function mockToReportDetail(mock: MockReport): ReportDetail {
+  return {
+    ...mockToReport(mock),
+    description: mock.description,
+    aiSummary: null,
+    locationLat: mock.lat,
+    locationLng: mock.lng,
+    estimatedStart: null,
+    completedAt: mock.status === "selesai" || mock.status === "terverifikasi" 
+      ? convertRelativeTime(mock.reportedAt) 
+      : null,
+    media: [],
+    statusHistory: [],
+    comments: [],
+    aiAnalysis: null,
+    hasVoted: false,
+    hasBookmarked: false,
   };
 }
 

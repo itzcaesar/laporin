@@ -46,7 +46,15 @@ async function request<T>(
   });
 
   if (response.status === 401) {
-    // Try refresh
+    // If skipAuth is true, this is a login attempt - don't try to refresh
+    if (skipAuth) {
+      const error = await response
+        .json()
+        .catch(() => ({ error: "Invalid credentials" }));
+      throw new Error(error.error ?? "Invalid credentials");
+    }
+    
+    // Try refresh for authenticated requests
     const refreshed = await tryRefreshToken();
     if (refreshed) {
       return request<T>(path, options); // retry once
