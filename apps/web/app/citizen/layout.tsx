@@ -15,11 +15,11 @@ export default function CitizenLayout({
       <CitizenTopbar />
 
       {/* Main content */}
-      <main className="pt-16 pb-20 md:pb-8">
+      <main className="pt-16 pb-20 lg:pb-8">
         {children}
       </main>
 
-      {/* Bottom navigation (mobile only) */}
+      {/* Bottom navigation (mobile + tablet) */}
       <CitizenBottomNav />
     </div>
   );

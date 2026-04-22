@@ -5,7 +5,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { Search, Bell, ChevronDown, Home, Map, FileText, Bookmark, Check } from "lucide-react";
+import { Search, Bell, ChevronDown, Home, Map, FileText, Bookmark, HelpCircle, MessageSquare, Trophy, Check, Filter } from "lucide-react";
 import { useScrolled } from "@/hooks/useScrolled";
 import { useAuth } from "@/hooks/useAuth";
 import { cn, formatRelativeTime } from "@/lib/utils";
@@ -15,7 +15,10 @@ const NAV_ITEMS = [
   { href: "/citizen", icon: Home, label: "Beranda" },
   { href: "/citizen/map", icon: Map, label: "Peta" },
   { href: "/citizen/my-reports", icon: FileText, label: "Laporan Saya" },
+  { href: "/citizen/achievements", icon: Trophy, label: "Pencapaian" },
   { href: "/citizen/bookmarks", icon: Bookmark, label: "Bookmark" },
+  { href: "/citizen/faq", icon: HelpCircle, label: "FAQ" },
+  { href: "/citizen/forum", icon: MessageSquare, label: "Forum" },
 ];
 
 // Mock notifications - replace with actual API call
@@ -53,9 +56,20 @@ export function CitizenTopbar() {
   const { user, logout } = useAuth();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
+  const [activeFilter, setActiveFilter] = useState("all");
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
+
+  const FILTER_OPTIONS = [
+    { label: "Semua", value: "all" },
+    { label: "Baru", value: "baru" },
+    { label: "Diverifikasi", value: "diverifikasi" },
+    { label: "Diproses", value: "diproses" },
+    { label: "Selesai", value: "selesai" },
+    { label: "Terverifikasi", value: "terverifikasi" },
+  ];
 
   const handleMarkAllRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
@@ -84,8 +98,8 @@ export function CitizenTopbar() {
     >
       <div className="flex h-full items-center justify-between px-4 sm:px-6">
         {/* Left: Logo + Desktop Nav */}
-        <div className="flex items-center gap-6">
-          <Link href="/" className="flex items-center gap-2">
+        <div className="flex items-center gap-6 flex-1">
+          <Link href="/" className="flex items-center gap-2 shrink-0">
             <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-md shadow-sm">
               <Image
                 src="/icons/icon-192.png"
@@ -101,7 +115,7 @@ export function CitizenTopbar() {
           </Link>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-1">
+          <nav className="hidden lg:flex items-center gap-1">
             {NAV_ITEMS.map((item) => {
               const isActive = pathname === item.href;
               const Icon = item.icon;
@@ -123,25 +137,97 @@ export function CitizenTopbar() {
               );
             })}
           </nav>
-        </div>
 
-        {/* Center: Search (desktop only) - Absolutely centered */}
-        <div className="absolute left-1/2 -translate-x-1/2 hidden lg:block w-full max-w-2xl px-4">
-          <div className="relative">
-            <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted"
-              size={18}
-            />
-            <input
-              type="search"
-              placeholder="Cari laporan..."
-              className="w-full rounded-xl border border-border bg-surface pl-10 pr-4 py-2 text-sm text-ink placeholder:text-muted focus:border-blue focus:outline-none focus:ring-2 focus:ring-blue/20 transition-all"
-            />
+          {/* Search (desktop only) */}
+          <div className="hidden xl:block flex-1 max-w-md ml-4">
+            <div className="relative">
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted"
+                size={18}
+              />
+              <input
+                type="search"
+                placeholder="Cari laporan..."
+                className="w-full rounded-xl border border-border bg-surface pl-10 pr-4 py-2 text-sm text-ink placeholder:text-muted focus:border-blue focus:outline-none focus:ring-2 focus:ring-blue/20 transition-all"
+              />
+            </div>
           </div>
         </div>
 
         {/* Right: Notifications + Avatar */}
         <div className="flex items-center gap-3">
+          {/* Filter button - Mobile only, only on homepage */}
+          {pathname === "/citizen" && (
+            <div 
+              className="relative md:hidden"
+              onMouseEnter={() => setIsFilterOpen(true)}
+              onMouseLeave={() => setIsFilterOpen(false)}
+            >
+              <button
+                type="button"
+                onClick={() => setIsFilterOpen(!isFilterOpen)}
+                className={cn(
+                  "flex items-center gap-1.5 h-10 px-3 rounded-lg transition-colors min-h-[44px]",
+                  activeFilter !== "all"
+                    ? "bg-navy text-white"
+                    : "text-muted hover:bg-surface hover:text-ink"
+                )}
+                aria-label="Filter"
+              >
+                <Filter size={20} />
+                {activeFilter !== "all" && (
+                  <span className="text-xs font-medium">
+                    {FILTER_OPTIONS.find(f => f.value === activeFilter)?.label}
+                  </span>
+                )}
+              </button>
+
+              {/* Filter Dropdown */}
+              {isFilterOpen && (
+                <>
+                  {/* Backdrop - only on mobile */}
+                  <div
+                    className="fixed inset-0 z-40 md:hidden"
+                    onClick={() => setIsFilterOpen(false)}
+                  />
+
+                  {/* Invisible bridge */}
+                  <div className="absolute right-0 top-full h-2 w-full" />
+
+                  {/* Dropdown */}
+                  <div 
+                    className="absolute right-0 top-full mt-0.5 w-48 rounded-xl border border-border bg-white shadow-xl z-50"
+                    onMouseEnter={() => setIsFilterOpen(true)}
+                    onMouseLeave={() => setIsFilterOpen(false)}
+                  >
+                    <div className="p-2">
+                      {FILTER_OPTIONS.map((option) => (
+                        <button
+                          key={option.value}
+                          onClick={() => {
+                            setActiveFilter(option.value);
+                            setIsFilterOpen(false);
+                            // Trigger filter change via URL or state management
+                            const event = new CustomEvent('filterChange', { detail: option.value });
+                            window.dispatchEvent(event);
+                          }}
+                          className={cn(
+                            "w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors",
+                            activeFilter === option.value
+                              ? "bg-navy text-white font-medium"
+                              : "text-ink hover:bg-surface"
+                          )}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Notification bell with dropdown */}
           <div 
             className="relative"

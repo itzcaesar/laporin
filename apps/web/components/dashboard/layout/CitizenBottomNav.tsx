@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Map, Plus, FileText, User } from "lucide-react";
+import { Home, Map, Plus, MessageSquare, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type NavItem = {
@@ -17,7 +17,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/citizen", icon: Home, label: "Beranda" },
   { href: "/citizen/map", icon: Map, label: "Peta" },
   { href: "/citizen/reports/new", icon: Plus, label: "Buat", isFAB: true },
-  { href: "/citizen/my-reports", icon: FileText, label: "Laporan Saya" },
+  { href: "/citizen/forum", icon: MessageSquare, label: "Forum" },
   { href: "/citizen/profile", icon: User, label: "Profil" },
 ];
 
@@ -25,7 +25,7 @@ export function CitizenBottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-white md:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-white lg:hidden">
       <div className="flex items-center justify-around h-16 px-2">
         {NAV_ITEMS.map((item) => {
           const isActive = pathname === item.href;
