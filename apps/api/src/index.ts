@@ -10,6 +10,8 @@ import { secureHeaders } from 'hono/secure-headers'
 import { env } from './env.js'
 import routes from './routes/index.js'
 import { startNotificationWorker } from './jobs/workers/notification.worker.js'
+import { createAIWorker } from './jobs/workers/ai.worker.js'
+import { startAllCronJobs } from './jobs/cron.js'
 import type { Worker } from 'bullmq'
 
 /**
@@ -33,7 +35,8 @@ app.use(
   cors({
     origin: env.ALLOWED_ORIGINS.split(',').map((origin) => origin.trim()),
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization'],
+    allowHeaders: ['*'], // Allow all headers
+    exposeHeaders: ['Content-Length', 'X-Request-Id'],
     credentials: true,
     maxAge: 86400, // 24 hours
   })
@@ -96,13 +99,24 @@ const port = env.PORT
 
 // Start background workers
 let notificationWorker: Worker | null = null
+let aiWorker: Worker | null = null
 
 try {
   notificationWorker = startNotificationWorker()
+  aiWorker = createAIWorker()
   console.log('✓ Background workers initialized')
 } catch (error) {
   console.error('Failed to start background workers:', error)
   console.warn('⚠️  API will run without background job processing')
+}
+
+// Start CRON jobs
+try {
+  startAllCronJobs()
+  console.log('✓ CRON jobs initialized')
+} catch (error) {
+  console.error('Failed to start CRON jobs:', error)
+  console.warn('⚠️  API will run without scheduled jobs')
 }
 
 serve(
@@ -130,6 +144,11 @@ process.on('SIGINT', async () => {
     console.log('✓ Notification worker closed')
   }
   
+  if (aiWorker) {
+    await aiWorker.close()
+    console.log('✓ AI worker closed')
+  }
+  
   process.exit(0)
 })
 
@@ -140,6 +159,11 @@ process.on('SIGTERM', async () => {
   if (notificationWorker) {
     await notificationWorker.close()
     console.log('✓ Notification worker closed')
+  }
+  
+  if (aiWorker) {
+    await aiWorker.close()
+    console.log('✓ AI worker closed')
   }
   
   process.exit(0)
