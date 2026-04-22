@@ -3,12 +3,13 @@
 
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { MOCK_REPORTS } from "@/data/mock-reports";
 import { mockToReport } from "@/lib/mock-adapter";
 import { FilterChips } from "@/components/dashboard/shared/FilterChips";
 import { EmptyState } from "@/components/dashboard/shared/EmptyState";
 import { ReportCard } from "@/components/dashboard/citizen/ReportCard";
+import { ReportFeed } from "@/components/dashboard/citizen/ReportFeed";
 import { Search, FileText } from "lucide-react";
 
 const FILTER_OPTIONS = [
@@ -23,6 +24,17 @@ const FILTER_OPTIONS = [
 export default function CitizenHomePage() {
   const [activeFilter, setActiveFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Listen for filter changes from topbar
+  useEffect(() => {
+    const handleFilterChange = (e: CustomEvent) => {
+      setActiveFilter(e.detail);
+    };
+    window.addEventListener('filterChange', handleFilterChange as EventListener);
+    return () => {
+      window.removeEventListener('filterChange', handleFilterChange as EventListener);
+    };
+  }, []);
 
   // Filter reports based on active filter and search query
   const filteredReports = useMemo(() => {
@@ -69,30 +81,15 @@ export default function CitizenHomePage() {
         </p>
       </div>
 
-      {/* Mobile Search Bar */}
-      <form onSubmit={handleSearch} className="mb-4 md:hidden">
-        <div className="relative">
-          <Search
-            size={18}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted"
-          />
-          <input
-            type="search"
-            placeholder="Cari laporan..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="input-base pl-10"
-          />
-        </div>
-      </form>
-
-      {/* Filter Chips */}
-      <FilterChips
-        options={FILTER_OPTIONS}
-        active={activeFilter}
-        onChange={handleFilterChange}
-        className="mb-6"
-      />
+      {/* Filter Chips - Desktop/Tablet only */}
+      <div className="hidden md:block">
+        <FilterChips
+          options={FILTER_OPTIONS}
+          active={activeFilter}
+          onChange={handleFilterChange}
+          className="mb-6"
+        />
+      </div>
 
       {/* Empty State */}
       {filteredReports.length === 0 && (
@@ -110,13 +107,21 @@ export default function CitizenHomePage() {
       {/* Report List - Grid on Desktop, Stack on Mobile */}
       {filteredReports.length > 0 && (
         <>
-          <div className="mb-4 text-sm text-muted">
-            Menampilkan {filteredReports.length} laporan
+          {/* Desktop/Tablet: Card Grid with count */}
+          <div className="hidden md:block">
+            <div className="mb-4 text-sm text-muted">
+              Menampilkan {filteredReports.length} laporan
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {filteredReports.map((report) => (
+                <ReportCard key={report.id} report={report} />
+              ))}
+            </div>
           </div>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredReports.map((report) => (
-              <ReportCard key={report.id} report={report} />
-            ))}
+
+          {/* Mobile: IG-style Feed (no count) */}
+          <div className="md:hidden">
+            <ReportFeed reports={filteredReports} />
           </div>
         </>
       )}

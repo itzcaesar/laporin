@@ -187,6 +187,7 @@ export interface User {
   email: string;
   role: "citizen" | "officer" | "admin" | "super_admin";
   agencyId: string | null;
+  agencyName?: string | null;
   nip: string | null;
 }
 
@@ -194,6 +195,7 @@ export interface Report {
   id: string;
   trackingCode: string;
   title: string;
+  description?: string; // Optional description for feed display
   locationAddress: string;
   status: ReportStatus;
   priority: "low" | "medium" | "high" | "urgent";

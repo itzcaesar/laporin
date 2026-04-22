@@ -28,6 +28,7 @@ export function mockToReport(mock: MockReport): Report {
     id: mock.id,
     trackingCode: mock.id, // Use ID as tracking code for now
     title: mock.title,
+    description: mock.description, // Add description field
     locationAddress: mock.location,
     status: STATUS_MAP[mock.status],
     priority: PRIORITY_MAP[mock.priority],
