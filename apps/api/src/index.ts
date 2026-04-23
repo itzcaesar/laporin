@@ -35,8 +35,8 @@ app.use(
   cors({
     origin: env.ALLOWED_ORIGINS.split(',').map((origin) => origin.trim()),
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['*'], // Allow all headers
-    exposeHeaders: ['Content-Length', 'X-Request-Id'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+    exposeHeaders: ['Content-Length', 'X-Request-Id', 'Content-Disposition'],
     credentials: true,
     maxAge: 86400, // 24 hours
   })
@@ -66,9 +66,11 @@ app.route('/api/v1', routes)
 app.notFound((c) => {
   return c.json(
     {
-      error: 'Not found',
-      path: c.req.path,
-      method: c.req.method,
+      success: false,
+      error: {
+        code: 'NOT_FOUND',
+        message: 'Endpoint tidak ditemukan',
+      },
     },
     404
   )
@@ -77,16 +79,63 @@ app.notFound((c) => {
 /**
  * Global error handler
  */
-app.onError((err, c) => {
-  console.error('Unhandled error:', err)
+app.onError((error, c) => {
+  console.error('Unhandled error:', error)
 
-  // Don't expose internal errors in production
-  const message = env.NODE_ENV === 'production' ? 'Internal server error' : err.message
+  // Handle Zod validation errors
+  if (error.name === 'ZodError') {
+    const zodError = error as any
+    const messages = zodError.errors?.map((e: any) => `${e.path.join('.')}: ${e.message}`).join(', ')
+    return c.json(
+      {
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: messages || 'Data yang dikirim tidak valid',
+        },
+      },
+      400
+    )
+  }
+
+  // Handle Prisma errors
+  if (error.message?.includes('Record to update not found') || error.message?.includes('Record to delete does not exist')) {
+    return c.json(
+      {
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Data tidak ditemukan',
+        },
+      },
+      404
+    )
+  }
+
+  if (error.message?.includes('Unique constraint')) {
+    return c.json(
+      {
+        success: false,
+        error: {
+          code: 'CONFLICT',
+          message: 'Data sudah ada',
+        },
+      },
+      409
+    )
+  }
+
+  // Generic error response
+  const message = env.NODE_ENV === 'production' ? 'Terjadi kesalahan server' : error.message
 
   return c.json(
     {
-      error: message,
-      ...(env.NODE_ENV === 'development' && { stack: err.stack }),
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message,
+      },
+      ...(env.NODE_ENV === 'development' && { stack: error.stack }),
     },
     500
   )

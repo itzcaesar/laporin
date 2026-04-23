@@ -1,62 +1,54 @@
 // ── components/dashboard/shared/EmptyState.tsx ──
-"use client";
-
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/Button";
-import type { LucideIcon } from "lucide-react";
+// Standard empty state component for when API returns no data
 
 interface EmptyStateProps {
-  icon?: LucideIcon;
-  emoji?: string;
-  title: string;
-  description?: string;
-  actionLabel?: string;
-  onAction?: () => void;
-  className?: string;
+  icon:         string   // emoji
+  title:        string
+  message?:     string
+  description?: string   // alias for message
+  action?:      { label: string; href: string }
+  actionLabel?: string   // alternative action format
+  onAction?:    () => void
 }
 
-export function EmptyState({
-  icon: Icon,
-  emoji,
-  title,
-  description,
-  actionLabel,
-  onAction,
-  className,
+export default function EmptyState({ 
+  icon, 
+  title, 
+  message, 
+  description, 
+  action, 
+  actionLabel, 
+  onAction 
 }: EmptyStateProps) {
+  const displayMessage = message || description
+  const displayAction = action || (actionLabel && onAction ? { label: actionLabel, onClick: onAction } : null)
+
   return (
-    <div
-      className={cn(
-        "flex flex-col items-center justify-center py-12 px-4 text-center",
-        className
-      )}
-    >
-      {/* Icon or Emoji */}
-      {Icon && (
-        <div className="mb-4 rounded-full bg-surface p-4">
-          <Icon size={32} className="text-muted" />
-        </div>
-      )}
-      {emoji && <div className="mb-4 text-5xl">{emoji}</div>}
-
-      {/* Title */}
-      <h3 className="text-lg font-semibold font-display text-ink mb-2">
-        {title}
-      </h3>
-
-      {/* Description */}
-      {description && (
-        <p className="text-sm font-body text-muted max-w-md mb-6">
-          {description}
-        </p>
-      )}
-
-      {/* Action Button */}
-      {actionLabel && onAction && (
-        <Button variant="primary" onClick={onAction}>
-          {actionLabel}
-        </Button>
+    <div className="flex flex-col items-center justify-center py-16 text-center">
+      <span className="text-5xl mb-4">{icon}</span>
+      <h3 className="text-lg font-semibold font-display text-navy mb-2">{title}</h3>
+      {displayMessage && <p className="text-sm text-muted max-w-sm mb-6">{displayMessage}</p>}
+      {displayAction && (
+        'href' in displayAction ? (
+          <a
+            href={displayAction.href}
+            className="rounded-xl bg-blue text-white px-6 py-3 text-sm font-medium
+                       hover:bg-blue-700 transition-colors duration-200 min-h-[44px]
+                       inline-flex items-center"
+          >
+            {displayAction.label}
+          </a>
+        ) : (
+          <button
+            onClick={displayAction.onClick}
+            className="rounded-xl bg-blue text-white px-6 py-3 text-sm font-medium
+                       hover:bg-blue-700 transition-colors duration-200 min-h-[44px]
+                       inline-flex items-center"
+          >
+            {displayAction.label}
+          </button>
+        )
       )}
     </div>
-  );
+  )
 }

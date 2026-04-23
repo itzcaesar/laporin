@@ -3,6 +3,7 @@
 
 import { Hono } from 'hono'
 import { db } from '../db.js'
+import { ok, err } from '../lib/response.js'
 import { redis } from '../lib/redis.js'
 import type { ReportStatus } from '@prisma/client'
 
@@ -12,6 +13,38 @@ const app = new Hono()
  * Cache TTL for statistics (in seconds)
  */
 const CACHE_TTL_STATS = parseInt(process.env.CACHE_TTL_STATS || '300')
+
+/**
+ * GET /statistics/public
+ * Returns public statistics for landing page
+ * Cached for 10 minutes
+ */
+app.get('/public', async (c) => {
+  try {
+    const [totalReports, resolvedReports, activeDinas, satisfactionData] =
+      await Promise.all([
+        db.report.count(),
+        db.report.count({
+          where: { status: { in: ['completed', 'verified_complete'] } },
+        }),
+        db.agency.count({ where: { isActive: true } }),
+        db.satisfactionRating.aggregate({ _avg: { rating: true } }),
+      ])
+
+    return ok(c, {
+      totalReports,
+      resolvedReports,
+      resolutionRate:
+        totalReports > 0 ? Math.round((resolvedReports / totalReports) * 100) : 0,
+      avgDaysToResolve: 0, // TODO: compute from raw SQL if needed
+      activeDinas,
+      satisfactionAvg: satisfactionData._avg.rating,
+    })
+  } catch (error) {
+    console.error('[Stats] Error fetching public stats:', error)
+    return err(c, 'INTERNAL_ERROR', 'Gagal memuat statistik', 500)
+  }
+})
 
 /**
  * GET /statistics/region

@@ -1,9 +1,10 @@
 // ── app/citizen/map/page.tsx ──
-// Citizen map page - reuses the landing page map component
+// Citizen map page - shows all reports on an interactive map
 
 "use client";
 
 import dynamic from "next/dynamic";
+import { useMapPins } from "@/hooks/useMapPins";
 
 const ReportMap = dynamic(
   () =>
@@ -29,6 +30,9 @@ const ReportMap = dynamic(
 );
 
 export default function CitizenMapPage() {
+  // TODO: Pass useMapPins() data to ReportMap when component is refactored
+  // const { pins, isLoading } = useMapPins();
+
   return (
     // Full screen map - remove layout padding
     <div className="fixed inset-0 top-16 bottom-0 md:bottom-0">

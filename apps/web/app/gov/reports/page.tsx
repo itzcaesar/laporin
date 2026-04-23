@@ -8,122 +8,34 @@ import { Pagination } from "@/components/dashboard/shared/Pagination";
 import { ReportTable, type ReportRow } from "@/components/dashboard/gov/ReportTable";
 import { ReportTableMobileCard } from "@/components/dashboard/gov/ReportTableMobileCard";
 import { BulkActionBar } from "@/components/dashboard/gov/BulkActionBar";
-import { EmptyState } from "@/components/dashboard/shared/EmptyState";
-import { FileText } from "lucide-react";
+import EmptyState from "@/components/dashboard/shared/EmptyState";
+import LoadingSkeleton from "@/components/dashboard/shared/LoadingSkeleton";
+import { useGovReports } from "@/hooks/useGovReports";
+import { useCategories, type Category } from "@/hooks/useCategories";
 
-// Mock data - replace with API call
-const MOCK_REPORTS: ReportRow[] = [
-  {
-    id: "1",
-    trackingCode: "LP-26-001",
-    categoryEmoji: "🛣",
-    categoryName: "Jalan Rusak",
-    locationAddress: "Jl. Sudirman No.12, Kel. Braga",
-    status: "Diproses",
-    priority: "urgent",
-    picName: "Budi Santosa",
-    createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-    isHoaxFlagged: false,
-    aiAnalysis: {
-      priorityScore: 72,
-      priorityLabel: "Tinggi",
-      hoaxConfidence: 2,
-      hoaxLabel: "Aman",
-      dangerLevel: 3,
-      dangerLabel: "Signifikan",
-      aiSummary: "Lubang besar berdiameter ~50cm di jalur utama",
-    },
-  },
-  {
-    id: "2",
-    trackingCode: "LP-26-002",
-    categoryEmoji: "🌊",
-    categoryName: "Drainase",
-    locationAddress: "Jl. Asia Afrika No.45",
-    status: "Baru",
-    priority: "high",
-    picName: null,
-    createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
-    isHoaxFlagged: false,
-    aiAnalysis: {
-      priorityScore: 65,
-      priorityLabel: "Sedang",
-      hoaxConfidence: 5,
-      hoaxLabel: "Aman",
-      dangerLevel: 2,
-      dangerLabel: "Rendah",
-      aiSummary: "Saluran drainase tersumbat sampah",
-    },
-  },
-  {
-    id: "3",
-    trackingCode: "LP-26-003",
-    categoryEmoji: "🚦",
-    categoryName: "Lampu Lalu Lintas",
-    locationAddress: "Jl. Dago No.88",
-    status: "Diverifikasi",
-    priority: "medium",
-    picName: "Agus Permana",
-    createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-    isHoaxFlagged: true,
-    aiAnalysis: {
-      priorityScore: 45,
-      priorityLabel: "Sedang",
-      hoaxConfidence: 65,
-      hoaxLabel: "Kemungkinan Hoaks",
-      dangerLevel: 2,
-      dangerLabel: "Rendah",
-      aiSummary: "Lampu lalu lintas mati di persimpangan",
-    },
-  },
-];
+// Helper to get priority label
+const getPriorityLabel = (score: number): string => {
+  if (score >= 80) return "Sangat Tinggi";
+  if (score >= 60) return "Tinggi";
+  if (score >= 40) return "Sedang";
+  return "Rendah";
+};
 
-const FILTER_CONFIGS: FilterConfig[] = [
-  {
-    key: "status",
-    label: "Status",
-    options: [
-      { value: "all", label: "Semua" },
-      { value: "new", label: "Baru" },
-      { value: "verified", label: "Diverifikasi" },
-      { value: "in_progress", label: "Diproses" },
-      { value: "completed", label: "Selesai" },
-      { value: "verified_complete", label: "Terverifikasi" },
-      { value: "rejected", label: "Ditolak" },
-    ],
-  },
-  {
-    key: "category",
-    label: "Kategori",
-    options: [
-      { value: "all", label: "Semua Kategori" },
-      { value: "1", label: "Jalan Rusak" },
-      { value: "11", label: "Drainase" },
-      { value: "3", label: "Lampu Lalu Lintas" },
-    ],
-  },
-  {
-    key: "priority",
-    label: "Prioritas",
-    options: [
-      { value: "all", label: "Semua" },
-      { value: "urgent", label: "Darurat" },
-      { value: "high", label: "Tinggi" },
-      { value: "medium", label: "Sedang" },
-      { value: "low", label: "Rendah" },
-    ],
-  },
-  {
-    key: "special",
-    label: "Filter Khusus",
-    options: [
-      { value: "all", label: "Tidak Ada" },
-      { value: "sla_breached", label: "SLA Terlampaui" },
-      { value: "unassigned", label: "Belum Ditugaskan" },
-      { value: "hoax_detected", label: "Hoaks Terdeteksi" },
-    ],
-  },
-];
+// Helper to get hoax label
+const getHoaxLabel = (confidence: number | null): string => {
+  if (!confidence) return "Aman";
+  if (confidence >= 70) return "Kemungkinan Hoaks";
+  if (confidence >= 40) return "Perlu Verifikasi";
+  return "Aman";
+};
+
+// Helper to get danger label
+const getDangerLabel = (level: number): string => {
+  if (level >= 4) return "Sangat Berbahaya";
+  if (level >= 3) return "Signifikan";
+  if (level >= 2) return "Rendah";
+  return "Minimal";
+};
 
 export default function GovReportsPage() {
   const [activeFilters, setActiveFilters] = useState<Record<string, string>>({
@@ -137,19 +49,67 @@ export default function GovReportsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
 
-  // Filter reports
-  const filteredReports = useMemo(() => {
-    let filtered = [...MOCK_REPORTS];
+  // Fetch categories for filter
+  const { categories } = useCategories();
 
-    // Apply filters
+  // Build filters for API
+  const apiFilters = useMemo(() => {
+    const filters: any = {};
+    
     if (activeFilters.status !== "all") {
-      filtered = filtered.filter((r) =>
-        r.status.toLowerCase().includes(activeFilters.status)
-      );
+      filters.status = activeFilters.status;
+    }
+    if (activeFilters.category !== "all") {
+      filters.categoryId = parseInt(activeFilters.category, 10);
     }
     if (activeFilters.priority !== "all") {
-      filtered = filtered.filter((r) => r.priority === activeFilters.priority);
+      filters.priority = activeFilters.priority;
     }
+    if (activeFilters.special === "sla_breached") {
+      filters.slaBreached = true;
+    }
+    // Note: unassigned and hoax_detected filters need to be handled client-side
+    // as they're not supported by the API yet
+    
+    return filters;
+  }, [activeFilters]);
+
+  // Fetch reports from API
+  const { data: apiReports, meta, isLoading, error, refetch } = useGovReports(
+    apiFilters,
+    currentPage,
+    itemsPerPage
+  );
+
+  // Transform API data to ReportRow format
+  const reports: ReportRow[] = useMemo(() => {
+    return apiReports.map((report) => ({
+      id: report.id,
+      trackingCode: report.trackingCode,
+      categoryEmoji: report.category.emoji,
+      categoryName: report.category.name,
+      locationAddress: report.locationAddress,
+      status: report.status,
+      priority: report.priority,
+      picName: report.assignedOfficer?.name || null,
+      createdAt: report.createdAt,
+      isHoaxFlagged: false, // TODO: Add hoax detection flag from AI analysis
+      aiAnalysis: {
+        priorityScore: report.priorityScore,
+        priorityLabel: getPriorityLabel(report.priorityScore),
+        hoaxConfidence: 0, // TODO: Get from AI analysis
+        hoaxLabel: "Aman",
+        dangerLevel: report.dangerLevel,
+        dangerLabel: getDangerLabel(report.dangerLevel),
+        aiSummary: null, // TODO: Get from report if available
+      },
+    }));
+  }, [apiReports]);
+
+  // Apply client-side filters (for filters not supported by API)
+  const filteredReports = useMemo(() => {
+    let filtered = [...reports];
+
     if (activeFilters.special === "unassigned") {
       filtered = filtered.filter((r) => !r.picName);
     }
@@ -169,14 +129,7 @@ export default function GovReportsPage() {
     }
 
     return filtered;
-  }, [activeFilters, searchQuery]);
-
-  // Pagination
-  const totalPages = Math.ceil(filteredReports.length / itemsPerPage);
-  const paginatedReports = filteredReports.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  }, [reports, activeFilters.special, searchQuery]);
 
   const handleFilterChange = (key: string, value: string) => {
     setActiveFilters((prev) => ({ ...prev, [key]: value }));
@@ -196,6 +149,59 @@ export default function GovReportsPage() {
 
   const hasActiveFilters =
     Object.values(activeFilters).some((v) => v !== "all") || searchQuery !== "";
+
+  // Update filter configs with real categories
+  const filterConfigs: FilterConfig[] = useMemo(() => {
+    const categoryOptions = [
+      { value: "all", label: "Semua Kategori" },
+      ...categories.map((cat: Category) => ({
+        value: cat.id.toString(),
+        label: `${cat.emoji} ${cat.name}`,
+      })),
+    ];
+
+    return [
+      {
+        key: "status",
+        label: "Status",
+        options: [
+          { value: "all", label: "Semua" },
+          { value: "new", label: "Baru" },
+          { value: "verified", label: "Diverifikasi" },
+          { value: "in_progress", label: "Diproses" },
+          { value: "completed", label: "Selesai" },
+          { value: "verified_complete", label: "Terverifikasi" },
+          { value: "rejected", label: "Ditolak" },
+        ],
+      },
+      {
+        key: "category",
+        label: "Kategori",
+        options: categoryOptions,
+      },
+      {
+        key: "priority",
+        label: "Prioritas",
+        options: [
+          { value: "all", label: "Semua" },
+          { value: "urgent", label: "Darurat" },
+          { value: "high", label: "Tinggi" },
+          { value: "medium", label: "Sedang" },
+          { value: "low", label: "Rendah" },
+        ],
+      },
+      {
+        key: "special",
+        label: "Filter Khusus",
+        options: [
+          { value: "all", label: "Tidak Ada" },
+          { value: "sla_breached", label: "SLA Terlampaui" },
+          { value: "unassigned", label: "Belum Ditugaskan" },
+          { value: "hoax_detected", label: "Hoaks Terdeteksi" },
+        ],
+      },
+    ];
+  }, [categories]);
 
   return (
     <div className="p-4 md:p-6 lg:p-8">
@@ -225,7 +231,7 @@ export default function GovReportsPage() {
       {/* Filter Bar */}
       <div className="mb-4">
         <FilterBar
-          filters={FILTER_CONFIGS}
+          filters={filterConfigs}
           activeFilters={activeFilters}
           onFilterChange={handleFilterChange}
           onClear={handleClearFilters}
@@ -242,18 +248,30 @@ export default function GovReportsPage() {
         onClearSelection={() => setSelectedIds([])}
       />
 
-      {/* Desktop Table */}
-      {paginatedReports.length > 0 ? (
+      {/* Loading State */}
+      {isLoading ? (
+        <LoadingSkeleton variant="table" rows={1} />
+      ) : error ? (
+        /* Error State */
+        <EmptyState
+          icon="⚠️"
+          title="Gagal memuat laporan"
+          description={error}
+          actionLabel="Coba Lagi"
+          onAction={refetch}
+        />
+      ) : filteredReports.length > 0 ? (
+        /* Success State */
         <>
           <ReportTable
-            reports={paginatedReports}
+            reports={filteredReports}
             selectedIds={selectedIds}
             onSelectChange={setSelectedIds}
           />
 
           {/* Mobile Cards */}
           <div className="md:hidden space-y-3">
-            {paginatedReports.map((report) => (
+            {filteredReports.map((report) => (
               <ReportTableMobileCard key={report.id} report={report} />
             ))}
           </div>
@@ -262,15 +280,16 @@ export default function GovReportsPage() {
           <div className="mt-4">
             <Pagination
               currentPage={currentPage}
-              totalPages={totalPages}
-              totalItems={filteredReports.length}
+              totalPages={meta.pages}
+              totalItems={meta.total}
               onPageChange={setCurrentPage}
             />
           </div>
         </>
       ) : (
+        /* Empty State */
         <EmptyState
-          icon={FileText}
+          icon="📄"
           title="Tidak ada laporan yang sesuai filter"
           description={
             hasActiveFilters

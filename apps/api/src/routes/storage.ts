@@ -5,6 +5,7 @@ import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { authMiddleware, type AuthVariables } from '../middleware/auth.js'
+import { ok, err } from '../lib/response.js'
 import { generateUploadUrl, validateFileMetadata } from '../services/storage.service.js'
 
 const app = new Hono<{ Variables: AuthVariables }>()
@@ -53,13 +54,7 @@ app.post(
       })
 
       if (!validation.valid) {
-        return c.json(
-          {
-            error: 'Invalid file metadata',
-            message: validation.error,
-          },
-          400
-        )
+        return err(c, 'INVALID_INPUT', validation.error || 'Metadata file tidak valid', 400)
       }
 
       // Generate presigned upload URL
@@ -71,40 +66,26 @@ app.post(
       })
 
       if (!result) {
-        return c.json(
-          {
-            error: 'Failed to generate upload URL',
-            message: 'Could not create presigned URL. Please try again.',
-          },
-          500
-        )
+        return err(c, 'INTERNAL_ERROR', 'Gagal membuat URL upload', 500)
       }
 
-      return c.json({
-        data: {
-          uploadUrl: result.uploadUrl,
-          fileKey: result.fileKey,
-          publicUrl: result.publicUrl,
-          expiresIn: 300, // 5 minutes
-          instructions: {
-            method: 'PUT',
-            headers: {
-              'Content-Type': body.mimeType,
-              'Content-Length': body.fileSizeBytes.toString(),
-            },
-            note: 'Upload the file to uploadUrl using PUT method, then save fileKey to database',
+      return ok(c, {
+        uploadUrl: result.uploadUrl,
+        fileKey: result.fileKey,
+        publicUrl: result.publicUrl,
+        expiresIn: 300, // 5 minutes
+        instructions: {
+          method: 'PUT',
+          headers: {
+            'Content-Type': body.mimeType,
+            'Content-Length': body.fileSizeBytes.toString(),
           },
+          note: 'Upload the file to uploadUrl using PUT method, then save fileKey to database',
         },
       })
     } catch (error) {
       console.error('[Storage] Error in upload-url endpoint:', error)
-      return c.json(
-        {
-          error: 'Internal server error',
-          message: error instanceof Error ? error.message : 'Unknown error',
-        },
-        500
-      )
+      return err(c, 'INTERNAL_ERROR', 'Terjadi kesalahan server', 500)
     }
   }
 )
@@ -189,24 +170,16 @@ app.post(
         }
       }
 
-      return c.json({
-        data: {
-          results,
-          errors,
-          expiresIn: 300,
-          successCount: results.length,
-          errorCount: errors.length,
-        },
+      return ok(c, {
+        results,
+        errors,
+        expiresIn: 300,
+        successCount: results.length,
+        errorCount: errors.length,
       })
     } catch (error) {
       console.error('[Storage] Error in batch-upload-url endpoint:', error)
-      return c.json(
-        {
-          error: 'Internal server error',
-          message: error instanceof Error ? error.message : 'Unknown error',
-        },
-        500
-      )
+      return err(c, 'INTERNAL_ERROR', 'Terjadi kesalahan server', 500)
     }
   }
 )
@@ -217,41 +190,39 @@ app.post(
  * Public endpoint for client-side validation
  */
 app.get('/limits', (c) => {
-  return c.json({
-    data: {
-      limits: {
-        photo: {
-          maxSizeBytes: 10 * 1024 * 1024,
-          maxSizeMB: 10,
-          allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
-          allowedExtensions: ['jpg', 'jpeg', 'png', 'webp'],
-        },
-        video: {
-          maxSizeBytes: 50 * 1024 * 1024,
-          maxSizeMB: 50,
-          allowedMimeTypes: ['video/mp4', 'video/quicktime'],
-          allowedExtensions: ['mp4', 'mov'],
-        },
-        progress_photo: {
-          maxSizeBytes: 10 * 1024 * 1024,
-          maxSizeMB: 10,
-          allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
-          allowedExtensions: ['jpg', 'jpeg', 'png', 'webp'],
-        },
-        completion_photo: {
-          maxSizeBytes: 10 * 1024 * 1024,
-          maxSizeMB: 10,
-          allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
-          allowedExtensions: ['jpg', 'jpeg', 'png', 'webp'],
-        },
+  return ok(c, {
+    limits: {
+      photo: {
+        maxSizeBytes: 10 * 1024 * 1024,
+        maxSizeMB: 10,
+        allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'webp'],
       },
-      notes: [
-        'EXIF metadata should be stripped client-side before upload',
-        'Images will be served via Supabase CDN',
-        'Upload URLs expire in 5 minutes',
-        'Use PUT method to upload to presigned URL',
-      ],
+      video: {
+        maxSizeBytes: 50 * 1024 * 1024,
+        maxSizeMB: 50,
+        allowedMimeTypes: ['video/mp4', 'video/quicktime'],
+        allowedExtensions: ['mp4', 'mov'],
+      },
+      progress_photo: {
+        maxSizeBytes: 10 * 1024 * 1024,
+        maxSizeMB: 10,
+        allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'webp'],
+      },
+      completion_photo: {
+        maxSizeBytes: 10 * 1024 * 1024,
+        maxSizeMB: 10,
+        allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'webp'],
+      },
     },
+    notes: [
+      'EXIF metadata should be stripped client-side before upload',
+      'Images will be served via Supabase CDN',
+      'Upload URLs expire in 5 minutes',
+      'Use PUT method to upload to presigned URL',
+    ],
   })
 })
 

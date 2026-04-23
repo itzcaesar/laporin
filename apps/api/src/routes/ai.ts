@@ -8,6 +8,7 @@ import { stream } from 'hono/streaming'
 import { db } from '../db.js'
 import { authMiddleware, type AuthVariables } from '../middleware/auth.js'
 import { rateLimit } from '../middleware/rateLimit.js'
+import { ok, err } from '../lib/response.js'
 import {
   classifyReportPhoto,
   chatbot,
@@ -47,15 +48,13 @@ ai.post(
         },
       })
 
-      return c.json({
-        data: {
-          category,
-          reasoning: result.reasoning,
-        },
+      return ok(c, {
+        category,
+        reasoning: result.reasoning,
       })
     } catch (error) {
       console.error('Classify photo error:', error)
-      return c.json({ error: 'Failed to classify photo' }, 500)
+      return err(c, 'INTERNAL_ERROR', 'Gagal mengklasifikasi foto', 500)
     }
   }
 )
@@ -91,7 +90,7 @@ ai.post(
       })
 
       if (!report) {
-        return c.json({ error: 'Report not found' }, 404)
+        return err(c, 'REPORT_NOT_FOUND', 'Laporan tidak ditemukan', 404)
       }
 
       // Generate embedding
@@ -102,11 +101,9 @@ ai.post(
       const duplicateResult = await detectDuplicate(reportId, embedding)
 
       if (!duplicateResult.isDuplicate) {
-        return c.json({
-          data: {
-            isDuplicate: false,
-            similarReports: [],
-          },
+        return ok(c, {
+          isDuplicate: false,
+          similarReports: [],
         })
       }
 
@@ -153,23 +150,21 @@ ai.post(
         distance = Math.round(R * c)
       }
 
-      return c.json({
-        data: {
-          isDuplicate: true,
-          similarity: duplicateResult.similarity,
-          similarReports: similarReport
-            ? [
-                {
-                  ...similarReport,
-                  distance,
-                },
-              ]
-            : [],
-        },
+      return ok(c, {
+        isDuplicate: true,
+        similarity: duplicateResult.similarity,
+        similarReports: similarReport
+          ? [
+              {
+                ...similarReport,
+                distance,
+              },
+            ]
+          : [],
       })
     } catch (error) {
       console.error('Check duplicate error:', error)
-      return c.json({ error: 'Failed to check duplicates' }, 500)
+      return err(c, 'INTERNAL_ERROR', 'Gagal memeriksa duplikat', 500)
     }
   }
 )
@@ -203,14 +198,12 @@ ai.post(
     try {
       const response = await chatbot(message, history)
 
-      return c.json({
-        data: {
-          message: response,
-        },
+      return ok(c, {
+        message: response,
       })
     } catch (error) {
       console.error('Chatbot error:', error)
-      return c.json({ error: 'Failed to get chatbot response' }, 500)
+      return err(c, 'INTERNAL_ERROR', 'Gagal mendapatkan respons chatbot', 500)
     }
   }
 )
@@ -283,12 +276,12 @@ ai.get(
       })
 
       if (!report) {
-        return c.json({ error: 'Report not found' }, 404)
+        return err(c, 'REPORT_NOT_FOUND', 'Laporan tidak ditemukan', 404)
       }
 
       // Check if user owns the report
       if (report.reporterId !== user.sub) {
-        return c.json({ error: 'Access denied' }, 403)
+        return err(c, 'ACCESS_DENIED', 'Akses ditolak', 403)
       }
 
       // Return AI analysis suggestions
@@ -317,15 +310,13 @@ ai.get(
         }
       }
 
-      return c.json({
-        data: {
-          suggestions,
-          analysis: report.aiAnalysis,
-        },
+      return ok(c, {
+        suggestions,
+        analysis: report.aiAnalysis,
       })
     } catch (error) {
       console.error('Get suggestions error:', error)
-      return c.json({ error: 'Failed to get suggestions' }, 500)
+      return err(c, 'INTERNAL_ERROR', 'Gagal mendapatkan saran', 500)
     }
   }
 )

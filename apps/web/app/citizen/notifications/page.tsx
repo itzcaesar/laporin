@@ -1,58 +1,26 @@
 // ── app/citizen/notifications/page.tsx ──
-// Notifications page
+// Notifications page - shows user's notifications
 
 "use client";
 
-import { useState } from "react";
-import { Bell, Check } from "lucide-react";
+import { useNotifications } from "@/hooks/useNotifications";
+import { Check } from "lucide-react";
 import { cn, formatRelativeTime } from "@/lib/utils";
-import { EmptyState } from "@/components/dashboard/shared/EmptyState";
-import { LoadingSkeleton } from "@/components/dashboard/shared/LoadingSkeleton";
-
-// Mock notifications - replace with actual API call
-const MOCK_NOTIFICATIONS = [
-  {
-    id: "1",
-    title: "Laporan Diproses",
-    body: "Laporanmu LP-2026-BDG-00142 sekarang sedang diproses oleh petugas.",
-    isRead: false,
-    reportId: "1",
-    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
-  },
-  {
-    id: "2",
-    title: "Laporan Selesai",
-    body: "Laporanmu LP-2026-BDG-00130 telah selesai! Silakan verifikasi penyelesaian pekerjaan.",
-    isRead: true,
-    reportId: "2",
-    createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // Yesterday
-  },
-  {
-    id: "3",
-    title: "Komentar Baru",
-    body: "Petugas memberikan komentar pada laporanmu LP-2026-BDG-00125.",
-    isRead: true,
-    reportId: "3",
-    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
-  },
-];
+import EmptyState from "@/components/dashboard/shared/EmptyState";
+import LoadingSkeleton from "@/components/dashboard/shared/LoadingSkeleton";
+import { useRouter } from "next/navigation";
 
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
-  const [isLoading] = useState(false);
+  const router = useRouter();
+  const { notifications, isLoading, unreadCount, markAllRead, refetch } =
+    useNotifications(1);
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
-
-  const handleMarkAllRead = () => {
-    setNotifications((prev) =>
-      prev.map((n) => ({ ...n, isRead: true }))
-    );
-  };
-
-  const handleMarkRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
-    );
+  const handleMarkRead = async (notificationId: string, reportId: string | null) => {
+    // Navigate to report detail if available
+    if (reportId) {
+      router.push(`/citizen/reports/${reportId}`);
+    }
+    // Mark as read will be handled by the detail page or we can add an endpoint
   };
 
   return (
@@ -73,7 +41,7 @@ export default function NotificationsPage() {
           {unreadCount > 0 && (
             <button
               type="button"
-              onClick={handleMarkAllRead}
+              onClick={markAllRead}
               className="flex items-center gap-2 text-sm font-medium text-blue hover:text-blue/80 transition-colors min-h-[44px] px-3"
             >
               <Check size={16} />
@@ -86,14 +54,14 @@ export default function NotificationsPage() {
         {/* Loading State */}
         {isLoading && (
           <div className="space-y-3">
-            <LoadingSkeleton variant="notification" count={5} />
+            <LoadingSkeleton variant="notification" rows={5} />
           </div>
         )}
 
         {/* Empty State */}
         {!isLoading && notifications.length === 0 && (
           <EmptyState
-            icon={Bell}
+            icon="🔔"
             title="Belum ada notifikasi"
             description="Notifikasi tentang laporan kamu akan muncul di sini."
           />
@@ -106,13 +74,9 @@ export default function NotificationsPage() {
               <button
                 key={notification.id}
                 type="button"
-                onClick={() => {
-                  handleMarkRead(notification.id);
-                  // Navigate to report detail
-                  if (notification.reportId) {
-                    window.location.href = `/citizen/reports/${notification.reportId}`;
-                  }
-                }}
+                onClick={() =>
+                  handleMarkRead(notification.id, notification.reportId)
+                }
                 className={cn(
                   "w-full text-left rounded-xl border p-4 transition-all duration-200",
                   "hover:shadow-md hover:border-blue/20",

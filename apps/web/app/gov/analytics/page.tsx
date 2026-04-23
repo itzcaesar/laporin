@@ -1,7 +1,7 @@
 // ── app/gov/analytics/page.tsx ──
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Download } from "lucide-react";
 import { TrendChart } from "@/components/dashboard/gov/charts/TrendChart";
 import { CategoryBar } from "@/components/dashboard/gov/charts/CategoryBar";
@@ -10,72 +10,48 @@ import { SatisfactionGauge } from "@/components/dashboard/gov/charts/Satisfactio
 import { AnomalyAlerts } from "@/components/dashboard/gov/AnomalyAlerts";
 import { CategoryTrendBars } from "@/components/dashboard/gov/CategoryTrendBars";
 import { cn } from "@/lib/utils";
-
-type Period = "30" | "90" | "365";
-
-// Mock data - replace with API calls
-const MOCK_TREND_DATA = [
-  { date: "1 Apr", count: 45 },
-  { date: "5 Apr", count: 52 },
-  { date: "10 Apr", count: 48 },
-  { date: "15 Apr", count: 61 },
-  { date: "20 Apr", count: 58 },
-  { date: "22 Apr", count: 67 },
-];
-
-const MOCK_CATEGORY_DATA = [
-  { categoryName: "Jalan Rusak", emoji: "🛣", count: 234 },
-  { categoryName: "Drainase", emoji: "🌊", count: 189 },
-  { categoryName: "Lampu Lalu Lintas", emoji: "🚦", count: 156 },
-  { categoryName: "Trotoar Disabilitas", emoji: "♿", count: 142 },
-  { categoryName: "Taman Kota", emoji: "🌳", count: 98 },
-];
-
-const MOCK_ANOMALIES = [
-  {
-    id: "1",
-    regionName: "Kec. Coblong",
-    categoryName: "banjir",
-    spikePercent: 340,
-    hoursAgo: 48,
-    reportCount: 23,
-  },
-  {
-    id: "2",
-    regionName: "Kec. Cicendo",
-    categoryName: "drainase",
-    spikePercent: 180,
-    hoursAgo: 24,
-    reportCount: 8,
-  },
-];
-
-const MOCK_CATEGORY_TRENDS = [
-  { emoji: "🛣", name: "Jalan Rusak", count: 234, changePercent: 12, isIncreasing: true },
-  { emoji: "🌊", name: "Drainase", count: 189, changePercent: 34, isIncreasing: true },
-  { emoji: "🚦", name: "Lampu Lalu Lintas", count: 156, changePercent: -8, isIncreasing: false },
-  { emoji: "🌳", name: "Taman Kota", count: 98, changePercent: -2, isIncreasing: false },
-];
-
-const MOCK_AI_INSIGHTS = [
-  "Kerusakan drainase di Kec. Cicendo meningkat 40% dalam 30 hari terakhir",
-  "Laporan jalan rusak cenderung meningkat pada hari Senin (rata-rata +25%)",
-  "Wilayah Kec. Coblong memiliki tingkat kepuasan tertinggi (4.8/5.0)",
-  "Waktu respons rata-rata menurun 15% dibanding bulan lalu",
-];
-
-const MOCK_OFFICER_PERFORMANCE = [
-  { name: "Budi Santosa", assigned: 45, completed: 42, avgDays: 3.2, rating: 4.8 },
-  { name: "Agus Permana", assigned: 38, completed: 35, avgDays: 3.5, rating: 4.7 },
-  { name: "Siti Nurhaliza", assigned: 32, completed: 30, avgDays: 2.8, rating: 4.9 },
-];
+import { useGovAnalytics } from "@/hooks/useGovAnalytics";
+import type { TimePeriod } from "@/types/analytics";
 
 export default function GovAnalyticsPage() {
-  const [period, setPeriod] = useState<Period>("30");
-  const [isLoading] = useState(false);
+  const [period, setPeriod] = useState<TimePeriod>("30");
+  const { data, isLoading, error, refetch } = useGovAnalytics(period);
+
+  // Memoize category trends transformation to avoid recalculation on every render
+  // **Validates: Requirements 16.3**
+  const categoryTrendsFormatted = useMemo(() => {
+    return data.categoryTrends?.map((trend) => ({
+      emoji: trend.emoji,
+      name: trend.categoryName,
+      count: trend.currentCount,
+      changePercent: Math.abs(trend.changePercent),
+      isIncreasing: trend.changePercent > 0,
+    })) ?? [];
+  }, [data.categoryTrends]);
 
   return (
     <div className="p-4 md:p-6 lg:p-8">
+      {/* Error Banner */}
+      {error && (
+        <div className="mb-6 rounded-xl bg-red-50 border border-red-200 p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <p className="text-sm font-medium text-red-900 mb-1">
+                Gagal memuat analitik
+              </p>
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+            <button
+              type="button"
+              onClick={refetch}
+              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors"
+            >
+              Coba Lagi
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <h1 className="text-2xl font-bold font-display text-navy">
@@ -84,7 +60,7 @@ export default function GovAnalyticsPage() {
         <div className="flex items-center gap-3">
           {/* Period Selector */}
           <div className="flex items-center gap-1 rounded-xl border border-border bg-white p-1">
-            {(["30", "90", "365"] as Period[]).map((p) => (
+            {(["30", "90", "365"] as TimePeriod[]).map((p) => (
               <button
                 key={p}
                 type="button"
@@ -115,25 +91,25 @@ export default function GovAnalyticsPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="rounded-2xl bg-white p-4 shadow-sm border border-border">
           <div className="text-2xl font-bold font-display text-ink mb-1">
-            1,247
+            {isLoading ? "..." : (data.overview?.totalReports ?? 0).toLocaleString()}
           </div>
           <div className="text-sm text-muted">Laporan Masuk</div>
         </div>
         <div className="rounded-2xl bg-white p-4 shadow-sm border border-border">
           <div className="text-2xl font-bold font-display text-ink mb-1">
-            1,189
+            {isLoading ? "..." : (data.overview?.completedReports ?? 0).toLocaleString()}
           </div>
           <div className="text-sm text-muted">Terselesaikan</div>
         </div>
         <div className="rounded-2xl bg-white p-4 shadow-sm border border-border">
           <div className="text-2xl font-bold font-display text-ink mb-1">
-            3.2
+            {isLoading ? "..." : (data.overview?.avgResolutionDays ?? 0).toFixed(1)}
           </div>
           <div className="text-sm text-muted">Rata-rata Hari</div>
         </div>
         <div className="rounded-2xl bg-white p-4 shadow-sm border border-border">
           <div className="text-2xl font-bold font-display text-ink mb-1">
-            95.3%
+            {isLoading ? "..." : `${(data.overview?.slaCompliancePercent ?? 0).toFixed(1)}%`}
           </div>
           <div className="text-sm text-muted">SLA %</div>
         </div>
@@ -142,29 +118,48 @@ export default function GovAnalyticsPage() {
       {/* Row 2: Primary Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-6">
         <div className="lg:col-span-3">
-          <TrendChart data={MOCK_TREND_DATA} isLoading={isLoading} />
+          <TrendChart data={data.trends ?? []} isLoading={isLoading} />
         </div>
         <div className="lg:col-span-2">
-          <CategoryBar data={MOCK_CATEGORY_DATA} isLoading={isLoading} />
+          <CategoryBar data={data.categories ?? []} isLoading={isLoading} />
         </div>
       </div>
 
       {/* Row 3: Performance Charts + AI Insights */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <SlaRing onTime={1189} breached={58} isLoading={isLoading} />
-        <SatisfactionGauge score={4.7} isLoading={isLoading} />
+        <SlaRing 
+          onTime={data.sla?.onTime ?? 0} 
+          breached={data.sla?.breached ?? 0} 
+          isLoading={isLoading} 
+        />
+        <SatisfactionGauge 
+          score={data.satisfaction?.averageRating ?? 0} 
+          isLoading={isLoading} 
+        />
         <div className="rounded-2xl bg-white p-6 shadow-sm border border-border">
           <h3 className="text-base font-semibold font-display text-navy mb-4">
             🤖 Insight AI
           </h3>
-          <div className="space-y-3">
-            {MOCK_AI_INSIGHTS.map((insight, index) => (
-              <div key={index} className="flex items-start gap-2">
-                <span className="text-teal shrink-0 mt-0.5">●</span>
-                <p className="text-sm text-ink leading-relaxed">{insight}</p>
-              </div>
-            ))}
-          </div>
+          {isLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-12 bg-surface rounded-lg animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {(data.insights?.insights ?? []).length > 0 ? (
+                data.insights!.insights.map((insight, index) => (
+                  <div key={index} className="flex items-start gap-2">
+                    <span className="text-teal shrink-0 mt-0.5">●</span>
+                    <p className="text-sm text-ink leading-relaxed">{insight}</p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted">Belum ada insight tersedia</p>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -175,10 +170,10 @@ export default function GovAnalyticsPage() {
         </h2>
 
         {/* Anomaly Alerts */}
-        <AnomalyAlerts anomalies={MOCK_ANOMALIES} />
+        <AnomalyAlerts anomalies={data.anomalies ?? []} />
 
         {/* Category Trend Bars */}
-        <CategoryTrendBars trends={MOCK_CATEGORY_TRENDS} isLoading={isLoading} />
+        <CategoryTrendBars trends={categoryTrendsFormatted} isLoading={isLoading} />
 
         {/* Risk Zone Map Placeholder */}
         <div className="rounded-2xl bg-white p-6 shadow-sm border border-border">
@@ -216,48 +211,60 @@ export default function GovAnalyticsPage() {
           Performa Petugas
         </h3>
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="border-b border-border">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-muted uppercase">
-                  Petugas
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-muted uppercase">
-                  Ditugaskan
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-muted uppercase">
-                  Selesai
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-muted uppercase">
-                  Avg Hari
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-muted uppercase">
-                  Rating
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {MOCK_OFFICER_PERFORMANCE.map((officer) => (
-                <tr key={officer.name} className="hover:bg-surface transition-colors">
-                  <td className="px-4 py-3 text-sm font-medium text-ink">
-                    {officer.name}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-ink">
-                    {officer.assigned}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-ink">
-                    {officer.completed}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-ink">
-                    {officer.avgDays}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-ink">
-                    ⭐ {officer.rating}
-                  </td>
-                </tr>
+          {isLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-12 bg-surface rounded-lg animate-pulse" />
               ))}
-            </tbody>
-          </table>
+            </div>
+          ) : (data.officerPerformance ?? []).length > 0 ? (
+            <table className="w-full">
+              <thead className="border-b border-border">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted uppercase">
+                    Petugas
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted uppercase">
+                    Ditugaskan
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted uppercase">
+                    Selesai
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted uppercase">
+                    Avg Hari
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted uppercase">
+                    Rating
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {data.officerPerformance!.map((officer) => (
+                  <tr key={officer.officerId} className="hover:bg-surface transition-colors">
+                    <td className="px-4 py-3 text-sm font-medium text-ink">
+                      {officer.officerName}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-ink">
+                      {officer.assignedCount}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-ink">
+                      {officer.completedCount}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-ink">
+                      {officer.avgResolutionDays.toFixed(1)}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-ink">
+                      {officer.avgRating ? `⭐ ${officer.avgRating.toFixed(1)}` : "-"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="text-sm text-muted text-center py-8">
+              Belum ada data performa petugas
+            </p>
+          )}
         </div>
       </div>
     </div>

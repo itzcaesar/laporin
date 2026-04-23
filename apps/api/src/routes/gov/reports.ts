@@ -6,7 +6,11 @@ import { zValidator } from '@hono/zod-validator'
 import { db } from '../../db.js'
 import { authMiddleware, type AuthVariables } from '../../middleware/auth.js'
 import { requireRole } from '../../middleware/requireRole.js'
+import { ok, paginated, err } from '../../lib/response.js'
+import { buildMeta } from '../../lib/pagination.js'
 import { getPublicUrl } from '../../services/storage.service.js'
+import { awardPoints, updateBadgeProgress } from '../gamification.js'
+import { invalidatePattern } from '../../lib/cache.js'
 import {
   verifyReportSchema,
   assignReportSchema,
@@ -29,18 +33,9 @@ govReports.use('*', authMiddleware, requireRole('officer'))
  */
 govReports.get('/', zValidator('query', listGovReportsSchema), async (c) => {
   const user = c.get('user')
-  const {
-    page,
-    limit,
-    status,
-    priority,
-    categoryId,
-    agencyId,
-    assignedOfficerId,
-    slaBreached,
-    sortBy,
-    sortOrder,
-  } = c.req.valid('query')
+  const query = c.req.valid('query')
+  const page = query.page || 1
+  const limit = query.limit || 20
 
   try {
     // Build where clause
@@ -51,78 +46,72 @@ govReports.get('/', zValidator('query', listGovReportsSchema), async (c) => {
       where.agencyId = user.agencyId
     }
 
-    if (status) where.status = status
-    if (priority) where.priority = priority
-    if (categoryId) where.categoryId = categoryId
-    if (agencyId) where.agencyId = agencyId
-    if (assignedOfficerId) where.assignedOfficerId = assignedOfficerId
+    if (query.status) where.status = query.status
+    if (query.priority) where.priority = query.priority
+    if (query.categoryId) where.categoryId = query.categoryId
+    if (query.agencyId) where.agencyId = query.agencyId
+    if (query.assignedOfficerId) where.assignedOfficerId = query.assignedOfficerId
 
     // SLA breach filter (requires date comparison)
-    if (slaBreached === 'true') {
-      // TODO: Implement SLA breach logic with date comparison
+    if (query.slaBreached === 'true') {
+      where.estimatedEnd = { lt: new Date() }
+      where.status = { notIn: ['completed', 'verified_complete', 'closed', 'rejected'] }
     }
 
-    // Get total count
-    const total = await db.report.count({ where })
+    const sortBy = query.sortBy || 'createdAt'
+    const sortOrder = query.sortOrder || 'desc'
 
-    // Get paginated reports
-    const reports = await db.report.findMany({
-      where,
-      skip: (page - 1) * limit,
-      take: limit,
-      orderBy: { [sortBy]: sortOrder },
-      include: {
-        category: {
-          select: {
-            id: true,
-            name: true,
-            emoji: true,
+    // Get total count and reports in parallel
+    const [total, reports] = await Promise.all([
+      db.report.count({ where }),
+      db.report.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { [sortBy]: sortOrder },
+        include: {
+          category: {
+            select: {
+              id: true,
+              name: true,
+              emoji: true,
+            },
+          },
+          reporter: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          assignedOfficer: {
+            select: {
+              id: true,
+              name: true,
+              nip: true,
+            },
+          },
+          agency: {
+            select: {
+              id: true,
+              name: true,
+              shortName: true,
+            },
+          },
+          _count: {
+            select: {
+              media: true,
+              comments: true,
+              votes: true,
+            },
           },
         },
-        reporter: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        assignedOfficer: {
-          select: {
-            id: true,
-            name: true,
-            nip: true,
-          },
-        },
-        agency: {
-          select: {
-            id: true,
-            name: true,
-            shortName: true,
-          },
-        },
-        _count: {
-          select: {
-            media: true,
-            comments: true,
-            votes: true,
-          },
-        },
-      },
-    })
+      }),
+    ])
 
-    const pages = Math.ceil(total / limit)
-
-    return c.json({
-      data: reports,
-      meta: {
-        total,
-        page,
-        limit,
-        pages,
-      },
-    })
+    return paginated(c, reports, buildMeta(total, { page, limit }))
   } catch (error) {
     console.error('List gov reports error:', error)
-    return c.json({ error: 'Failed to fetch reports' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Gagal memuat laporan', 500)
   }
 })
 
@@ -195,7 +184,7 @@ govReports.get('/:id', zValidator('param', reportIdSchema), async (c) => {
     })
 
     if (!report) {
-      return c.json({ error: 'Report not found' }, 404)
+      return err(c, 'REPORT_NOT_FOUND', 'Laporan tidak ditemukan', 404)
     }
 
     // Check agency access
@@ -287,6 +276,32 @@ govReports.patch(
         },
       })
 
+      // Award points to citizen if report is verified as valid
+      if (result === 'valid' && report.reporterId) {
+        await awardPoints(
+          report.reporterId,
+          25,
+          'report_verified',
+          'Laporan diverifikasi petugas',
+          { reportId: id }
+        )
+
+        // Update verified reporter badge progress
+        const verifiedCount = await db.report.count({
+          where: {
+            reporterId: report.reporterId,
+            status: { in: ['verified', 'in_progress', 'completed', 'verified_complete'] },
+          },
+        })
+        await updateBadgeProgress(report.reporterId, 'verified-reporter', verifiedCount)
+      }
+
+      // Invalidate analytics cache when report status changes
+      if (report.agencyId) {
+        await invalidatePattern(`analytics:*:${report.agencyId}:*`)
+        await invalidatePattern(`analytics:anomalies:${report.agencyId}`)
+      }
+
       // TODO: Send notification to citizen
 
       return c.json({ data: updatedReport })
@@ -373,6 +388,12 @@ govReports.patch(
         },
       })
 
+      // Invalidate analytics cache when report is assigned
+      if (officer.agencyId) {
+        await invalidatePattern(`analytics:*:${officer.agencyId}:*`)
+        await invalidatePattern(`analytics:anomalies:${officer.agencyId}`)
+      }
+
       // TODO: Send notification to citizen and assigned officer
 
       return c.json({ data: updatedReport })
@@ -410,7 +431,7 @@ govReports.patch(
       // Get report
       const report = await db.report.findUnique({
         where: { id },
-        select: { id: true, status: true },
+        select: { id: true, status: true, reporterId: true },
       })
 
       if (!report) {
@@ -466,6 +487,38 @@ govReports.patch(
           metadata: { oldStatus: report.status, newStatus, note, officerNip },
         },
       })
+
+      // Award points to citizen when report is completed
+      if (newStatus === 'completed' && report.reporterId) {
+        await awardPoints(
+          report.reporterId,
+          50,
+          'report_completed',
+          'Laporan selesai diperbaiki',
+          { reportId: id }
+        )
+
+        // Update completed reports badge progress
+        const completedCount = await db.report.count({
+          where: {
+            reporterId: report.reporterId,
+            status: { in: ['completed', 'verified_complete'] },
+          },
+        })
+        await updateBadgeProgress(report.reporterId, 'impact-hero', completedCount)
+      }
+
+      // Invalidate analytics cache when report status changes
+      // Get agency ID from the updated report
+      const reportWithAgency = await db.report.findUnique({
+        where: { id },
+        select: { agencyId: true },
+      })
+      
+      if (reportWithAgency?.agencyId) {
+        await invalidatePattern(`analytics:*:${reportWithAgency.agencyId}:*`)
+        await invalidatePattern(`analytics:anomalies:${reportWithAgency.agencyId}`)
+      }
 
       // TODO: Send notification to citizen
 

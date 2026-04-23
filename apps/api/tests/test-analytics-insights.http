@@ -1,0 +1,59 @@
+### Test Analytics Insights Endpoint
+### GET /gov/analytics/insights
+### Requirements: 7.1, 7.2, 7.3, 7.4
+
+@baseUrl = http://localhost:4000/api/v1
+@token = YOUR_JWT_TOKEN_HERE
+
+### 1. Test insights endpoint without cached data (should return placeholder)
+GET {{baseUrl}}/gov/analytics/insights
+Authorization: Bearer {{token}}
+
+### Expected Response:
+# {
+#   "success": true,
+#   "data": {
+#     "insights": ["Insight AI sedang dihasilkan. Silakan cek kembali dalam beberapa saat."],
+#     "generatedAt": null
+#   }
+# }
+
+### 2. Test insights endpoint with cached data
+### First, manually set cache data in Redis:
+### redis-cli
+### SET "analytics:insights:YOUR_AGENCY_ID" '{"insights":["Laporan jalan rusak meningkat 25% minggu ini","Kategori lampu jalan memiliki waktu penyelesaian tercepat"],"generatedAt":"2024-01-15T10:30:00.000Z"}'
+
+GET {{baseUrl}}/gov/analytics/insights
+Authorization: Bearer {{token}}
+
+### Expected Response:
+# {
+#   "success": true,
+#   "data": {
+#     "insights": [
+#       "Laporan jalan rusak meningkat 25% minggu ini",
+#       "Kategori lampu jalan memiliki waktu penyelesaian tercepat"
+#     ],
+#     "generatedAt": "2024-01-15T10:30:00.000Z"
+#   }
+# }
+
+### 3. Test as officer (should use officer's agency)
+GET {{baseUrl}}/gov/analytics/insights
+Authorization: Bearer {{token}}
+
+### 4. Test as super admin (should use 'all' key)
+GET {{baseUrl}}/gov/analytics/insights
+Authorization: Bearer {{token}}
+
+### 5. Test without authentication (should return 401)
+GET {{baseUrl}}/gov/analytics/insights
+
+### Expected Response:
+# {
+#   "success": false,
+#   "error": {
+#     "code": "UNAUTHORIZED",
+#     "message": "Token tidak valid atau telah kedaluwarsa"
+#   }
+# }

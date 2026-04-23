@@ -85,10 +85,15 @@ export default function CitizenFAQPage() {
   };
 
   const handleVote = (id: string, vote: "up" | "down") => {
-    setVotedFAQs((prev) => ({
-      ...prev,
-      [id]: prev[id] === vote ? undefined : vote,
-    }));
+    setVotedFAQs((prev) => {
+      const newVotes = { ...prev };
+      if (newVotes[id] === vote) {
+        delete newVotes[id];
+      } else {
+        newVotes[id] = vote;
+      }
+      return newVotes;
+    });
   };
 
   return (

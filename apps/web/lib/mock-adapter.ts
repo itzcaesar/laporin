@@ -30,9 +30,12 @@ export function mockToReport(mock: MockReport): Report {
     title: mock.title,
     description: mock.description, // Add description field
     locationAddress: mock.location,
+    locationLat: mock.lat,
+    locationLng: mock.lng,
     status: STATUS_MAP[mock.status],
     priority: PRIORITY_MAP[mock.priority],
     dangerLevel: 3, // Default danger level
+    priorityScore: 50, // Default priority score
     upvoteCount: mock.upvotes,
     commentCount: mock.comments,
     categoryId: 1, // Default category ID
@@ -43,9 +46,14 @@ export function mockToReport(mock: MockReport): Report {
     estimatedEnd: null, // Could calculate from reportedAt + SLA
     budgetIdr: null,
     isAnonymous: false,
+    reporterName: mock.reporter,
     reporterId: null,
     agencyId: null,
+    agencyName: null,
     thumbnailUrl: null,
+    hasVoted: false,
+    hasBookmarked: false,
+    aiSummary: null,
     createdAt: convertRelativeTime(mock.reportedAt),
     updatedAt: convertRelativeTime(mock.reportedAt),
   };

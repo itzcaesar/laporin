@@ -1,7 +1,7 @@
 // ── app/gov/reports/[id]/page.tsx ──
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, MapPin } from "lucide-react";
 import { AiAnalysisCard } from "@/components/dashboard/gov/AiAnalysisCard";
@@ -10,93 +10,10 @@ import { GovCommentThread } from "@/components/dashboard/gov/GovCommentThread";
 import { formatRelativeTime } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
-
-// Mock data - replace with API call
-const MOCK_REPORT = {
-  id: "1",
-  trackingCode: "LP-2026-BDG-00142",
-  title: "Jalan Rusak",
-  categoryEmoji: "🛣",
-  categoryName: "Jalan Rusak",
-  description:
-    "Jalan berlubang besar di depan rumah saya. Sudah dari kemarin hujan makin parah. Takut motor saya jatuh, kasian juga anak-anak yang lewat sini untuk pergi ke sekolah.",
-  locationAddress: "Jl. Sudirman No.12, Kel. Braga, Kec. Sumur Bandung",
-  locationLat: -6.9175,
-  locationLng: 107.6191,
-  status: "in_progress",
-  priority: "urgent",
-  dangerLevel: 3,
-  picName: "Budi Santosa",
-  picNip: "198512341234567890",
-  createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-  media: [
-    {
-      id: "1",
-      mediaType: "photo",
-      fileUrl: "https://placehold.co/400x300/e5e7eb/6b7280?text=Foto+Laporan",
-    },
-  ],
-  aiAnalysis: {
-    categoryDetected: {
-      emoji: "🛣",
-      name: "Jalan Rusak",
-      confidence: 95,
-    },
-    dangerLevel: 3,
-    dangerLabel: "Signifikan",
-    priorityScore: 72,
-    priorityLabel: "Tinggi",
-    hoaxConfidence: 2,
-    budgetEstimate: {
-      minIdr: 8000000,
-      maxIdr: 15000000,
-      basis: "Perbaikan jalan berlubang (±50cm), lokasi perkotaan",
-    },
-    impactSummary:
-      "Lubang berukuran ±50cm ini berpotensi membahayakan sekitar 500 pengguna jalan harian. Lokasi dekat sekolah meningkatkan risiko kecelakaan anak-anak.",
-    beforeAfterVerification: null,
-  },
-  comments: [
-    {
-      id: "1",
-      content: "Sudah 3 hari belum ada tindakan. Mohon segera ditangani.",
-      authorName: "Ahmad Rizki",
-      isGovernment: false,
-      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      replies: [
-        {
-          id: "2",
-          content:
-            "Terima kasih atas laporannya. Tim kami sudah meninjau lokasi dan akan segera melakukan perbaikan dalam 2 hari ke depan.",
-          authorName: "Budi Santosa",
-          isGovernment: true,
-          createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
-          replies: [],
-        },
-      ],
-    },
-  ],
-  statusHistory: [
-    {
-      id: "1",
-      oldStatus: "verified",
-      newStatus: "in_progress",
-      note: "PIC ditugaskan, pekerjaan dimulai",
-      officerNip: "198512341234567890",
-      changedBy: "Budi Santosa",
-      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: "2",
-      oldStatus: "new",
-      newStatus: "verified",
-      note: "Laporan valid, akan ditindaklanjuti",
-      officerNip: "199012341234567890",
-      changedBy: "Agus Permana",
-      createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-    },
-  ],
-};
+import { useGovReport, useGovReportActions } from "@/hooks/useGovReport";
+import LoadingSkeleton from "@/components/dashboard/shared/LoadingSkeleton";
+import EmptyState from "@/components/dashboard/shared/EmptyState";
+import type { Comment } from "@/types";
 
 const STATUS_LABELS: Record<string, string> = {
   new: "Baru",
@@ -126,35 +43,186 @@ export default function GovReportDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
-  const [report, setReport] = useState(MOCK_REPORT);
+  const reportId = params.id as string;
+  
+  // Fetch report data
+  const { data: reportData, isLoading, error, refetch } = useGovReport(reportId);
+  
+  // Action handlers
+  const actions = useGovReportActions(reportId, refetch);
+  
   const [isActionPanelOpen, setIsActionPanelOpen] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Helper functions
+  const getDangerLabel = (level: number): string => {
+    if (level >= 4) return "Sangat Berbahaya";
+    if (level === 3) return "Signifikan";
+    if (level === 2) return "Sedang";
+    return "Rendah";
+  };
+
+  const getPriorityLabel = (priority: string): string => {
+    return PRIORITY_LABELS[priority as keyof typeof PRIORITY_LABELS] || priority;
+  };
+
+  const showToast = (message: string, type: 'success' | 'error') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  // Transform API data to UI format
+  const report = reportData ? {
+    id: reportData.id,
+    trackingCode: reportData.trackingCode,
+    title: reportData.title,
+    categoryEmoji: reportData.category.emoji,
+    categoryName: reportData.category.name,
+    description: reportData.description,
+    locationAddress: reportData.locationAddress,
+    locationLat: reportData.locationLat,
+    locationLng: reportData.locationLng,
+    status: reportData.status,
+    priority: reportData.priority,
+    dangerLevel: reportData.dangerLevel,
+    picName: reportData.assignedOfficer?.name || null,
+    picNip: reportData.picNip,
+    createdAt: reportData.createdAt,
+    media: reportData.media,
+    aiAnalysis: {
+      categoryDetected: {
+        emoji: reportData.category.emoji,
+        name: reportData.category.name,
+        confidence: 95, // Not in API response
+      },
+      dangerLevel: reportData.aiAnalysis?.dangerLevel || reportData.dangerLevel,
+      dangerLabel: getDangerLabel(reportData.aiAnalysis?.dangerLevel || reportData.dangerLevel),
+      priorityScore: reportData.aiAnalysis?.priorityScore || reportData.priorityScore,
+      priorityLabel: getPriorityLabel(reportData.priority),
+      hoaxConfidence: reportData.aiAnalysis?.hoaxConfidence || 0,
+      budgetEstimate: reportData.aiAnalysis?.budgetEstimate ? {
+        minIdr: Math.floor(reportData.aiAnalysis.budgetEstimate * 0.8),
+        maxIdr: Math.ceil(reportData.aiAnalysis.budgetEstimate * 1.2),
+        basis: "Estimasi AI berdasarkan kategori dan lokasi",
+      } : null,
+      impactSummary: reportData.aiAnalysis?.impactSummary || null,
+      beforeAfterVerification: null,
+    },
+    comments: reportData.comments.map(c => ({
+      id: c.id,
+      content: c.content,
+      authorName: c.author?.name || "Anonim",
+      isGovernment: c.author?.role === 'officer' || c.author?.role === 'admin',
+      upvoteCount: 0,
+      parentId: null,
+      createdAt: c.createdAt,
+      replies: [],
+    })),
+    statusHistory: reportData.statusHistory.map(h => ({
+      id: h.id,
+      oldStatus: h.oldStatus,
+      newStatus: h.newStatus,
+      note: h.note,
+      officerNip: h.officerNip,
+      changedBy: h.changedBy?.name || "System",
+      createdAt: h.createdAt,
+    })),
+  } : null;
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-surface">
+        <div className="border-b border-border bg-white px-4 py-3 md:px-6 lg:px-8">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="flex items-center gap-2 text-sm font-medium text-blue hover:text-blue/80 transition-colors"
+          >
+            <ArrowLeft size={16} />
+            Kembali ke Daftar
+          </button>
+        </div>
+        <div className="p-4 md:p-6 lg:p-8">
+          <LoadingSkeleton variant="report-detail" rows={1} />
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error || !report) {
+    return (
+      <div className="min-h-screen bg-surface">
+        <div className="border-b border-border bg-white px-4 py-3 md:px-6 lg:px-8">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="flex items-center gap-2 text-sm font-medium text-blue hover:text-blue/80 transition-colors"
+          >
+            <ArrowLeft size={16} />
+            Kembali ke Daftar
+          </button>
+        </div>
+        <div className="p-4 md:p-6 lg:px-8 flex items-center justify-center min-h-[60vh]">
+          <EmptyState
+            icon="⚠️"
+            title="Gagal memuat laporan"
+            description={error || "Laporan tidak ditemukan"}
+            actionLabel="Coba Lagi"
+            onAction={refetch}
+          />
+        </div>
+      </div>
+    );
+  }
 
   const handleReply = async (commentId: string, content: string) => {
-    // TODO: API call to POST /gov/comments/{reportId}/reply
+    // TODO: API call to POST /reports/{reportId}/comments
     console.log("Reply to", commentId, ":", content);
     
     // Simulate API call
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    // Create new reply
-    const newReply: typeof report.comments[0] = {
-      id: `reply-${Date.now()}`,
-      content,
-      authorName: user?.name || "Petugas",
-      isGovernment: true,
-      createdAt: new Date().toISOString(),
-      replies: [],
-    };
+    // Refetch report to get updated comments
+    await refetch();
+  };
 
-    // Update comments with new reply
-    setReport((prev) => ({
-      ...prev,
-      comments: prev.comments.map((comment) =>
-        comment.id === commentId
-          ? { ...comment, replies: [...comment.replies, newReply] }
-          : comment
-      ),
-    }));
+  // Calculate SLA status
+  const calculateSlaStatus = () => {
+    if (!reportData) return { targetDate: "-", daysRemaining: 0, isBreached: false };
+    
+    const slaHours: Record<string, number> = {
+      urgent: 48,    // 2 days
+      high: 168,     // 7 days
+      medium: 336,   // 14 days
+      low: 720,      // 30 days
+    };
+    
+    const hours = slaHours[reportData.priority] || 720;
+    const createdDate = new Date(reportData.createdAt);
+    const targetDate = new Date(createdDate.getTime() + hours * 60 * 60 * 1000);
+    const now = new Date();
+    const daysRemaining = Math.ceil((targetDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    
+    return {
+      targetDate: targetDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
+      daysRemaining,
+      isBreached: daysRemaining < 0,
+    };
+  };
+
+  // Get recent audit actions
+  const getRecentAuditActions = () => {
+    if (!reportData) return [];
+    
+    return reportData.statusHistory
+      .slice(0, 3)
+      .map(h => ({
+        time: new Date(h.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+        officer: h.changedBy?.name || "System",
+        action: STATUS_LABELS[h.newStatus] || h.newStatus,
+      }));
   };
 
   return (
@@ -320,16 +388,11 @@ export default function GovReportDetailPage() {
                 status={report.status as any}
                 hasPic={!!report.picName}
                 hoaxConfidence={report.aiAnalysis.hoaxConfidence}
-                slaStatus={{
-                  targetDate: "20 Jan 2026",
-                  daysRemaining: -3,
-                  isBreached: true,
-                }}
-                recentAuditActions={[
-                  { time: "14:32", officer: "Agus P.", action: "Diverifikasi" },
-                  { time: "10:15", officer: "Budi S.", action: "PIC ditugaskan" },
-                  { time: "09:00", officer: "System", action: "Laporan dibuat" },
-                ]}
+                slaStatus={calculateSlaStatus()}
+                recentAuditActions={getRecentAuditActions()}
+                actions={actions}
+                onSuccess={(message) => showToast(message, 'success')}
+                onError={(message) => showToast(message, 'error')}
               />
             </div>
           </div>
@@ -370,19 +433,26 @@ export default function GovReportDetailPage() {
               status={report.status as any}
               hasPic={!!report.picName}
               hoaxConfidence={report.aiAnalysis.hoaxConfidence}
-              slaStatus={{
-                targetDate: "20 Jan 2026",
-                daysRemaining: -3,
-                isBreached: true,
-              }}
-              recentAuditActions={[
-                { time: "14:32", officer: "Agus P.", action: "Diverifikasi" },
-                { time: "10:15", officer: "Budi S.", action: "PIC ditugaskan" },
-                { time: "09:00", officer: "System", action: "Laporan dibuat" },
-              ]}
+              slaStatus={calculateSlaStatus()}
+              recentAuditActions={getRecentAuditActions()}
+              actions={actions}
+              onSuccess={(message) => showToast(message, 'success')}
+              onError={(message) => showToast(message, 'error')}
             />
           </div>
         </>
+      )}
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
+          <div className={cn(
+            "rounded-xl px-6 py-3 shadow-lg text-sm font-medium text-white",
+            toast.type === 'success' ? "bg-green-600" : "bg-red-600"
+          )}>
+            {toast.message}
+          </div>
+        </div>
       )}
     </div>
   );

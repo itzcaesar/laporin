@@ -1,20 +1,23 @@
 // ── app/citizen/my-reports/page.tsx ──
-// My reports page
+// My reports page - shows user's own reports
 
 "use client";
 
-import { useState, useMemo } from "react";
-import { MOCK_REPORTS } from "@/data/mock-reports";
-import { mockToReport } from "@/lib/mock-adapter";
+import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { api, ApiClientError } from "@/lib/api-client";
 import { FilterChips } from "@/components/dashboard/shared/FilterChips";
-import { EmptyState } from "@/components/dashboard/shared/EmptyState";
+import EmptyState from "@/components/dashboard/shared/EmptyState";
+import LoadingSkeleton from "@/components/dashboard/shared/LoadingSkeleton";
 import { ReportCard } from "@/components/dashboard/citizen/ReportCard";
-import { FileText, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
+import { useEffect, useCallback } from "react";
+import type { Report, ReportStatus, ApiResponse, PaginationMeta } from "@/types";
 
 const FILTER_OPTIONS = [
-  { label: "Semua", value: "all" },
+  { label: "Semua", value: "" },
   { label: "Aktif", value: "active" },
   { label: "Selesai", value: "completed" },
   { label: "Ditolak", value: "rejected" },
@@ -22,35 +25,53 @@ const FILTER_OPTIONS = [
 
 export default function MyReportsPage() {
   const router = useRouter();
-  const [activeFilter, setActiveFilter] = useState("all");
+  const { user } = useAuth();
+  const [activeFilter, setActiveFilter] = useState("");
+  const [reports, setReports] = useState<Report[]>([]);
+  const [meta, setMeta] = useState<PaginationMeta | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // For demo purposes, show first 5 reports as "my reports"
-  const myReports = MOCK_REPORTS.slice(0, 5);
+  const fetchReports = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
 
-  // Filter reports based on active filter
-  const filteredReports = useMemo(() => {
-    let reports = [...myReports];
+    try {
+      const res = await api.get<ApiResponse<Report[]>>('/user/reports');
+      let filteredReports = res.data;
 
-    switch (activeFilter) {
-      case "active":
-        reports = reports.filter(
-          (r) => r.status === "baru" || r.status === "diverifikasi" || r.status === "diproses"
+      // Apply client-side filter
+      if (activeFilter === "active") {
+        filteredReports = filteredReports.filter((r) =>
+          ["new", "verified", "in_progress"].includes(r.status)
         );
-        break;
-      case "completed":
-        reports = reports.filter(
-          (r) => r.status === "selesai" || r.status === "terverifikasi"
+      } else if (activeFilter === "completed") {
+        filteredReports = filteredReports.filter((r) =>
+          ["completed", "verified_complete"].includes(r.status)
         );
-        break;
-      case "rejected":
-        // No rejected reports in mock data
-        reports = [];
-        break;
+      } else if (activeFilter === "rejected") {
+        filteredReports = filteredReports.filter((r) => r.status === "rejected");
+      }
+
+      setReports(filteredReports);
+      setMeta(res.meta ?? null);
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError
+          ? err.userMessage
+          : "Gagal memuat laporan Anda"
+      );
+      setReports([]);
+    } finally {
+      setIsLoading(false);
     }
+  }, [activeFilter]);
 
-    // Convert to Report format
-    return reports.map(mockToReport);
-  }, [activeFilter, myReports]);
+  useEffect(() => {
+    if (user) {
+      fetchReports();
+    }
+  }, [user, fetchReports]);
 
   return (
     <div className="dashboard-page">
@@ -82,33 +103,51 @@ export default function MyReportsPage() {
         className="mb-6"
       />
 
+      {/* Loading State */}
+      {isLoading && (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <LoadingSkeleton key={i} variant="report-card" />
+          ))}
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div className="rounded-xl bg-red-50 border border-red-200 p-4 text-red-700 text-sm">
+          {error}
+          <button onClick={fetchReports} className="ml-2 underline font-medium">
+            Coba lagi
+          </button>
+        </div>
+      )}
+
       {/* Empty State */}
-      {filteredReports.length === 0 && (
+      {!isLoading && !error && reports.length === 0 && (
         <EmptyState
-          icon={FileText}
+          icon="📄"
           title="Belum ada laporan"
           description={
-            activeFilter === "all"
+            activeFilter === ""
               ? "Kamu belum membuat laporan. Buat laporan pertamamu sekarang!"
-              : `Tidak ada laporan dengan status "${FILTER_OPTIONS.find((f) => f.value === activeFilter)?.label}"`
+              : `Tidak ada laporan dengan status "${
+                  FILTER_OPTIONS.find((f) => f.value === activeFilter)?.label
+                }"`
           }
-          actionLabel={activeFilter === "all" ? "Buat Laporan" : undefined}
-          onAction={
-            activeFilter === "all"
-              ? () => router.push("/citizen/reports/new")
+          action={
+            activeFilter === ""
+              ? { label: "Buat Laporan", href: "/citizen/reports/new" }
               : undefined
           }
         />
       )}
 
       {/* Report List - Grid on Desktop */}
-      {filteredReports.length > 0 && (
+      {!isLoading && !error && reports.length > 0 && (
         <>
-          <div className="mb-4 text-sm text-muted">
-            {filteredReports.length} laporan
-          </div>
+          <div className="mb-4 text-sm text-muted">{reports.length} laporan</div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredReports.map((report) => (
+            {reports.map((report) => (
               <ReportCard key={report.id} report={report} />
             ))}
           </div>

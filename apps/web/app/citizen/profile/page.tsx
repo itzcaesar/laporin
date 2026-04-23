@@ -4,39 +4,77 @@
 "use client";
 
 import { useAuth } from "@/hooks/useAuth";
-import { MOCK_REPORTS } from "@/data/mock-reports";
-import { User, Mail, Phone, MapPin, Calendar, LogOut, FileText, Bookmark, Trophy, Award, Flame, TrendingUp } from "lucide-react";
+import { useProfile } from "@/hooks/useProfile";
+import { Mail, Phone, LogOut, FileText, Bookmark, Trophy, Award, Flame, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import LoadingSkeleton from "@/components/dashboard/shared/LoadingSkeleton";
+import EmptyState from "@/components/dashboard/shared/EmptyState";
 
 export default function ProfilePage() {
   const { user, logout } = useAuth();
+  const { profile, isLoading, error, refetch } = useProfile();
   const router = useRouter();
 
-  // Calculate stats from mock data (first 5 reports are "mine")
-  const myReports = MOCK_REPORTS.slice(0, 5);
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="dashboard-page">
+        <div className="max-w-4xl mx-auto">
+          <div className="hidden md:block mb-6">
+            <div className="h-8 w-48 bg-gray-200 rounded animate-pulse mb-2" />
+            <div className="h-4 w-64 bg-gray-200 rounded animate-pulse" />
+          </div>
+          <LoadingSkeleton variant="report-card" />
+          <div className="mt-4">
+            <LoadingSkeleton variant="kpi-card" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error || !profile) {
+    return (
+      <div className="dashboard-page">
+        <div className="max-w-4xl mx-auto">
+          <EmptyState
+            icon="❌"
+            title="Gagal memuat profil"
+            message={error ?? "Terjadi kesalahan saat memuat profil Anda."}
+            action={{ label: "Coba Lagi", href: "#" }}
+          />
+          <Button
+            variant="outline"
+            onClick={refetch}
+            className="w-full mt-4"
+          >
+            Coba Lagi
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Calculate stats from profile data
   const stats = {
-    totalReports: myReports.length,
-    activeReports: myReports.filter(
-      (r) => r.status === "baru" || r.status === "diverifikasi" || r.status === "diproses"
-    ).length,
-    completedReports: myReports.filter(
-      (r) => r.status === "selesai" || r.status === "terverifikasi"
-    ).length,
-    bookmarks: 4, // Reports 5-8 are bookmarked
+    totalReports: profile.stats.totalReports,
+    totalComments: profile.stats.totalComments,
+    totalVotes: profile.stats.totalVotes,
   };
 
-  // Gamification stats
+  // Gamification stats (placeholder - will be implemented later)
   const gamification = {
     level: "Silver",
     levelIcon: "🥈",
-    points: 245,
+    points: Math.min(profile.stats.totalReports * 50 + profile.stats.totalComments * 10, 245),
     nextLevelPoints: 500,
-    currentStreak: 7,
-    badgesUnlocked: 3,
+    currentStreak: 0, // TODO: Implement streak tracking
+    badgesUnlocked: Math.min(Math.floor(profile.stats.totalReports / 2), 3),
     badgesTotal: 9,
-    impactScore: 456,
+    impactScore: profile.stats.totalReports * 100 + profile.stats.totalVotes * 5,
   };
 
   const progressPercent = (gamification.points / gamification.nextLevelPoints) * 100;
@@ -59,17 +97,17 @@ export default function ProfilePage() {
           <div className="flex flex-col sm:flex-row items-start gap-4">
             {/* Avatar */}
             <div className="flex h-20 w-20 items-center justify-center rounded-full bg-navy text-3xl font-bold text-white shrink-0">
-              {user?.name?.charAt(0).toUpperCase() || "U"}
+              {profile.name?.charAt(0).toUpperCase() || "U"}
             </div>
 
             {/* Info */}
             <div className="flex-1 min-w-0">
               <h2 className="text-2xl font-bold font-display text-navy mb-1">
-                {user?.name || "Pengguna"}
+                {profile.name || "Pengguna"}
               </h2>
               <p className="text-sm text-muted mb-3">
                 Warga • Bergabung sejak{" "}
-                {new Date().toLocaleDateString("id-ID", {
+                {new Date(profile.createdAt).toLocaleDateString("id-ID", {
                   month: "long",
                   year: "numeric",
                 })}
@@ -77,10 +115,16 @@ export default function ProfilePage() {
 
               {/* Contact Info */}
               <div className="space-y-2">
-                {user?.email && (
+                {profile.email && (
                   <div className="flex items-center gap-2 text-sm text-ink">
                     <Mail size={16} className="text-muted" />
-                    <span>{user.email}</span>
+                    <span>{profile.email}</span>
+                  </div>
+                )}
+                {profile.phone && (
+                  <div className="flex items-center gap-2 text-sm text-ink">
+                    <Phone size={16} className="text-muted" />
+                    <span>{profile.phone}</span>
                   </div>
                 )}
               </div>
@@ -106,14 +150,14 @@ export default function ProfilePage() {
 
           <div className="card-base p-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100">
-                <FileText size={20} className="text-orange-600" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100">
+                <FileText size={20} className="text-purple-600" />
               </div>
               <div>
                 <p className="text-2xl font-bold font-display text-navy">
-                  {stats.activeReports}
+                  {stats.totalComments}
                 </p>
-                <p className="text-xs text-muted">Sedang Aktif</p>
+                <p className="text-xs text-muted">Komentar</p>
               </div>
             </div>
           </div>
@@ -121,13 +165,13 @@ export default function ProfilePage() {
           <div className="card-base p-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100">
-                <FileText size={20} className="text-green-600" />
+                <TrendingUp size={20} className="text-green-600" />
               </div>
               <div>
                 <p className="text-2xl font-bold font-display text-navy">
-                  {stats.completedReports}
+                  {stats.totalVotes}
                 </p>
-                <p className="text-xs text-muted">Selesai</p>
+                <p className="text-xs text-muted">Vote Diberikan</p>
               </div>
             </div>
           </div>
@@ -135,13 +179,13 @@ export default function ProfilePage() {
           <div className="card-base p-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100">
-                <Bookmark size={20} className="text-amber-600" />
+                <Trophy size={20} className="text-amber-600" />
               </div>
               <div>
                 <p className="text-2xl font-bold font-display text-navy">
-                  {stats.bookmarks}
+                  {gamification.impactScore}
                 </p>
-                <p className="text-xs text-muted">Bookmark</p>
+                <p className="text-xs text-muted">Impact Score</p>
               </div>
             </div>
           </div>

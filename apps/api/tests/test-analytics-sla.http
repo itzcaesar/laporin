@@ -1,0 +1,49 @@
+### Test Analytics SLA Compliance Endpoint
+### Prerequisites: You need a valid JWT token from a government user (officer/admin/super_admin)
+
+@baseUrl = http://localhost:4000/api/v1
+@token = eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJlNDY5NjlmYS0zM2JiLTRhMzUtOTQ0Zi1lNmQ5NTdiZDJmYjciLCJyb2xlIjoiYWRtaW4iLCJuaXAiOiIxOTgwMDEwMTIwMDUwMTEwMDEiLCJhZ2VuY3lJZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMSIsImlhdCI6MTc3NjkxNzExNywiZXhwIjoxNzc2OTE4MDE3fQ.y2zPMk85xaqo0S4j4BW3acMJsFjWk1yfv56Si4NM4E8
+
+### Test 1: Get SLA compliance metrics for 30 days (default)
+GET {{baseUrl}}/gov/analytics/sla?period=30
+Authorization: Bearer {{token}}
+
+### Test 2: Get SLA compliance metrics for 90 days
+GET {{baseUrl}}/gov/analytics/sla?period=90
+Authorization: Bearer {{token}}
+
+### Test 3: Get SLA compliance metrics for 365 days
+GET {{baseUrl}}/gov/analytics/sla?period=365
+Authorization: Bearer {{token}}
+
+### Test 4: Test without authentication (should fail with 401)
+GET {{baseUrl}}/gov/analytics/sla?period=30
+
+### Test 5: Test with invalid period (should use default 30)
+GET {{baseUrl}}/gov/analytics/sla?period=invalid
+Authorization: Bearer {{token}}
+
+### Test 6: Test without period parameter (should use default 30)
+GET {{baseUrl}}/gov/analytics/sla
+Authorization: Bearer {{token}}
+
+### Expected Response Format:
+# {
+#   "success": true,
+#   "data": {
+#     "onTime": 45,
+#     "breached": 12
+#   }
+# }
+
+### SLA Targets by Priority:
+# - P1 (urgent): 2 days
+# - P2 (high): 7 days  
+# - P3 (medium): 14 days
+# - P4 (low): 30 days
+
+### Notes:
+# - Only includes completed reports (status: completed, verified_complete, closed)
+# - Calculates days to completion: (completed_at - created_at) / 86400
+# - Role-based filtering applies (officer sees only assigned, admin sees agency, super_admin sees all)
+# - Results are cached for 5 minutes with key pattern: analytics:sla:{agencyId}:{period}

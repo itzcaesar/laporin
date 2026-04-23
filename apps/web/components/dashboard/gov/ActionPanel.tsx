@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { Check, X, Copy, Equal, ArrowUpRight, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { useGovReportActions } from "@/hooks/useGovReport";
 
 type ReportStatus = "new" | "verified" | "in_progress" | "completed" | "closed";
 
@@ -22,6 +23,9 @@ type ActionPanelProps = {
     officer: string;
     action: string;
   }>;
+  actions?: ReturnType<typeof useGovReportActions>;
+  onSuccess?: (message: string) => void;
+  onError?: (message: string) => void;
 };
 
 export function ActionPanel({
@@ -31,12 +35,19 @@ export function ActionPanel({
   hoaxConfidence = 0,
   slaStatus,
   recentAuditActions,
+  actions,
+  onSuccess,
+  onError,
 }: ActionPanelProps) {
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [selectedOfficer, setSelectedOfficer] = useState("");
   const [nip, setNip] = useState("");
   const [note, setNote] = useState("");
   const [budget, setBudget] = useState("");
+  const [newStatus, setNewStatus] = useState("");
+  const [estimatedStart, setEstimatedStart] = useState("");
+  const [estimatedEnd, setEstimatedEnd] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const toggleSection = (section: string) => {
     setExpandedSection(expandedSection === section ? null : section);
@@ -56,6 +67,102 @@ export function ActionPanel({
     }
   };
 
+  const handleVerify = async (result: 'valid' | 'hoax' | 'duplicate' | 'out_of_jurisdiction') => {
+    if (!actions || !nip) return;
+    
+    setIsSubmitting(true);
+    try {
+      await actions.verify({
+        result,
+        note: note || `Laporan ${result === 'valid' ? 'valid' : result === 'hoax' ? 'hoaks' : result === 'duplicate' ? 'duplikat' : 'bukan kewenangan'}`,
+        officerNip: nip,
+      });
+      onSuccess?.(`Laporan berhasil diverifikasi sebagai ${result === 'valid' ? 'valid' : result === 'hoax' ? 'hoaks' : result === 'duplicate' ? 'duplikat' : 'bukan kewenangan'}`);
+      setNote("");
+      setNip("");
+    } catch (err: any) {
+      onError?.(err.message || "Gagal memverifikasi laporan");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAssign = async () => {
+    if (!actions || !selectedOfficer || !nip) return;
+    
+    setIsSubmitting(true);
+    try {
+      await actions.assign({
+        officerId: selectedOfficer,
+        picNip: nip,
+        estimatedStart: estimatedStart || undefined,
+        estimatedEnd: estimatedEnd || undefined,
+        budgetIdr: budget ? parseInt(budget.replace(/\D/g, '')) : undefined,
+      });
+      onSuccess?.("PIC berhasil ditugaskan");
+      setSelectedOfficer("");
+      setNip("");
+      setEstimatedStart("");
+      setEstimatedEnd("");
+      setBudget("");
+    } catch (err: any) {
+      onError?.(err.message || "Gagal menugaskan PIC");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleUpdateStatus = async () => {
+    if (!actions || !newStatus || !nip || note.length < 10) return;
+    
+    setIsSubmitting(true);
+    try {
+      const statusMap: Record<string, string> = {
+        'Mulai Proses': 'in_progress',
+        'Selesai': 'completed',
+        'Tutup': 'closed',
+        'Tolak': 'rejected',
+      };
+      
+      await actions.updateStatus({
+        newStatus: statusMap[newStatus] as any,
+        note,
+        officerNip: nip,
+      });
+      onSuccess?.(`Status berhasil diubah menjadi ${newStatus}`);
+      setNewStatus("");
+      setNote("");
+      setNip("");
+    } catch (err: any) {
+      onError?.(err.message || "Gagal mengubah status");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleUpdateTimeline = async () => {
+    if (!actions || !nip) return;
+    
+    setIsSubmitting(true);
+    try {
+      await actions.updateTimeline({
+        estimatedStart: estimatedStart || undefined,
+        estimatedEnd: estimatedEnd || undefined,
+        budgetIdr: budget ? parseInt(budget.replace(/\D/g, '')) : undefined,
+        officerNip: nip,
+      });
+      onSuccess?.("Timeline dan anggaran berhasil diperbarui");
+      setEstimatedStart("");
+      setEstimatedEnd("");
+      setBudget("");
+      setNip("");
+    } catch (err: any) {
+      onError?.(err.message || "Gagal mengubah timeline");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* SECTION 1 — VERIFIKASI */}
@@ -64,12 +171,41 @@ export function ActionPanel({
           <h3 className="text-sm font-semibold font-display text-navy mb-3">
             Verifikasi Laporan
           </h3>
+          <div className="space-y-3 mb-3">
+            <div>
+              <label className="block text-xs font-medium text-muted mb-1">
+                NIP Konfirmasi
+              </label>
+              <input
+                type="text"
+                value={nip}
+                onChange={(e) => setNip(e.target.value)}
+                placeholder="18 digit NIP"
+                className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-blue focus:outline-none focus:ring-2 focus:ring-blue/20"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted mb-1">
+                Catatan (opsional)
+              </label>
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Tambahkan catatan..."
+                rows={2}
+                className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-blue focus:outline-none focus:ring-2 focus:ring-blue/20 resize-none"
+              />
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
+              onClick={() => handleVerify('valid')}
+              disabled={!nip || isSubmitting}
               className={cn(
                 "flex flex-col items-center gap-2 rounded-xl border-2 p-3 text-sm font-medium transition-all",
-                "hover:bg-green-50 border-green-200 text-green-700"
+                "hover:bg-green-50 border-green-200 text-green-700",
+                "disabled:opacity-50 disabled:cursor-not-allowed"
               )}
             >
               <Check size={20} />
@@ -77,10 +213,13 @@ export function ActionPanel({
             </button>
             <button
               type="button"
+              onClick={() => handleVerify('hoax')}
+              disabled={!nip || isSubmitting}
               className={cn(
                 "flex flex-col items-center gap-2 rounded-xl border-2 p-3 text-sm font-medium transition-all",
                 "hover:bg-red-50 border-red-200 text-red-700",
-                hoaxConfidence > 60 && "ring-2 ring-red-500"
+                hoaxConfidence > 60 && "ring-2 ring-red-500",
+                "disabled:opacity-50 disabled:cursor-not-allowed"
               )}
             >
               <X size={20} />
@@ -88,14 +227,18 @@ export function ActionPanel({
             </button>
             <button
               type="button"
-              className="flex flex-col items-center gap-2 rounded-xl border-2 border-amber-200 p-3 text-sm font-medium text-amber-700 hover:bg-amber-50 transition-all"
+              onClick={() => handleVerify('duplicate')}
+              disabled={!nip || isSubmitting}
+              className="flex flex-col items-center gap-2 rounded-xl border-2 border-amber-200 p-3 text-sm font-medium text-amber-700 hover:bg-amber-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Equal size={20} />
               Duplikat
             </button>
             <button
               type="button"
-              className="flex flex-col items-center gap-2 rounded-xl border-2 border-gray-200 p-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all"
+              onClick={() => handleVerify('out_of_jurisdiction')}
+              disabled={!nip || isSubmitting}
+              className="flex flex-col items-center gap-2 rounded-xl border-2 border-gray-200 p-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ArrowUpRight size={20} />
               Bukan Kewenangan
@@ -145,12 +288,35 @@ export function ActionPanel({
                 className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-blue focus:outline-none focus:ring-2 focus:ring-blue/20"
               />
             </div>
+            <div>
+              <label className="block text-xs font-medium text-muted mb-1">
+                Tanggal Mulai (opsional)
+              </label>
+              <input
+                type="date"
+                value={estimatedStart}
+                onChange={(e) => setEstimatedStart(e.target.value)}
+                className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink focus:border-blue focus:outline-none focus:ring-2 focus:ring-blue/20"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted mb-1">
+                Tanggal Selesai (opsional)
+              </label>
+              <input
+                type="date"
+                value={estimatedEnd}
+                onChange={(e) => setEstimatedEnd(e.target.value)}
+                className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink focus:border-blue focus:outline-none focus:ring-2 focus:ring-blue/20"
+              />
+            </div>
             <button
               type="button"
-              disabled={!selectedOfficer || !nip}
+              onClick={handleAssign}
+              disabled={!selectedOfficer || !nip || isSubmitting}
               className="w-full rounded-xl bg-navy px-4 py-2.5 text-sm font-medium text-white hover:bg-navy/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Tugaskan PIC
+              {isSubmitting ? "Menugaskan..." : "Tugaskan PIC"}
             </button>
           </div>
         </div>
@@ -183,12 +349,16 @@ export function ActionPanel({
               <label className="block text-xs font-medium text-muted mb-1">
                 Status Baru
               </label>
-              <select className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink focus:border-blue focus:outline-none focus:ring-2 focus:ring-blue/20">
-                <option>-- Pilih Status --</option>
-                {status === "verified" && <option>Mulai Proses</option>}
-                {status === "in_progress" && <option>Selesai</option>}
-                {status === "completed" && <option>Tutup</option>}
-                <option>Tolak</option>
+              <select 
+                value={newStatus}
+                onChange={(e) => setNewStatus(e.target.value)}
+                className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink focus:border-blue focus:outline-none focus:ring-2 focus:ring-blue/20"
+              >
+                <option value="">-- Pilih Status --</option>
+                {status === "verified" && <option value="Mulai Proses">Mulai Proses</option>}
+                {status === "in_progress" && <option value="Selesai">Selesai</option>}
+                {status === "completed" && <option value="Tutup">Tutup</option>}
+                <option value="Tolak">Tolak</option>
               </select>
             </div>
             <div>
@@ -209,16 +379,19 @@ export function ActionPanel({
               </label>
               <input
                 type="text"
+                value={nip}
+                onChange={(e) => setNip(e.target.value)}
                 placeholder="18 digit NIP"
                 className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-blue focus:outline-none focus:ring-2 focus:ring-blue/20"
               />
             </div>
             <button
               type="button"
-              disabled={note.length < 10}
+              onClick={handleUpdateStatus}
+              disabled={note.length < 10 || !nip || !newStatus || isSubmitting}
               className="w-full rounded-xl bg-navy px-4 py-2.5 text-sm font-medium text-white hover:bg-navy/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Update Status
+              {isSubmitting ? "Mengubah..." : "Update Status"}
             </button>
           </div>
         </div>
@@ -253,6 +426,8 @@ export function ActionPanel({
               </label>
               <input
                 type="date"
+                value={estimatedStart}
+                onChange={(e) => setEstimatedStart(e.target.value)}
                 className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink focus:border-blue focus:outline-none focus:ring-2 focus:ring-blue/20"
               />
             </div>
@@ -262,6 +437,8 @@ export function ActionPanel({
               </label>
               <input
                 type="date"
+                value={estimatedEnd}
+                onChange={(e) => setEstimatedEnd(e.target.value)}
                 className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink focus:border-blue focus:outline-none focus:ring-2 focus:ring-blue/20"
               />
             </div>
@@ -282,11 +459,25 @@ export function ActionPanel({
                 />
               </div>
             </div>
+            <div>
+              <label className="block text-xs font-medium text-muted mb-1">
+                NIP Konfirmasi
+              </label>
+              <input
+                type="text"
+                value={nip}
+                onChange={(e) => setNip(e.target.value)}
+                placeholder="18 digit NIP"
+                className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-blue focus:outline-none focus:ring-2 focus:ring-blue/20"
+              />
+            </div>
             <button
               type="button"
-              className="w-full rounded-xl bg-navy px-4 py-2.5 text-sm font-medium text-white hover:bg-navy/90 transition-colors"
+              onClick={handleUpdateTimeline}
+              disabled={!nip || isSubmitting}
+              className="w-full rounded-xl bg-navy px-4 py-2.5 text-sm font-medium text-white hover:bg-navy/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Simpan
+              {isSubmitting ? "Menyimpan..." : "Simpan"}
             </button>
           </div>
         </div>

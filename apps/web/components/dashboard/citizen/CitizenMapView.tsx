@@ -213,21 +213,18 @@ export function CitizenMapView() {
             >
               <Popup maxWidth={280}>
                 <div className="p-2">
-                  <div className="mb-2 flex items-center gap-2">
-                    <span className="text-xl">{pin.categoryEmoji}</span>
-                    <div>
-                      <p className="font-display text-sm font-bold text-navy">
-                        {pin.trackingCode}
-                      </p>
-                      <span
-                        className={cn(
-                          "inline-block rounded-full px-2 py-0.5 text-[10px] font-medium",
-                          getStatusConfig(pin.status as ReportStatus).bg
-                        )}
-                      >
-                        {getStatusConfig(pin.status as ReportStatus).label}
-                      </span>
-                    </div>
+                  <div className="mb-2">
+                    <p className="font-display text-sm font-bold text-navy">
+                      {pin.trackingCode}
+                    </p>
+                    <span
+                      className={cn(
+                        "inline-block rounded-full px-2 py-0.5 text-[10px] font-medium",
+                        getStatusConfig(pin.status as ReportStatus).bg
+                      )}
+                    >
+                      {getStatusConfig(pin.status as ReportStatus).label}
+                    </span>
                   </div>
 
                   <button

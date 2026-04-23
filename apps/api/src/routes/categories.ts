@@ -4,6 +4,7 @@
 import { Hono } from 'hono'
 import { db } from '../db.js'
 import { redis } from '../lib/redis.js'
+import { ok, err } from '../lib/response.js'
 
 const app = new Hono()
 
@@ -20,7 +21,8 @@ app.get('/', async (c) => {
     const cached = await redis.get(cacheKey)
     if (cached) {
       console.log('[Categories] Cache hit')
-      return c.json(JSON.parse(cached))
+      const data = JSON.parse(cached)
+      return ok(c, data)
     }
 
     console.log('[Categories] Cache miss')
@@ -42,26 +44,13 @@ app.get('/', async (c) => {
       },
     })
 
-    const result = {
-      data: categories,
-      meta: {
-        total: categories.length,
-      },
-    }
-
     // Cache for 1 hour
-    await redis.setex(cacheKey, 3600, JSON.stringify(result))
+    await redis.setex(cacheKey, 3600, JSON.stringify(categories))
 
-    return c.json(result)
+    return ok(c, categories)
   } catch (error) {
     console.error('[Categories] Error fetching categories:', error)
-    return c.json(
-      {
-        error: 'Failed to fetch categories',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    )
+    return err(c, 'INTERNAL_ERROR', 'Gagal memuat kategori', 500)
   }
 })
 
@@ -74,13 +63,7 @@ app.get('/:id', async (c) => {
     const id = parseInt(c.req.param('id'))
 
     if (isNaN(id)) {
-      return c.json(
-        {
-          error: 'Invalid category ID',
-          message: 'Category ID must be a number',
-        },
-        400
-      )
+      return err(c, 'INVALID_INPUT', 'ID kategori harus berupa angka', 400)
     }
 
     const cacheKey = `laporin:categories:${id}`
@@ -88,7 +71,8 @@ app.get('/:id', async (c) => {
     // Try cache
     const cached = await redis.get(cacheKey)
     if (cached) {
-      return c.json(JSON.parse(cached))
+      const data = JSON.parse(cached)
+      return ok(c, data)
     }
 
     // Get category
@@ -105,30 +89,16 @@ app.get('/:id', async (c) => {
     })
 
     if (!category) {
-      return c.json(
-        {
-          error: 'Category not found',
-          message: `Category with ID ${id} does not exist`,
-        },
-        404
-      )
+      return err(c, 'CATEGORY_NOT_FOUND', 'Kategori tidak ditemukan', 404)
     }
 
-    const result = { data: category }
-
     // Cache for 1 hour
-    await redis.setex(cacheKey, 3600, JSON.stringify(result))
+    await redis.setex(cacheKey, 3600, JSON.stringify(category))
 
-    return c.json(result)
+    return ok(c, category)
   } catch (error) {
     console.error('[Categories] Error fetching category:', error)
-    return c.json(
-      {
-        error: 'Failed to fetch category',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    )
+    return err(c, 'INTERNAL_ERROR', 'Gagal memuat kategori', 500)
   }
 })
 

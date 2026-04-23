@@ -5,10 +5,14 @@ import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { db } from '../db.js'
 import { authMiddleware, optionalAuthMiddleware, type AuthVariables } from '../middleware/auth.js'
+import { ok, paginated, err } from '../lib/response.js'
+import { getPagination, getSkip, buildMeta } from '../lib/pagination.js'
 import { generateTrackingCode } from '../lib/trackingCode.js'
 import { calculatePriorityScore } from '../lib/priorityScore.js'
 import { generateUploadUrl, getPublicUrl } from '../services/storage.service.js'
 import { addAIAnalysisJob } from '../jobs/queue.js'
+import { awardPoints, updateBadgeProgress } from './gamification.js'
+import { invalidatePattern } from '../lib/cache.js'
 import {
   reportListSelect,
   reportDetailInclude,
@@ -33,54 +37,94 @@ const reports = new Hono<{ Variables: AuthVariables }>()
  * GET /reports
  * List reports with filters and pagination (optimized)
  */
-reports.get('/', zValidator('query', listReportsSchema), async (c) => {
-  const {
-    page,
-    limit,
-    status,
-    categoryId,
-    regionCode,
-    priority,
-    search,
-    sortBy,
-    sortOrder,
-  } = c.req.valid('query')
+reports.get('/', optionalAuthMiddleware, zValidator('query', listReportsSchema), async (c) => {
+  const query = c.req.query()
+  const user = c.get('user')
+  const userId = user?.sub ?? null
+
+  const { page, limit } = getPagination(query)
+  const skip = getSkip({ page, limit })
 
   try {
-    // Build optimized where clause
-    const where = buildReportWhereClause({
-      status,
-      categoryId,
-      regionCode,
-      priority,
-      search,
-    })
+    // Build where clause
+    const where: any = {
+      status: { not: 'closed' },
+    }
+    
+    if (query.status) where.status = query.status
+    if (query.categoryId) where.categoryId = parseInt(query.categoryId, 10)
+    if (query.priority) where.priority = query.priority
+    if (query.regionCode) where.regionCode = query.regionCode
 
-    // Build order by clause
-    const orderBy = buildOrderByClause(sortBy, sortOrder)
+    // Full-text search
+    if (query.search) {
+      where.OR = [
+        { title: { contains: query.search, mode: 'insensitive' } },
+        { description: { contains: query.search, mode: 'insensitive' } },
+        { locationAddress: { contains: query.search, mode: 'insensitive' } },
+      ]
+    }
 
-    // Execute count and query in parallel for better performance
-    const [total, reportsData] = await Promise.all([
-      db.report.count({ where }),
+    const sortBy = (['createdAt', 'priorityScore', 'upvoteCount'].includes(query.sortBy ?? '')
+      ? query.sortBy
+      : 'createdAt') as string
+    const sortDir = query.sortOrder === 'asc' ? 'asc' : 'desc'
+
+    // Execute count and query in parallel
+    const [items, total] = await Promise.all([
       db.report.findMany({
         where,
-        skip: (page - 1) * limit,
+        skip,
         take: limit,
-        orderBy,
-        select: reportListSelect,
+        orderBy: { [sortBy]: sortDir },
+        include: {
+          category: { select: { id: true, name: true, emoji: true } },
+          agency: { select: { id: true, name: true } },
+          media: { where: { sortOrder: 0 }, take: 1 },
+          aiAnalysis: true,
+          votes: userId ? { where: { userId } } : false,
+          bookmarks: userId ? { where: { userId } } : false,
+          _count: { select: { comments: true } },
+        },
       }),
+      db.report.count({ where }),
     ])
 
-    // Calculate pagination metadata
-    const pagination = calculatePagination(total, page, limit)
+    const data = items.map((r) => ({
+      id: r.id,
+      trackingCode: r.trackingCode,
+      title: r.title,
+      locationAddress: r.locationAddress,
+      locationLat: Number(r.locationLat),
+      locationLng: Number(r.locationLng),
+      status: r.status,
+      priority: r.priority,
+      dangerLevel: r.dangerLevel,
+      priorityScore: r.priorityScore,
+      upvoteCount: r.upvoteCount,
+      commentCount: r._count.comments,
+      categoryId: r.category.id,
+      isAnonymous: r.isAnonymous,
+      reporterName: r.isAnonymous ? null : null, // TODO: add reporter name
+      agencyId: r.agencyId,
+      agencyName: r.agency?.name ?? null,
+      picName: null, // TODO: fetch from assignedOfficer relation
+      picNip: r.picNip,
+      estimatedEnd: r.estimatedEnd?.toISOString() ?? null,
+      budgetIdr: r.budgetIdr ? Number(r.budgetIdr) : null,
+      thumbnailUrl: r.media[0]?.fileUrl ?? null,
+      hasVoted: userId ? (r.votes as any[]).length > 0 : false,
+      hasBookmarked: userId ? (r.bookmarks as any[]).length > 0 : false,
+      aiSummary: r.aiSummary ?? null,
+      aiAnalysis: null,
+      createdAt: r.createdAt.toISOString(),
+      updatedAt: r.updatedAt.toISOString(),
+    }))
 
-    return c.json({
-      data: reportsData,
-      meta: pagination,
-    })
+    return paginated(c, data, buildMeta(total, { page, limit }))
   } catch (error) {
     console.error('List reports error:', error)
-    return c.json({ error: 'Failed to fetch reports' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Gagal memuat laporan', 500)
   }
 })
 
@@ -88,20 +132,45 @@ reports.get('/', zValidator('query', listReportsSchema), async (c) => {
  * GET /reports/:id
  * Get full report details (optimized with proper includes)
  */
-reports.get('/:id', zValidator('param', reportIdSchema), async (c) => {
-  const { id } = c.req.valid('param')
+reports.get('/:id', optionalAuthMiddleware, zValidator('param', reportIdSchema), async (c) => {
+  const { id } = c.req.param()
+  const user = c.get('user')
+  const userId = user?.sub ?? null
 
   try {
-    const report = await db.report.findUnique({
+    const r = await db.report.findUnique({
       where: { id },
-      include: reportDetailInclude,
+      include: {
+        category: true,
+        agency: { select: { id: true, name: true } },
+        media: { orderBy: { sortOrder: 'asc' } },
+        statusHistory: {
+          orderBy: { createdAt: 'desc' },
+          include: { changedBy: { select: { name: true } } },
+        },
+        comments: {
+          where: { parentId: null },
+          orderBy: { createdAt: 'asc' },
+          include: {
+            replies: {
+              orderBy: { createdAt: 'asc' },
+              include: { author: { select: { name: true, role: true } } },
+            },
+            author: { select: { name: true, role: true } },
+          },
+        },
+        aiAnalysis: true,
+        votes: userId ? { where: { userId } } : false,
+        bookmarks: userId ? { where: { userId } } : false,
+        _count: { select: { comments: true } },
+      },
     })
 
-    if (!report) {
-      return c.json({ error: 'Report not found' }, 404)
+    if (!r) {
+      return err(c, 'REPORT_NOT_FOUND', 'Laporan tidak ditemukan', 404)
     }
 
-    // Increment view count asynchronously (don't wait)
+    // Increment view count asynchronously
     db.report
       .update({
         where: { id },
@@ -109,10 +178,92 @@ reports.get('/:id', zValidator('param', reportIdSchema), async (c) => {
       })
       .catch((err) => console.error('Failed to increment view count:', err))
 
-    return c.json({ data: report })
+    const mapComment = (comment: any): any => ({
+      id: comment.id,
+      content: comment.content,
+      authorName: comment.isGovernment ? null : comment.author?.name ?? null,
+      isGovernment: comment.isGovernment,
+      upvoteCount: comment.upvoteCount,
+      parentId: comment.parentId,
+      replies: (comment.replies ?? []).map(mapComment),
+      createdAt: comment.createdAt.toISOString(),
+    })
+
+    return ok(c, {
+      id: r.id,
+      trackingCode: r.trackingCode,
+      title: r.title,
+      description: r.description,
+      locationAddress: r.locationAddress,
+      locationLat: Number(r.locationLat),
+      locationLng: Number(r.locationLng),
+      status: r.status,
+      priority: r.priority,
+      dangerLevel: r.dangerLevel,
+      priorityScore: r.priorityScore,
+      upvoteCount: r.upvoteCount,
+      commentCount: r._count.comments,
+      categoryId: r.category.id,
+      isAnonymous: r.isAnonymous,
+      reporterName: r.isAnonymous ? null : null,
+      agencyId: r.agencyId,
+      agencyName: r.agency?.name ?? null,
+      picName: null, // TODO: fetch from assignedOfficer relation
+      picNip: r.picNip,
+      estimatedEnd: r.estimatedEnd?.toISOString() ?? null,
+      estimatedStart: r.estimatedStart?.toISOString() ?? null,
+      completedAt: r.completedAt?.toISOString() ?? null,
+      verifiedAt: r.verifiedAt?.toISOString() ?? null,
+      budgetIdr: r.budgetIdr ? Number(r.budgetIdr) : null,
+      thumbnailUrl: r.media[0]?.fileUrl ?? null,
+      hasVoted: userId ? (r.votes as any[]).length > 0 : false,
+      hasBookmarked: userId ? (r.bookmarks as any[]).length > 0 : false,
+      aiSummary: r.aiSummary ?? null,
+      media: r.media.map((m) => ({
+        id: m.id,
+        mediaType: m.mediaType,
+        fileUrl: m.fileUrl,
+        sortOrder: m.sortOrder,
+        createdAt: m.createdAt.toISOString(),
+      })),
+      statusHistory: r.statusHistory.map((h) => ({
+        id: h.id,
+        oldStatus: h.oldStatus,
+        newStatus: h.newStatus,
+        note: h.note,
+        officerNip: h.officerNip,
+        changedByName: h.changedBy?.name ?? null,
+        createdAt: h.createdAt.toISOString(),
+      })),
+      comments: r.comments.map(mapComment),
+      aiAnalysis: r.aiAnalysis
+        ? {
+            suggestedCategoryId: r.aiAnalysis.suggestedCategory,
+            dangerLevel: r.aiAnalysis.dangerLevel,
+            priorityScore: r.aiAnalysis.priorityScore,
+            isHoax: r.aiAnalysis.isHoax,
+            hoaxConfidence: r.aiAnalysis.hoaxConfidence,
+            impactSummary: r.aiAnalysis.impactSummary,
+            aiSummary: r.aiSummary ?? null,
+            budgetMinIdr: r.aiAnalysis.budgetEstimate
+              ? Number(r.aiAnalysis.budgetEstimate) * 0.7
+              : null,
+            budgetMaxIdr: r.aiAnalysis.budgetEstimate
+              ? Number(r.aiAnalysis.budgetEstimate)
+              : null,
+            budgetBasis: null,
+            beforeAfterVerified: null,
+            beforeAfterConfidence: null,
+            beforeAfterDescription: null,
+            analysedAt: r.aiAnalysis.analysedAt?.toISOString() ?? null,
+          }
+        : null,
+      createdAt: r.createdAt.toISOString(),
+      updatedAt: r.updatedAt.toISOString(),
+    })
   } catch (error) {
     console.error('Get report error:', error)
-    return c.json({ error: 'Failed to fetch report' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Gagal memuat laporan', 500)
   }
 })
 
@@ -200,6 +351,24 @@ reports.post('/', optionalAuthMiddleware, zValidator('json', createReportSchema)
       reportId: report.id,
       hasPhoto: false, // Will be updated when media is uploaded
     })
+
+    // Award points for creating report (only for authenticated users)
+    if (user?.sub) {
+      await awardPoints(
+        user.sub,
+        50,
+        'report_created',
+        'Laporan baru dibuat',
+        { reportId: report.id, trackingCode }
+      )
+
+      // Update badge progress
+      const reportCount = await db.report.count({ where: { reporterId: user.sub } })
+      await updateBadgeProgress(user.sub, 'first-report', reportCount)
+      await updateBadgeProgress(user.sub, '10-reports', reportCount)
+      await updateBadgeProgress(user.sub, '50-reports', reportCount)
+      await updateBadgeProgress(user.sub, '100-reports', reportCount)
+    }
 
     return c.json(
       {
@@ -404,8 +573,30 @@ reports.post('/:id/vote', authMiddleware, zValidator('param', reportIdSchema), a
       },
       select: {
         upvoteCount: true,
+        reporterId: true,
       },
     })
+
+    // Award points to report author for receiving upvote
+    if (updatedReport.reporterId) {
+      await awardPoints(
+        updatedReport.reporterId,
+        5,
+        'upvote_received',
+        'Mendapat upvote pada laporan',
+        { reportId: id }
+      )
+
+      // Update popular reporter badge progress
+      const totalUpvotes = await db.vote.count({
+        where: {
+          report: {
+            reporterId: updatedReport.reporterId,
+          },
+        },
+      })
+      await updateBadgeProgress(updatedReport.reporterId, 'popular-reporter', totalUpvotes)
+    }
 
     return c.json({
       data: {
@@ -586,6 +777,19 @@ reports.post(
         },
       })
 
+      // Award points for adding comment
+      await awardPoints(
+        user.sub,
+        10,
+        'comment_added',
+        'Komentar ditambahkan',
+        { reportId: id, commentId: comment.id }
+      )
+
+      // Update community helper badge progress
+      const commentCount = await db.comment.count({ where: { authorId: user.sub } })
+      await updateBadgeProgress(user.sub, 'community-helper', commentCount)
+
       return c.json({ data: comment }, 201)
     } catch (error) {
       console.error('Create comment error:', error)
@@ -750,6 +954,7 @@ reports.post(
         where: { id },
         data: {
           status: newStatus,
+          verifiedAt: isComplete ? new Date() : null,
         },
       })
 
@@ -763,6 +968,28 @@ reports.post(
           changedById: user.sub,
         },
       })
+
+      // Award points for verifying completion
+      if (isComplete) {
+        await awardPoints(
+          user.sub,
+          10,
+          'report_verified_complete',
+          'Memverifikasi pekerjaan selesai',
+          { reportId: id }
+        )
+      }
+
+      // Invalidate analytics cache when report is verified complete or disputed
+      const reportWithAgency = await db.report.findUnique({
+        where: { id },
+        select: { agencyId: true },
+      })
+      
+      if (reportWithAgency?.agencyId) {
+        await invalidatePattern(`analytics:*:${reportWithAgency.agencyId}:*`)
+        await invalidatePattern(`analytics:anomalies:${reportWithAgency.agencyId}`)
+      }
 
       return c.json({ data: updatedReport })
     } catch (error) {

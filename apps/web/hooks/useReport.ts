@@ -1,38 +1,47 @@
 // ── hooks/useReport.ts ──
-// Fetches a single report's full detail by ID
+// Fetches a single report's full detail
 
-"use client";
+'use client'
+import { useState, useEffect, useCallback } from 'react'
+import { api, ApiClientError } from '@/lib/api-client'
+import type { ReportDetail, ApiResponse } from '@/types'
 
-import { useState, useEffect, useCallback } from "react";
-import { api } from "@/lib/api-client";
-import type { ReportDetail } from "@/types";
+interface UseReportReturn {
+  report:    ReportDetail | null
+  isLoading: boolean
+  error:     string | null
+  refetch:   () => void
+}
 
 /**
- * Fetches a single report's full detail by ID.
+ * Fetches a single report's full detail.
+ * Returns null while loading, not an empty object.
  */
-export function useReport(id: string) {
-  const [report, setReport] = useState<ReportDetail | null>(null);
-  const [isLoading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export function useReport(id: string, gov = false): UseReportReturn {
+  const [report,    setReport]    = useState<ReportDetail | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error,     setError]     = useState<string | null>(null)
+
+  const endpoint = gov ? `/gov/reports/${id}` : `/reports/${id}`
 
   const fetchReport = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    setIsLoading(true)
+    setError(null)
     try {
-      const res = await api.get<{ data: ReportDetail }>(`/reports/${id}`);
-      setReport(res.data);
+      const res = await api.get<ApiResponse<ReportDetail>>(endpoint)
+      setReport(res.data)
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Gagal memuat detail laporan"
-      );
+        err instanceof ApiClientError
+          ? err.userMessage
+          : 'Gagal memuat laporan.'
+      )
     } finally {
-      setLoading(false);
+      setIsLoading(false)
     }
-  }, [id]);
+  }, [endpoint])
 
-  useEffect(() => {
-    fetchReport();
-  }, [fetchReport]);
+  useEffect(() => { fetchReport() }, [fetchReport])
 
-  return { report, isLoading, error, refetch: fetchReport };
+  return { report, isLoading, error, refetch: fetchReport }
 }

@@ -117,6 +117,18 @@ Content-Type: application/json
 ### ANALYTICS ENDPOINTS
 ### ============================================
 
+### Get Analytics Overview
+GET {{baseUrl}}/gov/analytics/overview?period=30
+Authorization: Bearer {{token}}
+
+### Get Analytics Overview (90 days)
+GET {{baseUrl}}/gov/analytics/overview?period=90
+Authorization: Bearer {{token}}
+
+### Get Analytics Overview (365 days)
+GET {{baseUrl}}/gov/analytics/overview?period=365
+Authorization: Bearer {{token}}
+
 ### Get Trends
 GET {{baseUrl}}/gov/analytics/trends?period=30d
 Authorization: Bearer {{token}}

@@ -1,180 +1,161 @@
-// ── hooks/useAuth.ts ──
-// AuthProvider context + useAuth hook for dashboard authentication
+// ── hooks/useAuth.tsx ──
+// Authentication state management hook
 
-"use client";
-
+'use client'
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { useRouter } from 'next/navigation'
 import {
-  useState,
-  useEffect,
-  createContext,
-  useContext,
-  useCallback,
-  useRef,
-} from "react";
-import { usePathname } from "next/navigation";
-import { api } from "@/lib/api-client";
-import type { User } from "@/types";
+  api,
+  setAuthCookies,
+  clearAuthCookies,
+  getRefreshToken,
+  refreshAccessToken,
+  ApiClientError,
+} from '@/lib/api-client'
+import type { ApiResponse, Role } from '@/types'
 
-interface AuthState {
-  user: User | null;
-  isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
+interface User {
+  id: string
+  name: string | null
+  email: string
+  role: Role
+  isVerified: boolean
+  agencyName?: string | null
 }
 
-const AuthContext = createContext<AuthState | null>(null);
+interface AuthContextValue {
+  user: User | null
+  isLoading: boolean
+  isAuthenticated: boolean
+  login: (email: string, password: string) => Promise<void>
+  register: (data: RegisterData) => Promise<void>
+  logout: () => Promise<void>
+  refetch: () => Promise<void>
+}
 
-// Token refresh interval: 13 minutes (tokens expire in 15 minutes)
-const REFRESH_INTERVAL = 13 * 60 * 1000;
+interface RegisterData {
+  name: string
+  email: string
+  password: string
+  phone?: string
+}
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setLoading] = useState(true);
-  const pathname = usePathname();
-  const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
-  // Check if we're on an auth page
-  const isAuthPage = pathname?.startsWith("/login") || pathname?.startsWith("/register");
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const router = useRouter()
 
-  // Setup automatic token refresh
-  useEffect(() => {
-    if (!user || isAuthPage) {
-      // Clear refresh timer if user is logged out or on auth page
-      if (refreshTimerRef.current) {
-        clearInterval(refreshTimerRef.current);
-        refreshTimerRef.current = null;
-      }
-      return;
+  const fetchUser = async () => {
+    const hasAccessToken =
+      typeof document !== 'undefined' && document.cookie.includes('laporin_token=')
+    const hasRefreshToken = !!getRefreshToken()
+
+    if (!hasAccessToken && !hasRefreshToken) {
+      setUser(null)
+      setIsLoading(false)
+      return
     }
 
-    // Refresh token proactively every 13 minutes
-    const refreshToken = async () => {
-      try {
-        const refreshTokenValue = document.cookie
-          .split("; ")
-          .find((row) => row.startsWith("laporin_refresh="))
-          ?.split("=")[1];
-
-        if (!refreshTokenValue) {
-          console.warn("No refresh token found, logging out");
-          await logout();
-          return;
-        }
-
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/api/v1/auth/refresh`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ refreshToken: refreshTokenValue }),
-          }
-        );
-
-        if (!res.ok) {
-          console.warn("Token refresh failed, logging out");
-          await logout();
-          return;
-        }
-
-        const { data } = await res.json();
-        api.setTokens(data.accessToken, user.role);
-        console.log("Token refreshed proactively");
-      } catch (error) {
-        console.error("Proactive token refresh error:", error);
-        await logout();
-      }
-    };
-
-    // Set up interval for proactive refresh
-    refreshTimerRef.current = setInterval(refreshToken, REFRESH_INTERVAL);
-
-    // Cleanup on unmount
-    return () => {
-      if (refreshTimerRef.current) {
-        clearInterval(refreshTimerRef.current);
-      }
-    };
-  }, [user, isAuthPage]);
-
-  useEffect(() => {
-    // Skip auth check on auth pages
-    if (isAuthPage) {
-      setLoading(false);
-      return;
-    }
-
-    // Only fetch user if we have a token
-    const hasToken = document.cookie.includes("laporin_token=");
-    if (!hasToken) {
-      setLoading(false);
-      return;
-    }
-
-    api
-      .get<{ data: User }>("/auth/me")
-      .then((res) => setUser(res.data))
-      .catch((error) => {
-        console.error("Failed to fetch user:", error);
-        setUser(null);
-        // Clear invalid tokens
-        api.clearTokens();
-      })
-      .finally(() => setLoading(false));
-  }, [isAuthPage]);
-
-  const login = useCallback(async (email: string, password: string) => {
-    const res = await api.post<{
-      data: { accessToken: string; refreshToken: string; user: User };
-    }>("/auth/login", { email, password }, { skipAuth: true });
-    
-    // Store both access and refresh tokens
-    api.setTokens(res.data.accessToken, res.data.user.role, res.data.refreshToken);
-    setUser(res.data.user);
-  }, []);
-
-  const logout = useCallback(async () => {
     try {
-      // Get refresh token from cookie
-      const refreshToken = document.cookie
-        .split("; ")
-        .find((row) => row.startsWith("laporin_refresh="))
-        ?.split("=")[1];
+      if (!hasAccessToken && hasRefreshToken) {
+        const refreshed = await refreshAccessToken()
+        if (!refreshed) {
+          setUser(null)
+          clearAuthCookies()
+          setIsLoading(false)
+          return
+        }
+      }
 
-      // Call logout endpoint to revoke refresh token
-      if (refreshToken) {
-        await api.post("/auth/logout", { refreshToken }).catch(() => {
-          // Ignore errors - logout locally anyway
-        });
-      }
-    } catch (error) {
-      console.error("Logout error:", error);
+      const res = await api.get<ApiResponse<User>>('/auth/me')
+      setUser(res.data)
+    } catch {
+      setUser(null)
+      clearAuthCookies()
     } finally {
-      // Always clear tokens and redirect
-      api.clearTokens();
-      setUser(null);
-      
-      // Clear refresh timer
-      if (refreshTimerRef.current) {
-        clearInterval(refreshTimerRef.current);
-        refreshTimerRef.current = null;
-      }
-      
-      window.location.href = "/login";
+      setIsLoading(false)
     }
-  }, []);
+  }
+
+  useEffect(() => {
+    fetchUser()
+  }, [])
+
+  const login = async (email: string, password: string) => {
+    try {
+      const res = await api.post<ApiResponse<{ accessToken: string; refreshToken: string; user: User }>>(
+        '/auth/login',
+        { email, password },
+        { skipAuth: true }
+      )
+      setAuthCookies(res.data.accessToken, res.data.user.role, res.data.refreshToken)
+      setUser(res.data.user)
+      
+      // Redirect based on role
+      if (res.data.user.role === 'citizen') {
+        router.push('/citizen')
+      } else {
+        router.push('/gov')
+      }
+    } catch (err) {
+      throw err instanceof ApiClientError ? err : new Error('Login gagal')
+    }
+  }
+
+  const register = async (data: RegisterData) => {
+    try {
+      const res = await api.post<ApiResponse<{ accessToken: string; refreshToken: string; user: User }>>(
+        '/auth/register',
+        data,
+        { skipAuth: true }
+      )
+      setAuthCookies(res.data.accessToken, res.data.user.role, res.data.refreshToken)
+      setUser(res.data.user)
+      router.push('/citizen')
+    } catch (err) {
+      throw err instanceof ApiClientError ? err : new Error('Registrasi gagal')
+    }
+  }
+
+  const logout = async () => {
+    const refreshToken = getRefreshToken()
+
+    try {
+      if (refreshToken) {
+        await api.post('/auth/logout', { refreshToken }, { skipAuth: true })
+      }
+    } catch {
+      // Ignore errors, clear local state anyway
+    } finally {
+      clearAuthCookies()
+      setUser(null)
+      router.push('/login')
+    }
+  }
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isLoading,
+        isAuthenticated: !!user,
+        login,
+        register,
+        logout,
+        refetch: fetchUser,
+      }}
+    >
       {children}
     </AuthContext.Provider>
-  );
+  )
 }
 
-/**
- * Returns the current auth state. Must be inside AuthProvider.
- */
-export function useAuth(): AuthState {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
+export function useAuth() {
+  const context = useContext(AuthContext)
+  if (!context) {
+    throw new Error('useAuth must be used within AuthProvider')
+  }
+  return context
 }

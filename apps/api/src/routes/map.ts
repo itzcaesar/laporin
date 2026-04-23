@@ -3,6 +3,7 @@
 
 import { Hono } from 'hono'
 import { db } from '../db.js'
+import { ok, err } from '../lib/response.js'
 import { redis } from '../lib/redis.js'
 import { env } from '../env.js'
 
@@ -16,33 +17,24 @@ const CACHE_TTL_HEATMAP = parseInt(process.env.CACHE_TTL_HEATMAP || '300')
 
 /**
  * GET /map/pins
- * Returns GeoJSON FeatureCollection of all non-closed reports
+ * Returns array of map pins for all non-closed reports
  * Cached for 30 seconds
  */
 app.get('/pins', async (c) => {
   try {
-    const agencyId = c.req.query('agencyId') // Optional filter by agency
+    const status = c.req.query('status')
+    const categoryId = c.req.query('categoryId')
 
-    // Generate cache key
-    const cacheKey = `laporin:map:pins:${agencyId || 'all'}`
-
-    // Try to get from cache
-    const cached = await redis.get(cacheKey)
-    if (cached) {
-      console.log(`[Map] Cache hit: ${cacheKey}`)
-      return c.json(JSON.parse(cached))
+    // Build where clause
+    const where: any = {
+      status: { not: 'closed' },
     }
-
-    console.log(`[Map] Cache miss: ${cacheKey}`)
+    if (status) where.status = status
+    if (categoryId) where.categoryId = parseInt(categoryId, 10)
 
     // Query reports with location data
     const reports = await db.report.findMany({
-      where: {
-        status: {
-          notIn: ['closed', 'rejected'],
-        },
-        ...(agencyId && { agencyId }),
-      },
+      where,
       select: {
         id: true,
         trackingCode: true,
@@ -51,12 +43,6 @@ app.get('/pins', async (c) => {
         dangerLevel: true,
         locationLat: true,
         locationLng: true,
-        category: {
-          select: {
-            emoji: true,
-            name: true,
-          },
-        },
       },
       take: 2000, // Limit to 2000 pins for performance
       orderBy: {
@@ -64,43 +50,20 @@ app.get('/pins', async (c) => {
       },
     })
 
-    // Convert to GeoJSON FeatureCollection
-    const geojson = {
-      type: 'FeatureCollection',
-      features: reports.map((report) => ({
-        type: 'Feature',
-        id: report.id,
-        geometry: {
-          type: 'Point',
-          coordinates: [
-            parseFloat(report.locationLng.toString()),
-            parseFloat(report.locationLat.toString()),
-          ],
-        },
-        properties: {
-          trackingCode: report.trackingCode,
-          status: report.status,
-          categoryId: report.categoryId,
-          categoryEmoji: report.category.emoji,
-          categoryName: report.category.name,
-          dangerLevel: report.dangerLevel,
-        },
-      })),
-    }
+    const pins = reports.map((p) => ({
+      id: p.id,
+      trackingCode: p.trackingCode,
+      lat: Number(p.locationLat),
+      lng: Number(p.locationLng),
+      status: p.status,
+      categoryId: p.categoryId,
+      dangerLevel: p.dangerLevel,
+    }))
 
-    // Cache the result
-    await redis.setex(cacheKey, CACHE_TTL_MAP, JSON.stringify(geojson))
-
-    return c.json(geojson)
+    return ok(c, pins)
   } catch (error) {
     console.error('[Map] Error fetching pins:', error)
-    return c.json(
-      {
-        error: 'Failed to fetch map pins',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    )
+    return err(c, 'INTERNAL_ERROR', 'Gagal memuat pin peta', 500)
   }
 })
 

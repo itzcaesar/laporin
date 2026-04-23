@@ -9,14 +9,13 @@ import { DaruratAlertBanner } from "@/components/dashboard/gov/DaruratAlertBanne
 import { SlaAlertBanner } from "@/components/dashboard/gov/SlaAlertBanner";
 import { AiInsightBanner } from "@/components/dashboard/gov/AiInsightBanner";
 import { WorkloadForecast } from "@/components/dashboard/gov/WorkloadForecast";
-import { EmptyState } from "@/components/dashboard/shared/EmptyState";
+import EmptyState from "@/components/dashboard/shared/EmptyState";
 import { formatRelativeTime } from "@/lib/utils";
 import Link from "next/link";
 
 export default function GovDashboardPage() {
   const { user } = useAuth();
-  const { stats, urgentReports, workloadForecast, aiInsight, isLoading } =
-    useGovDashboard();
+  const { stats, isLoading, error } = useGovDashboard();
 
   // Format current date in Indonesian
   const currentDate = new Intl.DateTimeFormat("id-ID", {
@@ -60,7 +59,7 @@ export default function GovDashboardPage() {
         />
         <KpiCard
           title="SLA Terlampaui"
-          value={stats?.slaBreached || 0}
+          value={stats?.slaBreachedCount || 0}
           subtitle="perlu ditangani"
           icon={AlertTriangle}
           iconColor="red"
@@ -80,9 +79,9 @@ export default function GovDashboardPage() {
 
       {/* Alert Banners */}
       <div className="space-y-4 mb-6">
-        <DaruratAlertBanner urgentReports={urgentReports} />
-        <SlaAlertBanner breachedCount={stats?.slaBreached || 0} />
-        <AiInsightBanner insight={aiInsight} isLoading={isLoading} />
+        <DaruratAlertBanner urgentReports={stats?.urgentReports || []} />
+        <SlaAlertBanner breachedCount={stats?.slaBreachedCount || 0} />
+        <AiInsightBanner insight={stats?.aiInsight || null} isLoading={isLoading} />
       </div>
 
       {/* Recent Reports + Trend Chart */}
@@ -111,17 +110,14 @@ export default function GovDashboardPage() {
                     href={`/gov/reports/${report.id}`}
                     className="flex items-center gap-3 rounded-lg p-3 hover:bg-surface transition-colors group"
                   >
-                    <span className="text-xl shrink-0">
-                      {report.categoryEmoji}
-                    </span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs font-medium text-muted">
-                          {report.status}
+                          {report.trackingCode}
                         </span>
                         <span className="text-xs text-muted">·</span>
                         <span className="text-xs text-muted">
-                          {report.categoryName}
+                          {report.status}
                         </span>
                       </div>
                       <p className="text-sm text-ink truncate">
@@ -141,7 +137,7 @@ export default function GovDashboardPage() {
               </div>
             ) : (
               <EmptyState
-                icon={ClipboardList}
+                icon="📋"
                 title="Belum ada laporan baru"
                 description="Laporan baru akan muncul di sini"
               />
@@ -166,7 +162,7 @@ export default function GovDashboardPage() {
       </div>
 
       {/* Workload Forecast */}
-      <WorkloadForecast forecast={workloadForecast} isLoading={isLoading} />
+      <WorkloadForecast forecast={null} isLoading={isLoading} />
     </div>
   );
 }

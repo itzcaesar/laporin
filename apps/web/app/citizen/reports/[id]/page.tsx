@@ -4,11 +4,11 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
-import { MOCK_REPORTS } from "@/data/mock-reports";
-import { mockToReportDetail } from "@/lib/mock-adapter";
+import { useState } from "react";
+import { useReport } from "@/hooks/useReport";
 import { getStatusConfig } from "@/lib/status-config";
 import { cn, formatRelativeTime } from "@/lib/utils";
+import { api, ApiClientError } from "@/lib/api-client";
 import {
   ArrowLeft,
   ArrowBigUp,
@@ -22,98 +22,131 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import Image from "next/image";
-import type { ReportDetail } from "@/types";
 import { CommentThread, type Comment } from "@/components/dashboard/shared/CommentThread";
 import { useAuth } from "@/hooks/useAuth";
+import LoadingSkeleton from "@/components/dashboard/shared/LoadingSkeleton";
+import EmptyState from "@/components/dashboard/shared/EmptyState";
 
 export default function ReportDetailPage() {
   const params = useParams();
   const router = useRouter();
   const reportId = params.id as string;
   const { user } = useAuth();
+  const { report, isLoading, error, refetch } = useReport(reportId);
 
-  const [report, setReport] = useState<ReportDetail | null>(null);
-  const [isUpvoted, setIsUpvoted] = useState(false);
-  const [isBookmarked, setIsBookmarked] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-  const [comments, setComments] = useState<Comment[]>([
-    {
-      id: "1",
-      content: "Sudah 3 hari belum ada tindakan. Mohon segera ditangani.",
-      authorName: "Ahmad Rizki",
-      isGovernment: false,
-      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      replies: [
-        {
-          id: "2",
-          content:
-            "Terima kasih atas laporannya. Tim kami sudah meninjau lokasi dan akan segera melakukan perbaikan dalam 2 hari ke depan.",
-          authorName: "Budi Santosa",
-          isGovernment: true,
-          isOfficial: true,
-          createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
-          replies: [],
-        },
-      ],
-    },
-    {
-      id: "3",
-      content: "Saya juga mengalami hal yang sama di area ini. Terima kasih sudah melaporkan!",
-      authorName: "Siti Nurhaliza",
-      isGovernment: false,
-      createdAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-      replies: [],
-    },
-  ]);
+  const [isUpvoting, setIsUpvoting] = useState(false);
+  const [isBookmarking, setIsBookmarking] = useState(false);
 
-  // Placeholder images - in production, these would come from the report data
-  const reportImages = [
-    "https://images.unsplash.com/photo-1581094271901-8022df4466f9?w=800&q=80",
-    "https://images.unsplash.com/photo-1581094794329-c8112a89af12?w=800&q=80",
-    "https://images.unsplash.com/photo-1581094271901-8022df4466f9?w=800&q=80",
-  ];
-
-  // Placeholder AI summary
-  const aiSummary = {
-    severity: "Tinggi",
-    estimatedCost: "Rp 15.000.000 - Rp 25.000.000",
-    urgency: "Segera",
-    recommendation:
-      "Perbaikan jalan berlubang ini memerlukan penanganan segera untuk mencegah kerusakan lebih lanjut dan menghindari risiko kecelakaan. Disarankan untuk melakukan penambalan aspal dan perbaikan drainase di sekitar area.",
-  };
-
-  useEffect(() => {
-    // Find the report from mock data
-    const mockReport = MOCK_REPORTS.find((r) => r.id === reportId);
-    if (mockReport) {
-      setReport(mockToReportDetail(mockReport));
-    }
-  }, [reportId]);
-
-  if (!report) {
+  // Loading state
+  if (isLoading) {
     return (
-      <div className="dashboard-page">
-        <div className="text-center py-12">
-          <p className="text-muted">Laporan tidak ditemukan</p>
-          <button
-            onClick={() => router.back()}
-            className="mt-4 text-blue hover:underline"
-          >
-            Kembali
-          </button>
-        </div>
+      <div className="dashboard-page pb-20 md:pb-6">
+        <button
+          onClick={() => router.back()}
+          className="flex items-center gap-2 text-navy hover:text-blue mb-4 transition-colors"
+        >
+          <ArrowLeft size={20} />
+          <span className="font-medium">Kembali</span>
+        </button>
+        <LoadingSkeleton variant="report-detail" />
+      </div>
+    );
+  }
+
+  // Error or not found state
+  if (error || !report) {
+    return (
+      <div className="dashboard-page pb-20 md:pb-6">
+        <button
+          onClick={() => router.back()}
+          className="flex items-center gap-2 text-navy hover:text-blue mb-4 transition-colors"
+        >
+          <ArrowLeft size={20} />
+          <span className="font-medium">Kembali</span>
+        </button>
+        <EmptyState
+          icon="❌"
+          title="Laporan tidak ditemukan"
+          message={error ?? "Laporan ini mungkin telah dihapus atau tidak tersedia."}
+          action={{ label: "Kembali ke Feed", href: "/citizen" }}
+        />
       </div>
     );
   }
 
   const statusConfig = getStatusConfig(report.status);
 
-  const handleUpvote = () => {
-    setIsUpvoted(!isUpvoted);
+  // Get media URLs from report
+  const reportImages = report.media?.map((m) => m.fileUrl) ?? [];
+
+  // Convert API comments to CommentThread format
+  const comments: Comment[] = (report.comments ?? []).map((c) => ({
+    id: c.id,
+    content: c.content,
+    authorName: c.authorName,
+    isGovernment: c.isGovernment,
+    isOfficial: c.isGovernment,
+    createdAt: c.createdAt,
+    replies: (c.replies ?? []).map((r) => ({
+      id: r.id,
+      content: r.content,
+      authorName: r.authorName,
+      isGovernment: r.isGovernment,
+      isOfficial: r.isGovernment,
+      createdAt: r.createdAt,
+      replies: [],
+    })),
+  }));
+
+  const handleUpvote = async () => {
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+
+    setIsUpvoting(true);
+    try {
+      if (report.hasVoted) {
+        // Remove upvote
+        await api.delete(`/reports/${reportId}/vote`);
+      } else {
+        // Add upvote
+        await api.post(`/reports/${reportId}/vote`, {});
+      }
+      // Refetch to get updated data
+      refetch();
+    } catch (err) {
+      console.error('Upvote error:', err);
+      alert(err instanceof ApiClientError ? err.userMessage : 'Gagal memperbarui vote');
+    } finally {
+      setIsUpvoting(false);
+    }
   };
 
-  const handleBookmark = () => {
-    setIsBookmarked(!isBookmarked);
+  const handleBookmark = async () => {
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+
+    setIsBookmarking(true);
+    try {
+      if (report.hasBookmarked) {
+        // Remove bookmark
+        await api.delete(`/user/bookmarks/${reportId}`);
+      } else {
+        // Add bookmark
+        await api.post(`/user/bookmarks/${reportId}`, {});
+      }
+      // Refetch to get updated data
+      refetch();
+    } catch (err) {
+      console.error('Bookmark error:', err);
+      alert(err instanceof ApiClientError ? err.userMessage : 'Gagal memperbarui bookmark');
+    } finally {
+      setIsBookmarking(false);
+    }
   };
 
   const handleShare = async () => {
@@ -135,30 +168,18 @@ export default function ReportDetailPage() {
   };
 
   const handleAddComment = async (content: string) => {
-    // TODO: API call to POST /api/v1/reports/{reportId}/comments
-    console.log("Adding comment:", content);
-    
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    if (!user) {
+      router.push('/login');
+      return;
+    }
 
-    // Add new comment to state
-    const newComment: Comment = {
-      id: `temp-${Date.now()}`,
-      content,
-      authorName: user?.name || "Anda",
-      isGovernment: false,
-      createdAt: new Date().toISOString(),
-      replies: [],
-    };
-
-    setComments((prev) => [...prev, newComment]);
-    
-    // Update comment count
-    if (report) {
-      setReport({
-        ...report,
-        commentCount: report.commentCount + 1,
-      });
+    try {
+      await api.post(`/reports/${reportId}/comments`, { content });
+      // Refetch to get updated comments
+      refetch();
+    } catch (err) {
+      console.error('Add comment error:', err);
+      throw err instanceof ApiClientError ? err : new Error('Gagal menambahkan komentar');
     }
   };
 
@@ -257,72 +278,109 @@ export default function ReportDetailPage() {
         </div>
 
         {/* AI Summary Card */}
-        <div className="card-base p-5 mb-4 bg-gradient-to-br from-blue/5 to-purple/5 border-blue/20">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="p-2 bg-blue/10 rounded-lg">
-              <Sparkles size={20} className="text-blue" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold font-display text-navy">
-                Ringkasan AI
-              </h2>
-              <p className="text-xs text-muted">
-                Analisis otomatis dari laporan ini
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            {/* Severity */}
-            <div className="flex items-start gap-3">
-              <div className="w-24 flex-shrink-0 text-sm font-medium text-muted">
-                Tingkat Bahaya
+        {report.aiSummary && (
+          <div className="card-base p-5 mb-4 bg-gradient-to-br from-blue/5 to-purple/5 border-blue/20">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="p-2 bg-blue/10 rounded-lg">
+                <Sparkles size={20} className="text-blue" />
               </div>
-              <div className="flex-1">
-                <span
-                  className={cn(
-                    "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold",
-                    aiSummary.severity === "Tinggi"
-                      ? "bg-red/10 text-red border border-red/20"
-                      : "bg-yellow/10 text-yellow border border-yellow/20"
-                  )}
-                >
-                  {aiSummary.severity}
-                </span>
+              <div>
+                <h2 className="text-base font-bold font-display text-navy">
+                  Ringkasan AI
+                </h2>
+                <p className="text-xs text-muted">
+                  Analisis otomatis dari laporan ini
+                </p>
               </div>
             </div>
 
-            {/* Estimated Cost */}
-            <div className="flex items-start gap-3">
-              <div className="w-24 flex-shrink-0 text-sm font-medium text-muted">
-                Est. Biaya
-              </div>
-              <div className="flex-1 text-sm font-semibold text-navy">
-                {aiSummary.estimatedCost}
-              </div>
-            </div>
-
-            {/* Urgency */}
-            <div className="flex items-start gap-3">
-              <div className="w-24 flex-shrink-0 text-sm font-medium text-muted">
-                Urgensi
-              </div>
-              <div className="flex-1 text-sm font-semibold text-navy">
-                {aiSummary.urgency}
-              </div>
-            </div>
-
-            {/* Recommendation */}
-            <div className="flex items-start gap-3 pt-2 border-t border-blue/10">
-              <div className="w-24 flex-shrink-0 text-sm font-medium text-muted">
-                Rekomendasi
-              </div>
-              <div className="flex-1 text-sm text-ink leading-relaxed">
-                {aiSummary.recommendation}
+            <div className="space-y-3">
+              <div className="flex-1 text-sm text-ink leading-relaxed whitespace-pre-wrap">
+                {report.aiSummary}
               </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* AI Analysis Card (if available) */}
+        {report.aiAnalysis && (
+          <div className="card-base p-5 mb-4 bg-gradient-to-br from-purple/5 to-pink/5 border-purple/20">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="p-2 bg-purple/10 rounded-lg">
+                <Sparkles size={20} className="text-purple" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold font-display text-navy">
+                  Analisis Detail AI
+                </h2>
+                <p className="text-xs text-muted">
+                  Analisis mendalam dari sistem AI
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {/* Danger Level */}
+              {report.dangerLevel != null && (
+                <div className="flex items-start gap-3">
+                  <div className="w-24 flex-shrink-0 text-sm font-medium text-muted">
+                    Tingkat Bahaya
+                  </div>
+                  <div className="flex-1">
+                    <span
+                      className={cn(
+                        "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold",
+                        report.dangerLevel >= 70
+                          ? "bg-red/10 text-red border border-red/20"
+                          : report.dangerLevel >= 40
+                          ? "bg-yellow/10 text-yellow border border-yellow/20"
+                          : "bg-green/10 text-green border border-green/20"
+                      )}
+                    >
+                      {report.dangerLevel >= 70 ? "Tinggi" : report.dangerLevel >= 40 ? "Sedang" : "Rendah"} ({report.dangerLevel}/100)
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Priority */}
+              {report.priority && (
+                <div className="flex items-start gap-3">
+                  <div className="w-24 flex-shrink-0 text-sm font-medium text-muted">
+                    Prioritas
+                  </div>
+                  <div className="flex-1 text-sm font-semibold text-navy">
+                    {report.priority}
+                  </div>
+                </div>
+              )}
+
+              {/* Priority Score */}
+              {report.priorityScore && (
+                <div className="flex items-start gap-3">
+                  <div className="w-24 flex-shrink-0 text-sm font-medium text-muted">
+                    Skor Prioritas
+                  </div>
+                  <div className="flex-1 text-sm font-semibold text-navy">
+                    {report.priorityScore}
+                  </div>
+                </div>
+              )}
+
+              {/* AI Analysis Text */}
+              {typeof report.aiAnalysis === 'string' && (
+                <div className="flex items-start gap-3 pt-2 border-t border-purple/10">
+                  <div className="w-24 flex-shrink-0 text-sm font-medium text-muted">
+                    Analisis
+                  </div>
+                  <div className="flex-1 text-sm text-ink leading-relaxed whitespace-pre-wrap">
+                    {report.aiAnalysis}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Report Details Card */}
         <div className="card-base p-5 mb-4">
@@ -425,16 +483,18 @@ export default function ReportDetailPage() {
               {/* Upvote */}
               <button
                 onClick={handleUpvote}
+                disabled={isUpvoting}
                 className={cn(
                   "flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all font-medium",
-                  isUpvoted
+                  "disabled:opacity-50 disabled:cursor-not-allowed",
+                  report.hasVoted
                     ? "bg-blue text-white shadow-md shadow-blue/20"
                     : "bg-gray-100 text-muted hover:bg-gray-200"
                 )}
               >
                 <ArrowBigUp
                   size={20}
-                  className={isUpvoted ? "fill-current" : ""}
+                  className={report.hasVoted ? "fill-current" : ""}
                 />
                 <span>{report.upvoteCount}</span>
               </button>
@@ -450,9 +510,11 @@ export default function ReportDetailPage() {
               {/* Bookmark */}
               <button
                 onClick={handleBookmark}
+                disabled={isBookmarking}
                 className={cn(
                   "p-2.5 rounded-xl transition-all",
-                  isBookmarked
+                  "disabled:opacity-50 disabled:cursor-not-allowed",
+                  report.hasBookmarked
                     ? "bg-yellow/10 text-yellow"
                     : "bg-gray-100 text-muted hover:bg-gray-200"
                 )}
@@ -460,7 +522,7 @@ export default function ReportDetailPage() {
               >
                 <Bookmark
                   size={20}
-                  className={isBookmarked ? "fill-current" : ""}
+                  className={report.hasBookmarked ? "fill-current" : ""}
                 />
               </button>
 
@@ -486,7 +548,7 @@ export default function ReportDetailPage() {
         {/* Comments Section */}
         <div className="card-base p-5">
           <h2 className="text-lg font-bold font-display text-navy mb-4">
-            Komentar ({comments.length})
+            Komentar ({report.commentCount})
           </h2>
           <CommentThread
             comments={comments}

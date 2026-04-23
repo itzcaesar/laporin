@@ -1,56 +1,85 @@
 // ── hooks/useReports.ts ──
-// Fetches paginated report list from the API
+// Fetches paginated report list with filters
 
-"use client";
+'use client'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { api, ApiClientError } from '@/lib/api-client'
+import type { Report, ReportStatus, Priority, PaginationMeta, ApiResponse } from '@/types'
 
-import { useState, useEffect, useCallback } from "react";
-import { api } from "@/lib/api-client";
-import type { Report, ListReportsMeta } from "@/types";
+export interface UseReportsParams {
+  status?:     ReportStatus
+  categoryId?: number
+  priority?:   Priority
+  search?:     string
+  sortBy?:     'createdAt' | 'priorityScore' | 'upvoteCount'
+  sortDir?:    'asc' | 'desc'
+  page?:       number
+  limit?:      number
+  // Gov-only
+  filter?:     'sla_breached' | 'unassigned' | 'hoax_flagged'
+  officerId?:  string
+  gov?:        boolean   // use /gov/reports endpoint if true
+}
 
-interface UseReportsParams {
-  status?: string;
-  categoryId?: number;
-  page?: number;
-  limit?: number;
-  search?: string;
+interface UseReportsReturn {
+  reports:   Report[]
+  meta:      PaginationMeta | null
+  isLoading: boolean
+  error:     string | null
+  refetch:   () => void
 }
 
 /**
- * Fetches paginated report list from the API. Refetches automatically when params change.
+ * Fetches paginated report list. Supports both citizen and gov endpoints.
+ * Returns empty array (not null) when no data — components can safely map.
  */
-export function useReports(params: UseReportsParams = {}) {
-  const [reports, setReports] = useState<Report[]>([]);
-  const [meta, setMeta] = useState<ListReportsMeta | null>(null);
-  const [isLoading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export function useReports(params: UseReportsParams = {}): UseReportsReturn {
+  const [reports,   setReports]   = useState<Report[]>([])
+  const [meta,      setMeta]      = useState<PaginationMeta | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error,     setError]     = useState<string | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
-  const query = new URLSearchParams(
-    Object.entries(params)
-      .filter(([, value]) => value != null)
-      .map(([key, value]) => [key, String(value)])
-  ).toString();
+  const { gov, ...queryParams } = params
+  const endpoint = gov ? '/gov/reports' : '/reports'
+
+  const queryString = new URLSearchParams(
+    Object.entries(queryParams)
+      .filter(([, v]) => v != null && v !== '')
+      .map(([k, v]) => [k, String(v)])
+  ).toString()
 
   const fetchReports = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    abortRef.current?.abort()
+    abortRef.current = new AbortController()
+
+    setIsLoading(true)
+    setError(null)
+
     try {
-      const res = await api.get<{ data: Report[]; meta: ListReportsMeta }>(
-        `/reports?${query}`
-      );
-      setReports(res.data);
-      setMeta(res.meta);
+      const res = await api.get<ApiResponse<Report[]>>(
+        `${endpoint}${queryString ? `?${queryString}` : ''}`,
+        { signal: abortRef.current.signal }
+      )
+      setReports(res.data)
+      setMeta(res.meta ?? null)
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return
       setError(
-        err instanceof Error ? err.message : "Gagal memuat laporan"
-      );
+        err instanceof ApiClientError
+          ? err.userMessage
+          : 'Gagal memuat laporan. Coba lagi.'
+      )
+      setReports([])
     } finally {
-      setLoading(false);
+      setIsLoading(false)
     }
-  }, [query]);
+  }, [endpoint, queryString])
 
   useEffect(() => {
-    fetchReports();
-  }, [fetchReports]);
+    fetchReports()
+    return () => abortRef.current?.abort()
+  }, [fetchReports])
 
-  return { reports, meta, isLoading, error, refetch: fetchReports };
+  return { reports, meta, isLoading, error, refetch: fetchReports }
 }

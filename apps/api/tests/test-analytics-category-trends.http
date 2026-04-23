@@ -1,0 +1,19 @@
+### Test Category Trends Endpoint - 30 days
+GET http://localhost:4000/api/v1/gov/analytics/category-trends?period=30
+Authorization: Bearer {{token}}
+
+### Test Category Trends Endpoint - 90 days
+GET http://localhost:4000/api/v1/gov/analytics/category-trends?period=90
+Authorization: Bearer {{token}}
+
+### Test Category Trends Endpoint - 365 days
+GET http://localhost:4000/api/v1/gov/analytics/category-trends?period=365
+Authorization: Bearer {{token}}
+
+### Test Category Trends Endpoint - Invalid period (should fail)
+GET http://localhost:4000/api/v1/gov/analytics/category-trends?period=7d
+Authorization: Bearer {{token}}
+
+### Test Category Trends Endpoint - No period (should default to 30)
+GET http://localhost:4000/api/v1/gov/analytics/category-trends
+Authorization: Bearer {{token}}

@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { AuditTable } from "@/components/dashboard/gov/AuditTable";
 import { Pagination } from "@/components/dashboard/shared/Pagination";
-import { EmptyState } from "@/components/dashboard/shared/EmptyState";
+import EmptyState from "@/components/dashboard/shared/EmptyState";
 import { FileText } from "lucide-react";
 
 type AuditLog = {
@@ -166,7 +166,7 @@ export default function GovAuditPage() {
         </>
       ) : (
         <EmptyState
-          icon={FileText}
+          icon="📄"
           title="Tidak ada log audit"
           description="Log audit akan muncul di sini setelah ada aktivitas"
         />

@@ -9,6 +9,7 @@ import { signToken, signRefreshToken, verifyRefreshToken } from '../lib/jwt.js'
 import { encrypt } from '../lib/crypto.js'
 import { generateOtp } from '../lib/crypto.js'
 import { authMiddleware, type AuthVariables } from '../middleware/auth.js'
+import { ok, err } from '../lib/response.js'
 import {
   registerSchema,
   loginSchema,
@@ -49,7 +50,7 @@ auth.post('/register', zValidator('json', registerSchema), async (c) => {
     })
 
     if (existingUser) {
-      return c.json({ error: 'Email already registered' }, 400)
+      return err(c, 'EMAIL_EXISTS', 'Email sudah terdaftar', 409)
     }
 
     // Hash password
@@ -102,16 +103,14 @@ auth.post('/register', zValidator('json', registerSchema), async (c) => {
       },
     })
 
-    return c.json({
-      data: {
-        user,
-        accessToken,
-        refreshToken,
-      },
+    return ok(c, {
+      user,
+      accessToken,
+      refreshToken,
     }, 201)
   } catch (error) {
     console.error('Registration error:', error)
-    return c.json({ error: 'Registration failed' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Registrasi gagal', 500)
   }
 })
 
@@ -140,19 +139,19 @@ auth.post('/login', zValidator('json', loginSchema), async (c) => {
     })
 
     if (!user) {
-      return c.json({ error: 'Invalid email or password' }, 401)
+      return err(c, 'INVALID_CREDENTIALS', 'Email atau password salah', 401)
     }
 
     // Check if account is active
     if (!user.isActive) {
-      return c.json({ error: 'Account is deactivated' }, 403)
+      return err(c, 'ACCOUNT_INACTIVE', 'Akun ini telah dinonaktifkan', 403)
     }
 
     // Verify password
     const isPasswordValid = await comparePassword(password, user.passwordHash)
 
     if (!isPasswordValid) {
-      return c.json({ error: 'Invalid email or password' }, 401)
+      return err(c, 'INVALID_CREDENTIALS', 'Email atau password salah', 401)
     }
 
     // Generate tokens
@@ -185,22 +184,20 @@ auth.post('/login', zValidator('json', loginSchema), async (c) => {
       data: { lastLoginAt: new Date() },
     })
 
-    return c.json({
-      data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          isVerified: user.isVerified,
-        },
-        accessToken,
-        refreshToken,
+    return ok(c, {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        isVerified: user.isVerified,
       },
+      accessToken,
+      refreshToken,
     })
   } catch (error) {
     console.error('Login error:', error)
-    return c.json({ error: 'Login failed' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Terjadi kesalahan server', 500)
   }
 })
 
@@ -232,17 +229,17 @@ auth.post('/refresh', zValidator('json', refreshSchema), async (c) => {
     })
 
     if (!storedToken || storedToken.isRevoked) {
-      return c.json({ error: 'Invalid or revoked refresh token' }, 401)
+      return err(c, 'INVALID_TOKEN', 'Token tidak valid atau telah dicabut', 401)
     }
 
     // Check if token is expired
     if (storedToken.expiresAt < new Date()) {
-      return c.json({ error: 'Refresh token expired' }, 401)
+      return err(c, 'TOKEN_EXPIRED', 'Token telah kadaluarsa', 401)
     }
 
     // Check if user is still active
     if (!storedToken.user.isActive) {
-      return c.json({ error: 'Account is deactivated' }, 403)
+      return err(c, 'ACCOUNT_INACTIVE', 'Akun telah dinonaktifkan', 403)
     }
 
     // Generate new access token
@@ -253,14 +250,13 @@ auth.post('/refresh', zValidator('json', refreshSchema), async (c) => {
       agencyId: storedToken.user.agencyId || undefined,
     })
 
-    return c.json({
-      data: {
-        accessToken,
-      },
+    return ok(c, {
+      accessToken,
+      role: storedToken.user.role,
     })
   } catch (error) {
     console.error('Token refresh error:', error)
-    return c.json({ error: 'Invalid refresh token' }, 401)
+    return err(c, 'INVALID_TOKEN', 'Token tidak valid', 401)
   }
 })
 
@@ -281,14 +277,10 @@ auth.post('/logout', zValidator('json', logoutSchema), async (c) => {
       data: { isRevoked: true },
     })
 
-    return c.json({
-      data: { message: 'Logged out successfully' },
-    })
+    return ok(c, { message: 'Berhasil logout' })
   } catch (error) {
     // Even if token is invalid, return success (idempotent logout)
-    return c.json({
-      data: { message: 'Logged out successfully' },
-    })
+    return ok(c, { message: 'Berhasil logout' })
   }
 })
 
@@ -441,6 +433,7 @@ auth.get('/me', authMiddleware, async (c) => {
         isActive: true,
         createdAt: true,
         lastLoginAt: true,
+        agencyId: true,
         agency: {
           select: {
             id: true,
@@ -453,13 +446,21 @@ auth.get('/me', authMiddleware, async (c) => {
     })
 
     if (!profile) {
-      return c.json({ error: 'User not found' }, 404)
+      return err(c, 'NOT_FOUND', 'Pengguna tidak ditemukan', 404)
     }
 
-    return c.json({ data: profile })
+    return ok(c, {
+      id: profile.id,
+      email: profile.email,
+      name: profile.name,
+      role: profile.role,
+      nip: profile.nip,
+      agencyId: profile.agencyId,
+      agencyName: profile.agency?.name ?? null,
+    })
   } catch (error) {
     console.error('Get profile error:', error)
-    return c.json({ error: 'Failed to get profile' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Gagal memuat profil', 500)
   }
 })
 

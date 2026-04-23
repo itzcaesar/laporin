@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Plus } from "lucide-react";
 import { OfficerTable } from "@/components/dashboard/gov/OfficerTable";
 import { OfficerSlideOver } from "@/components/dashboard/gov/OfficerSlideOver";
-import { EmptyState } from "@/components/dashboard/shared/EmptyState";
+import EmptyState from "@/components/dashboard/shared/EmptyState";
 import { Users } from "lucide-react";
 
 type Officer = {
@@ -156,7 +156,7 @@ export default function GovOfficersPage() {
         />
       ) : (
         <EmptyState
-          icon={Users}
+          icon="👥"
           title="Belum ada petugas terdaftar"
           description="Tambahkan petugas pertama untuk mulai mengelola laporan"
           actionLabel="Tambah Petugas"

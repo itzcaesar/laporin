@@ -1,0 +1,32 @@
+### Test Analytics Trends Endpoint
+### This file tests the new GET /gov/analytics/trends endpoint
+
+@baseUrl = http://localhost:4000/api/v1
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5OTk5OTk5OS05OTk5LTQ5OTktOTk5OS05OTk5OTk5OTk5OTkiLCJlbWFpbCI6ImFkbWluQGRpbmFzLmdvdi5pZCIsInJvbGUiOiJhZG1pbiIsImFnZW5jeUlkIjoiMTExMTExMTEtMTExMS00MTExLTkxMTEtMTExMTExMTExMTExIiwiaWF0IjoxNzM1MjM5NjAwLCJleHAiOjE3MzUzMjYwMDB9.test-token
+
+### Test trends endpoint with 30 days period (default)
+GET {{baseUrl}}/gov/analytics/trends
+Authorization: Bearer {{token}}
+
+### Test trends endpoint with 30 days period (explicit)
+GET {{baseUrl}}/gov/analytics/trends?period=30
+Authorization: Bearer {{token}}
+
+### Test trends endpoint with 90 days period
+GET {{baseUrl}}/gov/analytics/trends?period=90
+Authorization: Bearer {{token}}
+
+### Test trends endpoint with 365 days period
+GET {{baseUrl}}/gov/analytics/trends?period=365
+Authorization: Bearer {{token}}
+
+### Test trends endpoint with invalid period (should return validation error)
+GET {{baseUrl}}/gov/analytics/trends?period=invalid
+Authorization: Bearer {{token}}
+
+### Test trends endpoint without authentication (should return 401)
+GET {{baseUrl}}/gov/analytics/trends
+
+### Test trends endpoint with officer role (should only see assigned reports)
+GET {{baseUrl}}/gov/analytics/trends?period=30
+Authorization: Bearer officer-token-here

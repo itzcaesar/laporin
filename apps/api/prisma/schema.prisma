@@ -102,6 +102,12 @@ model User {
   ratings           SatisfactionRating[]
   auditLogs         AuditLog[]
   refreshTokens     RefreshToken[]
+  forumThreads      ForumThread[]     @relation("ForumThreadAuthor")
+  forumReplies      ForumReply[]      @relation("ForumReplyAuthor")
+  forumThreadVotes  ForumThreadVote[] @relation("ForumThreadVotes")
+  forumReplyVotes   ForumReplyVote[]  @relation("ForumReplyVotes")
+  surveys           Survey[]          @relation("SurveyResponses")
+  gamification      UserGamification? @relation("UserGamification")
 
   @@map("users")
 }
@@ -236,6 +242,7 @@ model Report {
   @@index([categoryId])
   @@index([agencyId])
   @@index([reporterId])
+  @@index([assignedOfficerId])
   @@index([createdAt])
   @@index([priorityScore(sort: Desc)])
   @@map("reports")
@@ -437,3 +444,174 @@ model AuditLog {
   @@index([createdAt])
   @@map("audit_logs")
 }
+
+// ─────────────────────────────────────────────────────────
+// FORUM (Community Discussion)
+// ─────────────────────────────────────────────────────────
+
+model ForumThread {
+  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  authorId     String   @map("author_id") @db.Uuid
+  title        String   @db.VarChar(200)
+  content      String   @db.Text
+  category     String   @db.VarChar(50)  // "Diskusi Umum", "Tips & Trik", etc.
+  isPinned     Boolean  @default(false) @map("is_pinned")
+  isLocked     Boolean  @default(false) @map("is_locked")
+  viewCount    Int      @default(0) @map("view_count")
+  replyCount   Int      @default(0) @map("reply_count")
+  upvoteCount  Int      @default(0) @map("upvote_count")
+  lastActivityAt DateTime @default(now()) @map("last_activity_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  author  User              @relation("ForumThreadAuthor", fields: [authorId], references: [id])
+  replies ForumReply[]
+  votes   ForumThreadVote[]
+
+  @@index([category])
+  @@index([isPinned, lastActivityAt])
+  @@index([createdAt])
+  @@map("forum_threads")
+}
+
+model ForumReply {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  threadId  String   @map("thread_id") @db.Uuid
+  authorId  String   @map("author_id") @db.Uuid
+  content   String   @db.Text
+  upvoteCount Int    @default(0) @map("upvote_count")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  thread ForumThread       @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author User              @relation("ForumReplyAuthor", fields: [authorId], references: [id])
+  votes  ForumReplyVote[]
+
+  @@index([threadId])
+  @@map("forum_replies")
+}
+
+model ForumThreadVote {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  threadId  String   @map("thread_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  thread ForumThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user   User        @relation("ForumThreadVotes", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, userId])
+  @@map("forum_thread_votes")
+}
+
+model ForumReplyVote {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  replyId   String   @map("reply_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  reply ForumReply @relation(fields: [replyId], references: [id], onDelete: Cascade)
+  user  User       @relation("ForumReplyVotes", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([replyId, userId])
+  @@map("forum_reply_votes")
+}
+
+// ─────────────────────────────────────────────────────────
+// SURVEY (Citizen Satisfaction Survey)
+// ─────────────────────────────────────────────────────────
+
+model Survey {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  reportId  String   @unique @map("report_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  
+  // Survey Questions (1-5 scale)
+  speedRating      Int  @map("speed_rating")      // Kecepatan penanganan
+  qualityRating    Int  @map("quality_rating")    // Kualitas perbaikan
+  communicationRating Int @map("communication_rating") // Komunikasi petugas
+  overallRating    Int  @map("overall_rating")    // Kepuasan keseluruhan
+  
+  // Optional feedback
+  feedback         String? @db.Text
+  wouldRecommend   Boolean @map("would_recommend")
+  
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation("SurveyResponses", fields: [userId], references: [id])
+
+  @@map("surveys")
+}
+
+// ─────────────────────────────────────────────────────────
+// GAMIFICATION (Levels, Badges, Points)
+// ─────────────────────────────────────────────────────────
+
+model UserGamification {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId          String   @unique @map("user_id") @db.Uuid
+  totalPoints     Int      @default(0) @map("total_points")
+  currentLevel    String   @default("bronze") @map("current_level") // bronze, silver, gold, platinum
+  currentStreak   Int      @default(0) @map("current_streak")
+  longestStreak   Int      @default(0) @map("longest_streak")
+  lastActivityAt  DateTime? @map("last_activity_at")
+  impactScore     Int      @default(0) @map("impact_score")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user   User            @relation("UserGamification", fields: [userId], references: [id], onDelete: Cascade)
+  badges UserBadge[]
+  points PointHistory[]
+
+  @@index([totalPoints])
+  @@map("user_gamification")
+}
+
+model Badge {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  code        String   @unique @db.VarChar(50) // first-report, 10-reports, etc.
+  name        String   @db.VarChar(100)
+  description String   @db.Text
+  icon        String   @db.VarChar(50) // Icon identifier
+  color       String   @db.VarChar(50) // Color class
+  target      Int?     // Target count for progress badges
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  userBadges UserBadge[]
+
+  @@map("badges")
+}
+
+model UserBadge {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  badgeId         String   @map("badge_id") @db.Uuid
+  progress        Int      @default(0) // Current progress towards target
+  unlockedAt      DateTime? @map("unlocked_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  gamification UserGamification @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  badge        Badge            @relation(fields: [badgeId], references: [id])
+
+  @@unique([userId, badgeId])
+  @@index([userId])
+  @@map("user_badges")
+}
+
+model PointHistory {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  points      Int      // Can be positive or negative
+  action      String   @db.VarChar(50) // report_created, report_verified, comment_added, etc.
+  description String   @db.Text
+  metadata    Json?    // Additional context
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  gamification UserGamification @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("point_history")
+}
+
+

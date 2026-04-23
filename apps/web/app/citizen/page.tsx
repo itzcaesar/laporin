@@ -3,32 +3,48 @@
 
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import { MOCK_REPORTS } from "@/data/mock-reports";
-import { mockToReport } from "@/lib/mock-adapter";
+import { useState, useEffect } from "react";
+import { useReports } from "@/hooks/useReports";
 import { FilterChips } from "@/components/dashboard/shared/FilterChips";
-import { EmptyState } from "@/components/dashboard/shared/EmptyState";
+import EmptyState from "@/components/dashboard/shared/EmptyState";
+import LoadingSkeleton from "@/components/dashboard/shared/LoadingSkeleton";
 import { ReportCard } from "@/components/dashboard/citizen/ReportCard";
 import { ReportFeed } from "@/components/dashboard/citizen/ReportFeed";
-import { Search, FileText } from "lucide-react";
+import type { ReportStatus } from "@/types";
 
 const FILTER_OPTIONS = [
-  { label: "Semua", value: "all" },
-  { label: "Baru", value: "baru" },
-  { label: "Diverifikasi", value: "diverifikasi" },
-  { label: "Diproses", value: "diproses" },
-  { label: "Selesai", value: "selesai" },
-  { label: "Terverifikasi", value: "terverifikasi" },
+  { label: "Semua", value: "" },
+  { label: "Baru", value: "new" },
+  { label: "Diverifikasi", value: "verified" },
+  { label: "Diproses", value: "in_progress" },
+  { label: "Selesai", value: "completed" },
+  { label: "Terverifikasi", value: "verified_complete" },
 ];
 
 export default function CitizenHomePage() {
-  const [activeFilter, setActiveFilter] = useState("all");
+  const [activeFilter, setActiveFilter] = useState<ReportStatus | "">("");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Fetch reports with current filter
+  const { reports, isLoading, error, refetch } = useReports({
+    status: activeFilter || undefined,
+    search: searchQuery || undefined,
+  });
 
   // Listen for filter changes from topbar
   useEffect(() => {
     const handleFilterChange = (e: CustomEvent) => {
-      setActiveFilter(e.detail);
+      const value = e.detail;
+      // Map old filter values to new status values
+      const statusMap: Record<string, ReportStatus | ""> = {
+        all: "",
+        baru: "new",
+        diverifikasi: "verified",
+        diproses: "in_progress",
+        selesai: "completed",
+        terverifikasi: "verified_complete",
+      };
+      setActiveFilter(statusMap[value] ?? "");
     };
     window.addEventListener('filterChange', handleFilterChange as EventListener);
     return () => {
@@ -36,33 +52,8 @@ export default function CitizenHomePage() {
     };
   }, []);
 
-  // Filter reports based on active filter and search query
-  const filteredReports = useMemo(() => {
-    let reports = [...MOCK_REPORTS];
-
-    // Filter by status
-    if (activeFilter !== "all") {
-      reports = reports.filter((r) => r.status === activeFilter);
-    }
-
-    // Filter by search query
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      reports = reports.filter(
-        (r) =>
-          r.title.toLowerCase().includes(query) ||
-          r.description.toLowerCase().includes(query) ||
-          r.location.toLowerCase().includes(query) ||
-          r.category.toLowerCase().includes(query)
-      );
-    }
-
-    // Convert to Report format
-    return reports.map(mockToReport);
-  }, [activeFilter, searchQuery]);
-
   const handleFilterChange = (value: string) => {
-    setActiveFilter(value);
+    setActiveFilter(value as ReportStatus | "");
   };
 
   const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
@@ -91,29 +82,64 @@ export default function CitizenHomePage() {
         />
       </div>
 
+      {/* Loading State */}
+      {isLoading && (
+        <>
+          <div className="hidden md:block">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <LoadingSkeleton key={i} variant="report-card" />
+              ))}
+            </div>
+          </div>
+          <div className="md:hidden space-y-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <LoadingSkeleton key={i} variant="report-card" />
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div className="rounded-xl bg-red-50 border border-red-200 p-4 text-red-700 text-sm">
+          {error}
+          <button onClick={refetch} className="ml-2 underline font-medium">
+            Coba lagi
+          </button>
+        </div>
+      )}
+
       {/* Empty State */}
-      {filteredReports.length === 0 && (
+      {!isLoading && !error && reports.length === 0 && (
         <EmptyState
-          icon={FileText}
+          icon="📄"
           title="Tidak ada laporan"
           description={
             searchQuery
               ? `Tidak ada laporan yang cocok dengan "${searchQuery}"`
-              : "Tidak ada laporan dengan status ini."
+              : activeFilter
+              ? "Tidak ada laporan dengan status ini."
+              : "Belum ada laporan di area ini. Jadilah yang pertama melaporkan!"
+          }
+          action={
+            !searchQuery && !activeFilter
+              ? { label: "Buat Laporan Pertama", href: "/citizen/reports/new" }
+              : undefined
           }
         />
       )}
 
       {/* Report List - Grid on Desktop, Stack on Mobile */}
-      {filteredReports.length > 0 && (
+      {!isLoading && !error && reports.length > 0 && (
         <>
           {/* Desktop/Tablet: Card Grid with count */}
           <div className="hidden md:block">
             <div className="mb-4 text-sm text-muted">
-              Menampilkan {filteredReports.length} laporan
+              Menampilkan {reports.length} laporan
             </div>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {filteredReports.map((report) => (
+              {reports.map((report) => (
                 <ReportCard key={report.id} report={report} />
               ))}
             </div>
@@ -121,7 +147,7 @@ export default function CitizenHomePage() {
 
           {/* Mobile: IG-style Feed (no count) */}
           <div className="md:hidden">
-            <ReportFeed reports={filteredReports} />
+            <ReportFeed reports={reports} />
           </div>
         </>
       )}
