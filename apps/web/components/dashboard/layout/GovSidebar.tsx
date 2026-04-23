@@ -48,7 +48,7 @@ export function GovSidebar() {
       {/* Logo section */}
       <div className="flex h-16 items-center gap-2 border-b border-white/10 px-6">
         <span className="font-display text-xl font-bold text-white">
-          🏛 Laporin
+          Laporin
         </span>
         <span className="rounded-full bg-blue-light px-2 py-0.5 text-xs font-semibold text-blue">
           GOV

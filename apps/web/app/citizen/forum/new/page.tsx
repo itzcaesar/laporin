@@ -64,8 +64,9 @@ export default function NewThreadPage() {
   };
 
   return (
-    <div className="dashboard-page max-w-3xl">
-      {/* Back Button */}
+    <div className="dashboard-page">
+      <div className="max-w-3xl mx-auto">
+        {/* Back Button */}
       <button
         onClick={() => router.back()}
         className="flex items-center gap-2 text-sm text-muted hover:text-ink transition-colors mb-4"
@@ -210,6 +211,7 @@ export default function NewThreadPage() {
           </button>
         </div>
       </form>
+      </div>
     </div>
   );
 }

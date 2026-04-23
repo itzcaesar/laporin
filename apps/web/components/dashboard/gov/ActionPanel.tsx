@@ -5,6 +5,8 @@ import { useState } from "react";
 import { Check, X, Copy, Equal, ArrowUpRight, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { useGovReportActions } from "@/hooks/useGovReport";
+import { useOfficers } from "@/hooks/useOfficers";
+import { useConfetti } from "@/hooks/useConfetti";
 
 type ReportStatus = "new" | "verified" | "in_progress" | "completed" | "closed";
 
@@ -40,6 +42,7 @@ export function ActionPanel({
   onError,
 }: ActionPanelProps) {
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
+  const { burst } = useConfetti();
   const [selectedOfficer, setSelectedOfficer] = useState("");
   const [nip, setNip] = useState("");
   const [note, setNote] = useState("");
@@ -53,11 +56,7 @@ export function ActionPanel({
     setExpandedSection(expandedSection === section ? null : section);
   };
 
-  // Mock officers - replace with API call
-  const officers = [
-    { id: "1", name: "Budi Santosa", nip: "198512341234567890" },
-    { id: "2", name: "Agus Permana", nip: "199012341234567890" },
-  ];
+  const { officers, isLoading: isOfficersLoading } = useOfficers(1, 100);
 
   const handleOfficerChange = (officerId: string) => {
     setSelectedOfficer(officerId);
@@ -130,6 +129,10 @@ export function ActionPanel({
         officerNip: nip,
       });
       onSuccess?.(`Status berhasil diubah menjadi ${newStatus}`);
+      // Confetti when marking a report as Selesai (completed)
+      if (newStatus === 'Selesai') {
+        burst(window.innerWidth / 2, window.innerHeight / 3);
+      }
       setNewStatus("");
       setNote("");
       setNip("");
@@ -203,7 +206,7 @@ export function ActionPanel({
               onClick={() => handleVerify('valid')}
               disabled={!nip || isSubmitting}
               className={cn(
-                "flex flex-col items-center gap-2 rounded-xl border-2 p-3 text-sm font-medium transition-all",
+                "btn-interactive flex flex-col items-center gap-2 rounded-xl border-2 p-3 text-sm font-medium transition-all",
                 "hover:bg-green-50 border-green-200 text-green-700",
                 "disabled:opacity-50 disabled:cursor-not-allowed"
               )}
@@ -216,7 +219,7 @@ export function ActionPanel({
               onClick={() => handleVerify('hoax')}
               disabled={!nip || isSubmitting}
               className={cn(
-                "flex flex-col items-center gap-2 rounded-xl border-2 p-3 text-sm font-medium transition-all",
+                "btn-interactive flex flex-col items-center gap-2 rounded-xl border-2 p-3 text-sm font-medium transition-all",
                 "hover:bg-red-50 border-red-200 text-red-700",
                 hoaxConfidence > 60 && "ring-2 ring-red-500",
                 "disabled:opacity-50 disabled:cursor-not-allowed"
@@ -229,7 +232,7 @@ export function ActionPanel({
               type="button"
               onClick={() => handleVerify('duplicate')}
               disabled={!nip || isSubmitting}
-              className="flex flex-col items-center gap-2 rounded-xl border-2 border-amber-200 p-3 text-sm font-medium text-amber-700 hover:bg-amber-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-interactive flex flex-col items-center gap-2 rounded-xl border-2 border-amber-200 p-3 text-sm font-medium text-amber-700 hover:bg-amber-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Equal size={20} />
               Duplikat
@@ -238,7 +241,7 @@ export function ActionPanel({
               type="button"
               onClick={() => handleVerify('out_of_jurisdiction')}
               disabled={!nip || isSubmitting}
-              className="flex flex-col items-center gap-2 rounded-xl border-2 border-gray-200 p-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-interactive flex flex-col items-center gap-2 rounded-xl border-2 border-gray-200 p-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ArrowUpRight size={20} />
               Bukan Kewenangan
@@ -314,7 +317,7 @@ export function ActionPanel({
               type="button"
               onClick={handleAssign}
               disabled={!selectedOfficer || !nip || isSubmitting}
-              className="w-full rounded-xl bg-navy px-4 py-2.5 text-sm font-medium text-white hover:bg-navy/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-interactive w-full rounded-xl bg-navy px-4 py-2.5 text-sm font-medium text-white hover:bg-navy/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? "Menugaskan..." : "Tugaskan PIC"}
             </button>
@@ -389,7 +392,7 @@ export function ActionPanel({
               type="button"
               onClick={handleUpdateStatus}
               disabled={note.length < 10 || !nip || !newStatus || isSubmitting}
-              className="w-full rounded-xl bg-navy px-4 py-2.5 text-sm font-medium text-white hover:bg-navy/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-interactive w-full rounded-xl bg-navy px-4 py-2.5 text-sm font-medium text-white hover:bg-navy/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? "Mengubah..." : "Update Status"}
             </button>
@@ -475,7 +478,7 @@ export function ActionPanel({
               type="button"
               onClick={handleUpdateTimeline}
               disabled={!nip || isSubmitting}
-              className="w-full rounded-xl bg-navy px-4 py-2.5 text-sm font-medium text-white hover:bg-navy/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-interactive w-full rounded-xl bg-navy px-4 py-2.5 text-sm font-medium text-white hover:bg-navy/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? "Menyimpan..." : "Simpan"}
             </button>

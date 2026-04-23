@@ -108,6 +108,7 @@ model User {
   forumReplyVotes   ForumReplyVote[]  @relation("ForumReplyVotes")
   surveys           Survey[]          @relation("SurveyResponses")
   gamification      UserGamification? @relation("UserGamification")
+  faqs              Faq[]
 
   @@map("users")
 }
@@ -237,6 +238,7 @@ model Report {
   notifications   Notification[]
   rating          SatisfactionRating?
   aiAnalysis      AiAnalysisCache?
+  survey          Survey?
 
   @@index([status])
   @@index([categoryId])
@@ -539,6 +541,7 @@ model Survey {
   createdAt DateTime @default(now()) @map("created_at")
 
   user User @relation("SurveyResponses", fields: [userId], references: [id])
+  report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
 
   @@map("surveys")
 }
@@ -614,4 +617,20 @@ model PointHistory {
   @@map("point_history")
 }
 
+model Faq {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  question    String   @db.Text
+  answer      String   @db.Text
+  category    String   @db.VarChar(100)
+  isPublished Boolean  @default(true) @map("is_published")
+  views       Int      @default(0)
+  helpful     Int      @default(0)
+  authorId    String   @map("author_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
+  author      User     @relation(fields: [authorId], references: [id])
+
+  @@index([category, isPublished])
+  @@map("faqs")
+}

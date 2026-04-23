@@ -5,64 +5,7 @@ import { useState } from "react";
 import { Plus, Search, Edit2, Trash2, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type FAQ = {
-  id: string;
-  question: string;
-  answer: string;
-  category: string;
-  isPublished: boolean;
-  views: number;
-  helpful: number;
-  createdAt: string;
-  updatedAt: string;
-};
-
-const MOCK_FAQS: FAQ[] = [
-  {
-    id: "1",
-    question: "Berapa lama waktu yang dibutuhkan untuk menindaklanjuti laporan?",
-    answer: "Waktu penanganan bervariasi tergantung tingkat prioritas. Laporan darurat ditangani dalam 24 jam, prioritas tinggi 3-5 hari, sedang 7-14 hari, dan rendah 14-30 hari.",
-    category: "Waktu Penanganan",
-    isPublished: true,
-    views: 1247,
-    helpful: 892,
-    createdAt: "2026-01-15T10:00:00Z",
-    updatedAt: "2026-04-20T14:30:00Z",
-  },
-  {
-    id: "2",
-    question: "Bagaimana cara melacak status laporan saya?",
-    answer: "Anda dapat melacak status laporan melalui halaman 'Laporan Saya' atau dengan memasukkan kode tracking laporan di halaman beranda. Anda juga akan menerima notifikasi setiap ada pembaruan status.",
-    category: "Pelacakan Laporan",
-    isPublished: true,
-    views: 856,
-    helpful: 743,
-    createdAt: "2026-01-20T09:00:00Z",
-    updatedAt: "2026-04-18T11:20:00Z",
-  },
-  {
-    id: "3",
-    question: "Apakah saya bisa melaporkan secara anonim?",
-    answer: "Ya, Anda dapat membuat laporan tanpa mencantumkan nama. Namun, kami menyarankan untuk memberikan kontak yang bisa dihubungi agar kami dapat meminta informasi tambahan jika diperlukan.",
-    category: "Privasi",
-    isPublished: true,
-    views: 634,
-    helpful: 521,
-    createdAt: "2026-02-01T13:00:00Z",
-    updatedAt: "2026-04-15T16:45:00Z",
-  },
-  {
-    id: "4",
-    question: "Apa yang harus saya lakukan jika laporan saya ditolak?",
-    answer: "Jika laporan ditolak, Anda akan menerima penjelasan alasan penolakan. Anda dapat mengajukan banding atau membuat laporan baru dengan informasi yang lebih lengkap.",
-    category: "Penolakan Laporan",
-    isPublished: false,
-    views: 0,
-    helpful: 0,
-    createdAt: "2026-04-22T08:00:00Z",
-    updatedAt: "2026-04-22T08:00:00Z",
-  },
-];
+import { useFaq, type FAQ } from "@/hooks/useFaq";
 
 const CATEGORIES = [
   "Semua",
@@ -75,7 +18,16 @@ const CATEGORIES = [
 ];
 
 export default function GovFAQPage() {
-  const [faqs, setFaqs] = useState<FAQ[]>(MOCK_FAQS);
+  const { faqs: apiFaqs, isLoading } = useFaq();
+  const [localFaqs, setLocalFaqs] = useState<FAQ[]>([]);
+  
+  // Initialize local state from API when loaded
+  if (apiFaqs.length > 0 && localFaqs.length === 0) {
+    setLocalFaqs(apiFaqs);
+  }
+
+  const faqs = localFaqs.length > 0 ? localFaqs : apiFaqs;
+
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Semua");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -90,7 +42,7 @@ export default function GovFAQPage() {
   });
 
   const togglePublish = (id: string) => {
-    setFaqs((prev) =>
+    setLocalFaqs((prev) =>
       prev.map((faq) =>
         faq.id === id ? { ...faq, isPublished: !faq.isPublished } : faq
       )
@@ -99,7 +51,7 @@ export default function GovFAQPage() {
 
   const deleteFAQ = (id: string) => {
     if (confirm("Apakah Anda yakin ingin menghapus FAQ ini?")) {
-      setFaqs((prev) => prev.filter((faq) => faq.id !== id));
+      setLocalFaqs((prev) => prev.filter((faq) => faq.id !== id));
     }
   };
 
@@ -189,7 +141,11 @@ export default function GovFAQPage() {
 
       {/* FAQ List */}
       <div className="space-y-3">
-        {filteredFAQs.length === 0 ? (
+        {isLoading ? (
+          <div className="flex h-32 items-center justify-center">
+            <div className="text-sm text-muted">Memuat FAQ...</div>
+          </div>
+        ) : filteredFAQs.length === 0 ? (
           <div className="rounded-xl bg-white p-12 text-center border border-border">
             <p className="text-muted">Tidak ada FAQ yang ditemukan</p>
           </div>

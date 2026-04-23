@@ -5,6 +5,7 @@
 
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
+import { useGamification } from "@/hooks/useGamification";
 import { Mail, Phone, LogOut, FileText, Bookmark, Trophy, Award, Flame, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useRouter } from "next/navigation";
@@ -15,10 +16,11 @@ import EmptyState from "@/components/dashboard/shared/EmptyState";
 export default function ProfilePage() {
   const { user, logout } = useAuth();
   const { profile, isLoading, error, refetch } = useProfile();
+  const { data: gamificationData, isLoading: isGamificationLoading } = useGamification();
   const router = useRouter();
 
   // Loading state
-  if (isLoading) {
+  if (isLoading || isGamificationLoading) {
     return (
       <div className="dashboard-page">
         <div className="max-w-4xl mx-auto">
@@ -65,19 +67,21 @@ export default function ProfilePage() {
     totalVotes: profile.stats.totalVotes,
   };
 
-  // Gamification stats (placeholder - will be implemented later)
+  // Map real gamification data
   const gamification = {
-    level: "Silver",
-    levelIcon: "🥈",
-    points: Math.min(profile.stats.totalReports * 50 + profile.stats.totalComments * 10, 245),
-    nextLevelPoints: 500,
-    currentStreak: 0, // TODO: Implement streak tracking
-    badgesUnlocked: Math.min(Math.floor(profile.stats.totalReports / 2), 3),
-    badgesTotal: 9,
-    impactScore: profile.stats.totalReports * 100 + profile.stats.totalVotes * 5,
+    level: gamificationData?.currentLevel || "Bronze",
+    levelIcon: gamificationData?.currentLevel === "Bronze" ? "🥉" : gamificationData?.currentLevel === "Silver" ? "🥈" : gamificationData?.currentLevel === "Gold" ? "🥇" : "🏆",
+    points: gamificationData?.totalPoints || 0,
+    nextLevelPoints: gamificationData?.nextLevel?.minPoints || 100,
+    currentStreak: gamificationData?.currentStreak || 0,
+    badgesUnlocked: gamificationData?.badges.filter(b => b.unlocked).length || 0,
+    badgesTotal: gamificationData?.badges.length || 0,
+    impactScore: gamificationData?.impactScore || 0,
   };
 
-  const progressPercent = (gamification.points / gamification.nextLevelPoints) * 100;
+  const progressPercent = gamificationData?.nextLevel 
+    ? ((gamification.points - gamificationData.levelInfo.minPoints) / gamificationData.nextLevel.pointsNeeded) * 100
+    : 100;
 
   return (
     <div className="dashboard-page">

@@ -6,13 +6,23 @@ import { useState, useEffect, useCallback } from 'react'
 import { api, ApiClientError } from '@/lib/api-client'
 import type { ApiResponse } from '@/types'
 
+interface Agency {
+  id: string
+  name: string
+  address: string | null
+  phone: string | null
+  email: string | null
+}
+
 interface UserProfile {
   id: string
   name: string | null
   email: string
   phone: string | null
   role: 'citizen' | 'officer' | 'admin' | 'super_admin'
+  nip: string | null
   isVerified: boolean
+  agency: Agency | null
   stats: {
     totalReports: number
     totalComments: number
@@ -24,7 +34,9 @@ interface UserProfile {
 interface UseProfileReturn {
   profile: UserProfile | null
   isLoading: boolean
+  isUpdating: boolean
   error: string | null
+  updateProfile: (data: { name?: string; phone?: string }) => Promise<void>
   refetch: () => void
 }
 
@@ -35,6 +47,7 @@ interface UseProfileReturn {
 export function useProfile(): UseProfileReturn {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isUpdating, setIsUpdating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const fetchProfile = useCallback(async () => {
@@ -55,9 +68,31 @@ export function useProfile(): UseProfileReturn {
     }
   }, [])
 
+  const updateProfile = async (data: { name?: string; phone?: string }) => {
+    setIsUpdating(true)
+    setError(null)
+    try {
+      await api.patch('/user/profile', data)
+      await fetchProfile()
+    } catch (err) {
+      throw err instanceof ApiClientError
+        ? err
+        : new Error('Gagal memperbarui profil.')
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
   useEffect(() => {
     fetchProfile()
   }, [fetchProfile])
 
-  return { profile, isLoading, error, refetch: fetchProfile }
+  return { 
+    profile, 
+    isLoading, 
+    isUpdating, 
+    error, 
+    updateProfile, 
+    refetch: fetchProfile 
+  }
 }

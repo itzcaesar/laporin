@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Menu, Bell, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { useNotifications } from "@/hooks/useNotifications";
 
 type GovTopbarProps = {
   onMenuClick: () => void;
@@ -25,35 +26,33 @@ export function GovTopbar({ onMenuClick }: GovTopbarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
+  const { unreadCount } = useNotifications();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   // Get breadcrumb from pathname
   const breadcrumb = BREADCRUMB_LABELS[pathname] || "Dasbor";
 
-  // Mock unread notifications count
-  const unreadCount = 3;
+
 
   return (
     <header className="sticky top-0 z-40 h-16 border-b border-border bg-white shadow-sm">
       <div className="flex h-full items-center justify-between px-4 sm:px-6">
-        {/* Left: Menu button (mobile) + Breadcrumb (desktop) */}
-        <div className="flex items-center gap-4">
+        {/* Left: Menu button (mobile) + Breadcrumb */}
+        <div className="flex items-center gap-3 min-w-0">
           {/* Mobile menu button */}
           <button
             type="button"
             onClick={onMenuClick}
-            className="flex h-10 w-10 items-center justify-center rounded-lg text-muted hover:bg-surface hover:text-ink transition-colors lg:hidden min-h-[44px] min-w-[44px]"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-muted hover:bg-surface hover:text-ink transition-colors lg:hidden min-h-[44px] min-w-[44px]"
             aria-label="Buka menu"
           >
             <Menu size={20} />
           </button>
 
-          {/* Desktop breadcrumb */}
-          <div className="hidden lg:block">
-            <h1 className="text-lg font-semibold font-display text-navy">
-              {breadcrumb}
-            </h1>
-          </div>
+          {/* Page title – visible on all screens */}
+          <h1 className="text-base font-semibold font-display text-navy truncate lg:text-lg">
+            {breadcrumb}
+          </h1>
         </div>
 
         {/* Right: Notification + Avatar */}

@@ -1,12 +1,12 @@
 // ── app/gov/layout.tsx ──
-// Government dashboard layout with sidebar and topbar
-
+// Government dashboard layout with sidebar, topbar, and mobile bottom nav
 "use client";
 
 import { useState } from "react";
 import { GovSidebar } from "@/components/dashboard/layout/GovSidebar";
 import { GovTopbar } from "@/components/dashboard/layout/GovTopbar";
 import { GovMobileDrawer } from "@/components/dashboard/layout/GovMobileDrawer";
+import { GovBottomNav } from "@/components/dashboard/layout/GovBottomNav";
 
 export default function GovLayout({
   children,
@@ -31,9 +31,14 @@ export default function GovLayout({
         {/* Topbar */}
         <GovTopbar onMenuClick={() => setIsMobileMenuOpen(true)} />
 
-        {/* Page content */}
-        <main className="min-h-[calc(100vh-4rem)]">{children}</main>
+        {/* Page content – extra bottom padding on mobile for bottom nav */}
+        <main className="min-h-[calc(100vh-4rem)] pb-20 lg:pb-0">
+          {children}
+        </main>
       </div>
+
+      {/* Mobile Bottom Navigation */}
+      <GovBottomNav onMenuClick={() => setIsMobileMenuOpen(true)} />
     </div>
   );
 }

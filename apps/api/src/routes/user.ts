@@ -282,6 +282,28 @@ user.get('/notifications', async (c) => {
 })
 
 /**
+ * GET /user/notifications/unread-count
+ * Get total count of unread notifications
+ */
+user.get('/notifications/unread-count', async (c) => {
+  const currentUser = c.get('user')
+
+  try {
+    const count = await db.notification.count({
+      where: {
+        userId: currentUser.sub,
+        isRead: false,
+      },
+    })
+
+    return ok(c, { count })
+  } catch (error) {
+    console.error('Get unread count error:', error)
+    return err(c, 'INTERNAL_ERROR', 'Gagal memuat jumlah notifikasi', 500)
+  }
+})
+
+/**
  * PATCH /user/notifications/read-all
  * Mark all notifications as read
  */
@@ -356,8 +378,17 @@ user.get('/profile', async (c) => {
         email: true,
         phone: true,
         role: true,
+        nip: true,
         isVerified: true,
         createdAt: true,
+        agency: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            email: true,
+          },
+        },
         _count: {
           select: {
             reports: true,
@@ -378,7 +409,9 @@ user.get('/profile', async (c) => {
       email: profile.email,
       phone: profile.phone,
       role: profile.role,
+      nip: profile.nip,
       isVerified: profile.isVerified,
+      agency: profile.agency,
       stats: {
         totalReports: profile._count.reports,
         totalComments: profile._count.comments,
@@ -391,5 +424,45 @@ user.get('/profile', async (c) => {
     return err(c, 'INTERNAL_ERROR', 'Gagal memuat profil', 500)
   }
 })
+
+/**
+ * PATCH /user/profile
+ * Update current user's profile
+ */
+const updateProfileSchema = z.object({
+  name: z.string().min(3).max(100).optional(),
+  phone: z.string().min(10).max(20).optional(),
+})
+
+user.patch(
+  '/profile',
+  zValidator('json', updateProfileSchema),
+  async (c) => {
+    const currentUser = c.get('user')
+    const body = c.req.valid('json')
+
+    try {
+      const updated = await db.user.update({
+        where: { id: currentUser.sub },
+        data: {
+          name: body.name,
+          phone: body.phone,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          role: true,
+        },
+      })
+
+      return ok(c, updated)
+    } catch (error) {
+      console.error('Update profile error:', error)
+      return err(c, 'INTERNAL_ERROR', 'Gagal memperbarui profil', 500)
+    }
+  }
+)
 
 export default user

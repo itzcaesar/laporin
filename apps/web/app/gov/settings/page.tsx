@@ -1,27 +1,46 @@
 // ── app/gov/settings/page.tsx ──
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Bell, Lock, User, Building2, Save } from "lucide-react";
+import { useProfile } from "@/hooks/useProfile";
 
 export default function GovSettingsPage() {
   const [activeTab, setActiveTab] = useState<"profile" | "agency" | "notifications" | "security">("profile");
-  const [isSaving, setIsSaving] = useState(false);
+  const { profile, isLoading, isUpdating, updateProfile } = useProfile();
 
-  // Mock user data - replace with actual data from API
   const [profileData, setProfileData] = useState({
-    name: "Budi Santosa",
-    email: "budi.santosa@bandung.go.id",
-    phone: "+62 812-3456-7890",
-    position: "Kepala Seksi Pengaduan",
+    name: "",
+    email: "",
+    phone: "",
+    position: "",
   });
 
   const [agencyData, setAgencyData] = useState({
-    name: "Dinas Pekerjaan Umum Kota Bandung",
-    address: "Jl. Wastukencana No. 2, Bandung",
-    phone: "+62 22-4233333",
-    email: "pu@bandung.go.id",
+    name: "",
+    address: "",
+    phone: "",
+    email: "",
   });
+
+  useEffect(() => {
+    if (profile) {
+      setProfileData({
+        name: profile.name || "",
+        email: profile.email || "",
+        phone: profile.phone || "",
+        position: profile.nip || "Petugas",
+      });
+      if (profile.agency) {
+        setAgencyData({
+          name: profile.agency.name || "",
+          address: profile.agency.address || "",
+          phone: profile.agency.phone || "",
+          email: profile.agency.email || "",
+        });
+      }
+    }
+  }, [profile]);
 
   const [notificationSettings, setNotificationSettings] = useState({
     emailNewReport: true,
@@ -33,12 +52,18 @@ export default function GovSettingsPage() {
   });
 
   const handleSave = async () => {
-    setIsSaving(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setIsSaving(false);
-    alert("Pengaturan berhasil disimpan");
+    try {
+      await updateProfile({
+        name: profileData.name,
+        phone: profileData.phone,
+      });
+      alert("Pengaturan berhasil disimpan");
+    } catch (err) {
+      alert("Gagal menyimpan pengaturan");
+    }
   };
+
+  if (isLoading) return <div className="p-8 text-center">Memuat pengaturan...</div>;
 
   return (
     <div className="p-4 md:p-6 lg:p-8">
@@ -400,11 +425,11 @@ export default function GovSettingsPage() {
               <div className="mt-6 pt-6 border-t border-border">
                 <button
                   onClick={handleSave}
-                  disabled={isSaving}
+                  disabled={isUpdating}
                   className="flex items-center gap-2 rounded-lg bg-blue px-6 py-2.5 text-sm font-medium text-white hover:bg-blue-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Save size={16} />
-                  {isSaving ? "Menyimpan..." : "Simpan Perubahan"}
+                  {isUpdating ? "Menyimpan..." : "Simpan Perubahan"}
                 </button>
               </div>
             )}

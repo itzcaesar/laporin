@@ -231,18 +231,17 @@ function ReportFeedItem({ report }: { report: Report }) {
           {report.commentCount > 0 && (
             <>
               <div className="space-y-1.5 pb-2 border-b border-border/30">
-                {/* Mock top comments - in production, fetch from API */}
-                <CommentPreview
-                  author="Budi Santoso"
-                  text="Tolong segera diperbaiki, sangat bahaya!"
-                  onClick={handleComment}
-                />
-                {report.commentCount > 1 && (
-                  <CommentPreview
-                    author="Siti Nurhaliza"
-                    text="Saya juga mengalami hal yang sama di area ini."
-                    onClick={handleComment}
-                  />
+                {report.topComments && report.topComments.length > 0 ? (
+                  report.topComments.map((comment) => (
+                    <CommentPreview
+                      key={comment.id}
+                      author={comment.authorName}
+                      text={comment.content}
+                      onClick={handleComment}
+                    />
+                  ))
+                ) : (
+                  <p className="text-xs text-muted">Belum ada komentar</p>
                 )}
               </div>
 

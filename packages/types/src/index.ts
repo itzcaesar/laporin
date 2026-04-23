@@ -1,4 +1,6 @@
-// ── packages/types/src/index.ts ──
+import type { ReactNode } from 'react';
+
+// ── Shared Types ─────────────────────────────────────────────────────────────
 // Shared TypeScript types for the Laporin monorepo
 
 // ── Variant & Enum Types ──
@@ -16,7 +18,7 @@ export type ReportStatus =
   | "disputed"
   | "closed";
 
-export type ReportStatusMap = "baru" | "diverifikasi" | "diproses" | "selesai" | "terverifikasi";
+
 
 // ── Data Interfaces ──
 
@@ -84,35 +86,6 @@ export interface EmergencyNumber {
   number: string;
 }
 
-export interface MockReport {
-  id: string;
-  title: string;
-  category: string;
-  categoryEmoji: string;
-  description: string;
-  location: string;
-  lat: number;
-  lng: number;
-  status: ReportStatusMap;
-  statusLabel: string;
-  reporter: string;
-  reportedAt: string;
-  pic?: string;
-  upvotes: number;
-  comments: number;
-  downvotes: number;
-  priority: "Rendah" | "Sedang" | "Tinggi" | "Kritis";
-  mockComments: { author: string; text: string; time: string }[];
-  photoPlaceholder: string;
-}
-
-export interface StatusConfig {
-  color: string;
-  bg: string;
-  border: string;
-  markerColor: string;
-  label: string;
-}
 
 // ── Component Props ──
 
@@ -123,12 +96,12 @@ export interface ButtonProps {
   onClick?: () => void;
   disabled?: boolean;
   className?: string;
-  children: React.ReactNode;
+  children: ReactNode;
   ariaLabel?: string;
 }
 
 export interface CardProps {
-  children: React.ReactNode;
+  children: ReactNode;
   className?: string;
   hover?: boolean;
   padding?: "sm" | "md" | "lg";
@@ -175,7 +148,7 @@ export interface StatusBadgeProps {
 
 export interface BadgeProps {
   variant?: "default" | "success" | "warning" | "danger" | "info";
-  children: React.ReactNode;
+  children: ReactNode;
   className?: string;
 }
 
@@ -205,6 +178,11 @@ export interface Report {
   priorityScore: number;
   upvoteCount: number;
   commentCount: number;
+  topComments?: Array<{
+    id: string;
+    authorName: string;
+    content: string;
+  }>;
   categoryId: number;
   categoryName?: string;
   categoryEmoji?: string;
@@ -367,6 +345,7 @@ export interface GovDashboardStats {
   newToday: number;
   slaBreachedCount: number;
   satisfactionAvg: number | null;
+  slaCompliance: number;
   urgentReports: Array<{
     id: string;
     title: string;
@@ -378,12 +357,19 @@ export interface GovDashboardStats {
     trackingCode: string;
     status: ReportStatus;
     categoryId: number;
+    categoryName?: string;
+    categoryEmoji?: string;
     locationAddress: string;
     picName: string | null;
     createdAt: string;
   }>;
   trendData: Array<{
     date: string;
+    count: number;
+  }>;
+  categoryDistribution: Array<{
+    name: string;
+    emoji: string;
     count: number;
   }>;
   aiInsight: string | null;
@@ -421,6 +407,8 @@ export interface SlaMetrics {
 export interface SatisfactionMetrics {
   averageRating: number | null;
   totalRatings: number;
+  completedReportsCount: number;
+  responseRate: number;
 }
 
 export interface Anomaly {

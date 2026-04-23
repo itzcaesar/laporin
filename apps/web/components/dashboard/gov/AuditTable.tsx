@@ -3,15 +3,7 @@
 
 import Link from "next/link";
 
-type AuditLog = {
-  id: string;
-  timestamp: string;
-  officerName: string;
-  action: string;
-  actionLabel: string;
-  reportId: string | null;
-  reportTrackingCode: string | null;
-};
+import type { AuditLog } from "@/hooks/useAudit";
 
 type AuditTableProps = {
   logs: AuditLog[];
@@ -54,33 +46,39 @@ export function AuditTable({ logs }: AuditTableProps) {
               {/* Timestamp */}
               <td className="px-6 py-4 whitespace-nowrap">
                 <span className="text-sm text-ink">
-                  {formatTimestamp(log.timestamp)}
+                  {formatTimestamp(log.createdAt)}
                 </span>
               </td>
 
               {/* Officer */}
               <td className="px-6 py-4">
                 <span className="text-sm font-medium text-ink">
-                  {log.officerName}
+                  {log.actorName}
+                </span>
+                <span className="text-[10px] bg-surface ml-2 px-2 py-0.5 rounded text-muted uppercase">
+                  {log.actorRole}
                 </span>
               </td>
 
               {/* Action */}
               <td className="px-6 py-4">
-                <span className="text-sm text-ink">{log.actionLabel}</span>
+                <span className="text-sm text-ink">{log.action}</span>
+                {log.details && (
+                  <p className="text-xs text-muted mt-0.5">{log.details}</p>
+                )}
               </td>
 
-              {/* Related Report */}
+              {/* Related Entity */}
               <td className="px-6 py-4 whitespace-nowrap">
-                {log.reportId && log.reportTrackingCode ? (
+                {log.entityType === 'report' ? (
                   <Link
-                    href={`/gov/reports/${log.reportId}`}
+                    href={`/gov/reports/${log.entityId}`}
                     className="font-mono text-sm text-blue hover:underline"
                   >
-                    {log.reportTrackingCode}
+                    View Report
                   </Link>
                 ) : (
-                  <span className="text-sm text-muted">—</span>
+                  <span className="text-sm text-muted">{log.entityType}</span>
                 )}
               </td>
             </tr>

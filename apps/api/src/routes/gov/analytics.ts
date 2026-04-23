@@ -77,7 +77,7 @@ govAnalytics.get('/overview', zValidator('query', analyticsQuerySchema), async (
           WHERE completed_at IS NOT NULL
             AND created_at >= $1
         `
-        const params = [startDate]
+        const params: any[] = [startDate]
         
         if (user.role === 'officer') {
           query += ` AND assigned_officer_id = $2::uuid`
@@ -118,7 +118,7 @@ govAnalytics.get('/overview', zValidator('query', analyticsQuerySchema), async (
           WHERE completed_at IS NOT NULL
             AND created_at >= $1
         `
-        const params = [startDate]
+        const params: any[] = [startDate]
         
         if (user.role === 'officer') {
           query += ` AND assigned_officer_id = $2::uuid`
@@ -224,7 +224,7 @@ govAnalytics.get('/trends', zValidator('query', analyticsQuerySchema), async (c)
       FROM reports
       WHERE created_at >= $1
     `
-    const params = [startDate]
+    const params: any[] = [startDate]
     
     if (user.role === 'officer') {
       query += ` AND assigned_officer_id = $2::uuid`
@@ -634,7 +634,7 @@ govAnalytics.get('/sla', zValidator('query', analyticsQuerySchema), async (c) =>
         AND status IN ('completed', 'verified_complete', 'closed')
         AND created_at >= $1
     `
-    const params = [startDate]
+    const params: any[] = [startDate]
     
     // Role-based filtering
     if (user.role === 'officer') {
@@ -720,27 +720,42 @@ govAnalytics.get('/satisfaction', zValidator('query', analyticsQuerySchema), asy
     // Super admins see all reports (no additional filter)
 
     // Join satisfaction_ratings with reports and calculate average
-    const satisfactionData = await db.satisfactionRating.findMany({
-      where: {
-        report: reportWhere
-      },
-      select: {
-        rating: true
-      }
-    })
+    const [satisfactionData, completedReportsCount] = await Promise.all([
+      db.satisfactionRating.findMany({
+        where: {
+          report: reportWhere
+        },
+        select: {
+          rating: true
+        }
+      }),
+      db.report.count({
+        where: {
+          ...reportWhere,
+          status: { in: ['completed', 'verified_complete', 'closed'] }
+        }
+      })
+    ])
 
     // Calculate average rating and total count
     const totalRatings = satisfactionData.length
     let averageRating: number | null = null
+    let responseRate: number = 0
 
     if (totalRatings > 0) {
       const sum = satisfactionData.reduce((acc, rating) => acc + rating.rating, 0)
       averageRating = Math.round((sum / totalRatings) * 10) / 10 // Round to 1 decimal place
+      
+      if (completedReportsCount > 0) {
+        responseRate = Math.round((totalRatings / completedReportsCount) * 100)
+      }
     }
 
     const result = {
       averageRating,
       totalRatings,
+      completedReportsCount,
+      responseRate,
     }
 
     // Cache for 5 minutes (300 seconds)

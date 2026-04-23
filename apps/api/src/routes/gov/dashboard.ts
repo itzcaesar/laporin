@@ -1,7 +1,5 @@
-// ── apps/api/src/routes/gov/dashboard.ts ──
-// Government dashboard statistics with Redis caching
-
 import { Hono } from 'hono'
+import { Prisma } from '@prisma/client'
 import { db } from '../../db.js'
 import { ok, err } from '../../lib/response.js'
 import { redis } from '../../lib/redis.js'
@@ -20,16 +18,22 @@ govDashboard.use('*', authMiddleware, requireRole('officer'))
 govDashboard.get('/stats', async (c) => {
   const user = c.get('user')
   const agencyId = user.agencyId
+  const isSuperAdmin = user.role === 'super_admin'
 
   try {
     // Build where clause
     const where: any = {}
-    if (user.role !== 'super_admin' && agencyId) {
+    if (!isSuperAdmin && agencyId) {
       where.agencyId = agencyId
     }
 
     const today = new Date()
     today.setHours(0, 0, 0, 0)
+
+    // Conditional SQL fragments for raw queries
+    const agencyFilter = (!isSuperAdmin && agencyId) 
+      ? Prisma.sql`AND agency_id = ${agencyId}::uuid` 
+      : Prisma.empty
 
     const [
       totalReports,
@@ -38,7 +42,9 @@ govDashboard.get('/stats', async (c) => {
       satisfactionData,
       urgentReports,
       recentReports,
-      trendData,
+      trendDataRaw,
+      categoryDistribution,
+      completedCount,
     ] = await Promise.all([
       db.report.count({ where }),
       db.report.count({ where: { ...where, createdAt: { gte: today } } }),
@@ -53,7 +59,7 @@ govDashboard.get('/stats', async (c) => {
       }),
 
       db.satisfactionRating.aggregate({
-        where: agencyId ? { report: { agencyId } } : {},
+        where: (!isSuperAdmin && agencyId) ? { report: { agencyId } } : {},
         _avg: { rating: true },
       }),
 
@@ -73,45 +79,89 @@ govDashboard.get('/stats', async (c) => {
         where,
         orderBy: { createdAt: 'desc' },
         take: 5,
-        select: {
-          id: true,
-          trackingCode: true,
-          status: true,
-          categoryId: true,
-          locationAddress: true,
-          picNip: true,
-          createdAt: true,
-        },
+        include: {
+          category: { select: { id: true, name: true, emoji: true } },
+          assignedOfficer: { select: { name: true } },
+        }
       }),
 
-      // 30-day trend - simplified query
+      // 30-day trend
+      db.$queryRaw<Array<{ date: string; count: number }>>`
+        SELECT 
+          DATE_TRUNC('day', created_at)::date as date,
+          COUNT(*)::int as count
+        FROM reports
+        WHERE created_at >= (CURRENT_DATE - INTERVAL '30 days')
+        ${agencyFilter}
+        GROUP BY 1
+        ORDER BY 1 ASC
+      `,
+
+      // Category distribution
       db.report.groupBy({
-        by: ['createdAt'],
-        where: {
-          ...where,
-          createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
-        },
-        _count: true,
+        by: ['categoryId'],
+        where,
+        _count: { id: true },
       }),
+
+      // Completed count for compliance calculation
+      db.report.count({
+        where: { ...where, status: { in: ['completed', 'verified_complete'] } }
+      })
     ])
+
+    // Fetch category names for distribution
+    const categories = await db.category.findMany({
+      where: { id: { in: categoryDistribution.map(c => c.categoryId) } }
+    })
+
+    const formattedCategoryDistribution = categoryDistribution.map(item => {
+      const cat = categories.find(c => c.id === item.categoryId)
+      return {
+        name: cat?.name || 'Lainnya',
+        emoji: cat?.emoji || '📍',
+        count: item._count.id,
+      }
+    }).sort((a, b) => b.count - a.count).slice(0, 5)
+
+    // Calculate SLA compliance (completed before or on estimated_end)
+    const onTimeCountRaw = await db.$queryRaw<Array<{ count: bigint }>>`
+      SELECT COUNT(*)::bigint as count
+      FROM reports
+      WHERE status IN ('completed', 'verified_complete')
+        AND updated_at <= estimated_end
+        ${agencyFilter}
+    `
+    const onTimeCount = Number(onTimeCountRaw[0]?.count || 0)
+
+    const slaCompliance = completedCount > 0 
+      ? Math.round((onTimeCount / completedCount) * 100) 
+      : 0
 
     return ok(c, {
       totalReports,
       newToday,
       slaBreachedCount: slaBreached,
-      satisfactionAvg: satisfactionData._avg.rating,
+      satisfactionAvg: satisfactionData._avg.rating ? Math.round(satisfactionData._avg.rating * 10) / 10 : 0,
+      slaCompliance,
       urgentReports,
       recentReports: recentReports.map((r) => ({
         id: r.id,
         trackingCode: r.trackingCode,
         status: r.status,
-        categoryId: r.categoryId,
+        categoryId: r.category.id,
+        categoryName: r.category.name,
+        categoryEmoji: r.category.emoji,
         locationAddress: r.locationAddress,
-        picName: null, // TODO: fetch from assignedOfficer relation
+        picName: r.assignedOfficer?.name || null,
         createdAt: r.createdAt.toISOString(),
       })),
-      trendData: [], // TODO: format trend data properly
-      aiInsight: null, // populated by CRON job, read from Redis
+      trendData: trendDataRaw.map(d => ({
+        date: new Date(d.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
+        count: Number(d.count)
+      })),
+      categoryDistribution: formattedCategoryDistribution,
+      aiInsight: null,
     })
   } catch (error) {
     console.error('Dashboard stats error:', error)
@@ -152,10 +202,10 @@ govDashboard.get('/recent', async (c) => {
       },
     })
 
-    return c.json({ data: recentReports })
+    return ok(c, recentReports)
   } catch (error) {
     console.error('Recent reports error:', error)
-    return c.json({ error: 'Failed to fetch recent reports' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Failed to fetch recent reports', 500)
   }
 })
 
@@ -222,15 +272,13 @@ govDashboard.get('/urgent', async (c) => {
       },
     })
 
-    return c.json({
-      data: {
-        urgentReports,
-        slaBreached,
-      },
+    return ok(c, {
+      urgentReports,
+      slaBreached,
     })
   } catch (error) {
     console.error('Urgent reports error:', error)
-    return c.json({ error: 'Failed to fetch urgent reports' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Failed to fetch urgent reports', 500)
   }
 })
 
@@ -258,10 +306,10 @@ govDashboard.get('/my-assignments', async (c) => {
       },
     })
 
-    return c.json({ data: myReports })
+    return ok(c, myReports)
   } catch (error) {
     console.error('My assignments error:', error)
-    return c.json({ error: 'Failed to fetch assignments' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Failed to fetch assignments', 500)
   }
 })
 
@@ -277,21 +325,19 @@ govDashboard.get('/workload-forecast', async (c) => {
     const cached = await redis.get(cacheKey)
 
     if (!cached) {
-      return c.json({
-        data: {
-          predictedWeeklyTotal: 0,
-          bySubdistrict: [],
-          recommendation: null,
-          message: 'Prediksi akan tersedia setelah CRON job pertama berjalan',
-        },
+      return ok(c, {
+        predictedWeeklyTotal: 0,
+        bySubdistrict: [],
+        recommendation: null,
+        message: 'Prediksi akan tersedia setelah CRON job pertama berjalan',
       })
     }
 
     const forecast = JSON.parse(cached)
-    return c.json({ data: forecast })
+    return ok(c, forecast)
   } catch (error) {
     console.error('Workload forecast error:', error)
-    return c.json({ error: 'Failed to fetch workload forecast' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Failed to fetch workload forecast', 500)
   }
 })
 
@@ -308,7 +354,7 @@ govDashboard.get('/heatmap', async (c) => {
     const cached = await redis.get(cacheKey)
 
     if (cached) {
-      return c.json({ data: JSON.parse(cached), cached: true })
+      return c.json({ success: true, data: JSON.parse(cached), cached: true })
     }
 
     // Build where conditions
@@ -342,10 +388,10 @@ govDashboard.get('/heatmap', async (c) => {
     // Cache for 5 minutes
     await redis.setex(cacheKey, 5 * 60, JSON.stringify(formattedData))
 
-    return c.json({ data: formattedData, cached: false })
+    return c.json({ success: true, data: formattedData, cached: false })
   } catch (error) {
     console.error('Dashboard heatmap error:', error)
-    return c.json({ error: 'Failed to fetch heatmap data' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Failed to fetch heatmap data', 500)
   }
 })
 

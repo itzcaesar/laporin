@@ -49,6 +49,8 @@ export interface SlaMetrics {
 export interface SatisfactionMetrics {
   averageRating: number | null
   totalRatings: number
+  completedReportsCount: number
+  responseRate: number
 }
 
 /**

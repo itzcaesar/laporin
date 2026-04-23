@@ -1,110 +1,335 @@
 // ── app/gov/ai-assistant/page.tsx ──
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
-  Sparkles,
-  TrendingUp,
-  AlertTriangle,
-  MapPin,
-  Clock,
-  BarChart3,
-  FileText,
-  Zap,
-  Brain,
-  Send,
-  Loader2,
+  Sparkles, TrendingUp, AlertTriangle, MapPin, Clock,
+  BarChart3, FileText, Brain, Send, Loader2,
+  Copy, Check, RefreshCw, ChevronRight,
+  MessageSquare, Shield, Activity, Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, LineChart, Line, CartesianGrid, Legend,
+} from "recharts";
+import { useGovAnalytics } from "@/hooks/useGovAnalytics";
+import { api } from "@/lib/api-client";
 
-type QuickAction = {
-  id: string;
-  icon: typeof TrendingUp;
-  label: string;
-  description: string;
-  prompt: string;
-  color: string;
-};
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type Message = {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
-  data?: any;
 };
 
-const QUICK_ACTIONS: QuickAction[] = [
+type QuickPrompt = {
+  id: string;
+  icon: React.ElementType;
+  label: string;
+  prompt: string;
+  iconBg: string;
+  iconColor: string;
+};
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const QUICK_PROMPTS: QuickPrompt[] = [
   {
-    id: "urgent-reports",
+    id: "urgent",
     icon: AlertTriangle,
     label: "Laporan Darurat",
-    description: "Analisis laporan dengan prioritas darurat",
-    prompt: "Berikan ringkasan semua laporan darurat yang belum ditangani",
-    color: "text-red-600 bg-red-50",
+    prompt: "Tampilkan grafik bar jumlah laporan berdasarkan status dan berikan ringkasan laporan darurat yang belum ditangani.",
+    iconBg: "bg-red-50",
+    iconColor: "text-red-600",
   },
   {
-    id: "trending-issues",
-    icon: TrendingUp,
-    label: "Isu Trending",
-    description: "Identifikasi masalah yang sedang meningkat",
-    prompt: "Apa isu infrastruktur yang paling banyak dilaporkan minggu ini?",
-    color: "text-orange-600 bg-orange-50",
-  },
-  {
-    id: "area-hotspots",
+    id: "hotspot",
     icon: MapPin,
     label: "Area Hotspot",
-    description: "Lokasi dengan laporan terbanyak",
-    prompt: "Tunjukkan area dengan konsentrasi laporan tertinggi",
-    color: "text-blue-600 bg-blue-50",
+    prompt: "Buat grafik bar area hotspot dengan laporan terbanyak dan analisis penyebabnya.",
+    iconBg: "bg-blue-50",
+    iconColor: "text-blue-600",
   },
   {
-    id: "sla-breach",
+    id: "categories",
+    icon: BarChart3,
+    label: "Tren Kategori",
+    prompt: "Buat grafik pie distribusi laporan berdasarkan kategori dalam 30 hari terakhir.",
+    iconBg: "bg-purple-50",
+    iconColor: "text-purple-600",
+  },
+  {
+    id: "sla",
     icon: Clock,
     label: "SLA Breach",
-    description: "Laporan yang melewati target waktu",
-    prompt: "Berapa banyak laporan yang melewati SLA dan apa rekomendasinya?",
-    color: "text-purple-600 bg-purple-50",
+    prompt: "Analisis laporan yang melewati SLA, berikan rekomendasi prioritas penanganan.",
+    iconBg: "bg-amber-50",
+    iconColor: "text-amber-600",
   },
   {
-    id: "performance",
-    icon: BarChart3,
-    label: "Performa Tim",
-    description: "Analisis kinerja petugas",
-    prompt: "Bagaimana performa tim dalam menangani laporan bulan ini?",
-    color: "text-teal-600 bg-teal-50",
+    id: "status",
+    icon: Activity,
+    label: "Status Overview",
+    prompt: "Tampilkan grafik pie breakdown status semua laporan saat ini.",
+    iconBg: "bg-teal-50",
+    iconColor: "text-teal-600",
   },
   {
-    id: "budget-estimate",
+    id: "budget",
     icon: FileText,
     label: "Estimasi Budget",
-    description: "Proyeksi biaya perbaikan",
-    prompt: "Berapa total estimasi budget untuk semua laporan aktif?",
-    color: "text-green-600 bg-green-50",
+    prompt: "Berikan estimasi total anggaran perbaikan untuk semua laporan aktif beserta rekomendasi prioritas alokasi.",
+    iconBg: "bg-green-50",
+    iconColor: "text-green-600",
   },
 ];
 
-const MOCK_INSIGHTS = [
-  {
-    title: "Peningkatan Laporan Jalan Rusak",
-    description: "Laporan jalan rusak meningkat 35% minggu ini, terutama di area Dago dan Sudirman.",
-    type: "warning",
-    icon: TrendingUp,
-  },
-  {
-    title: "SLA Performance Baik",
-    description: "92% laporan diselesaikan tepat waktu bulan ini, naik 5% dari bulan lalu.",
-    type: "success",
-    icon: Clock,
-  },
-  {
-    title: "Area Prioritas: Kecamatan Sumur Bandung",
-    description: "15 laporan aktif di area ini, 8 diantaranya prioritas tinggi.",
-    type: "info",
-    icon: MapPin,
-  },
-];
+const CHART_COLORS = ["#2563EB", "#0F766E", "#F59E0B", "#DC2626", "#7C3AED", "#059669", "#0284C7"];
+
+// ─── CopyButton ───────────────────────────────────────────────────────────────
+
+function CopyButton({ text, className }: { text: string; className?: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={() => {
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }}
+      className={cn(
+        "flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-all",
+        "bg-surface hover:bg-gray-100 text-muted hover:text-ink border border-border",
+        copied && "bg-green-50 border-green-200 text-green-700",
+        className
+      )}
+      title="Salin"
+    >
+      {copied ? <><Check size={12} />Disalin</> : <><Copy size={12} />Salin</>}
+    </button>
+  );
+}
+
+// ─── ChartRenderer ────────────────────────────────────────────────────────────
+
+function ChartRenderer({ raw }: { raw: string }) {
+  let config: any = null;
+  try {
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (jsonMatch) config = JSON.parse(jsonMatch[0]);
+  } catch {
+    return (
+      <div className="my-3 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-xs">
+        ⚠️ Format grafik tidak valid.
+      </div>
+    );
+  }
+
+  if (!config?.type || !Array.isArray(config?.data)) return null;
+
+  const tooltipStyle = {
+    background: "#ffffff",
+    border: "1px solid #e5e7eb",
+    borderRadius: "10px",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+    fontSize: "12px",
+    color: "#111827",
+  };
+
+  const axisStyle = { fontSize: 11, fill: "#6B7280" };
+
+  const renderChart = () => {
+    switch (config.type) {
+      case "bar":
+        return (
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={config.data} margin={{ top: 5, right: 10, left: -15, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+              <XAxis dataKey="name" tick={axisStyle} axisLine={false} tickLine={false} />
+              <YAxis tick={axisStyle} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "#F9FAFB" }} />
+              <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                {config.data.map((_: any, i: number) => (
+                  <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        );
+      case "pie":
+        return (
+          <ResponsiveContainer width="100%" height={220}>
+            <PieChart>
+              <Tooltip contentStyle={tooltipStyle} />
+              <Legend verticalAlign="bottom" height={40} iconType="circle" wrapperStyle={{ fontSize: "11px", color: "#6B7280" }} />
+              <Pie data={config.data} cx="50%" cy="45%" innerRadius={52} outerRadius={78} paddingAngle={4} dataKey="value">
+                {config.data.map((_: any, i: number) => (
+                  <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                ))}
+              </Pie>
+            </PieChart>
+          </ResponsiveContainer>
+        );
+      case "line":
+        return (
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={config.data} margin={{ top: 5, right: 10, left: -15, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+              <XAxis dataKey="name" tick={axisStyle} axisLine={false} tickLine={false} />
+              <YAxis tick={axisStyle} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={tooltipStyle} />
+              <Line type="monotone" dataKey="value" stroke="#2563EB" strokeWidth={2.5} dot={{ fill: "#2563EB", r: 3, strokeWidth: 0 }} activeDot={{ r: 5 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        );
+      default:
+        return <div className="text-xs text-muted p-3 text-center">Tipe grafik "{config.type}" tidak didukung.</div>;
+    }
+  };
+
+  return (
+    <div className="my-4 rounded-xl overflow-hidden border border-border bg-white shadow-sm">
+      {config.title && (
+        <div className="px-5 pt-4 pb-1">
+          <p className="text-sm font-semibold text-navy">{config.title}</p>
+        </div>
+      )}
+      <div className="px-3 pb-3 pt-2">{renderChart()}</div>
+    </div>
+  );
+}
+
+// ─── MessageBubble ────────────────────────────────────────────────────────────
+
+function MessageBubble({ message }: { message: Message }) {
+  const isUser = message.role === "user";
+
+  const renderAssistantContent = (content: string) => {
+    // Match any fenced code block: ```chart, ```json, or plain ```
+    const parts = content.split(/(```(?:chart|json)?\s*\{[\s\S]*?\}[\s\S]*?```)/g);
+    return parts.map((part, i) => {
+      // Check if this part is a fenced block containing chart-like JSON
+      const fenceMatch = part.match(/^```(?:chart|json)?\s*([\s\S]*?)```$/);
+      if (fenceMatch) {
+        const inner = fenceMatch[1].trim();
+        // Try to detect chart JSON (has "type" and "data" keys)
+        try {
+          const jsonMatch = inner.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            if (parsed.type && Array.isArray(parsed.data)) {
+              return <ChartRenderer key={i} raw={jsonMatch[0]} />;
+            }
+          }
+        } catch {
+          // Not valid chart JSON, fall through to markdown
+        }
+      }
+      if (!part.trim()) return null;
+      return (
+        <ReactMarkdown
+          key={i}
+          remarkPlugins={[remarkGfm]}
+          components={{
+            p: ({ ...props }) => <p className="mb-3 last:mb-0 text-ink leading-relaxed text-sm" {...props} />,
+            ul: ({ ...props }) => <ul className="list-disc pl-5 mb-3 space-y-1.5 text-ink text-sm" {...props} />,
+            ol: ({ ...props }) => <ol className="list-decimal pl-5 mb-3 space-y-1.5 text-ink text-sm" {...props} />,
+            li: ({ ...props }) => <li className="leading-relaxed" {...props} />,
+            strong: ({ ...props }) => <strong className="font-semibold text-navy" {...props} />,
+            em: ({ ...props }) => <em className="italic text-muted" {...props} />,
+            h1: ({ ...props }) => <h1 className="text-base font-bold mb-3 mt-4 text-navy border-b border-border pb-2" {...props} />,
+            h2: ({ ...props }) => <h2 className="text-sm font-bold mb-2 mt-3 text-navy" {...props} />,
+            h3: ({ ...props }) => <h3 className="text-sm font-semibold mb-2 mt-3 text-ink" {...props} />,
+            blockquote: ({ ...props }) => (
+              <blockquote className="border-l-4 border-blue bg-blue-light/30 pl-4 py-2 pr-3 rounded-r-xl my-3 text-muted italic text-sm" {...props} />
+            ),
+            table: ({ ...props }) => (
+              <div className="overflow-x-auto my-4 rounded-xl border border-border">
+                <table className="w-full text-sm" {...props} />
+              </div>
+            ),
+            thead: ({ ...props }) => <thead className="bg-surface text-muted font-semibold border-b border-border" {...props} />,
+            th: ({ ...props }) => <th className="px-4 py-2.5 text-left text-xs uppercase tracking-wide" {...props} />,
+            td: ({ ...props }) => <td className="px-4 py-2.5 text-ink border-t border-border/50" {...props} />,
+            code: ({ className, children, ...props }: any) => {
+              const text = String(children).replace(/\n$/, "");
+              
+              // Auto-detect chart JSON in ANY code block
+              try {
+                const jsonMatch = text.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                  const parsed = JSON.parse(jsonMatch[0]);
+                  if (parsed.type && Array.isArray(parsed.data)) {
+                    return <ChartRenderer raw={jsonMatch[0]} />;
+                  }
+                }
+              } catch {
+                // Not chart JSON, render as normal code
+              }
+
+              const langMatch = /language-(\w+)/.exec(className || "");
+              return langMatch ? (
+                <div className="relative group/code my-3">
+                  <div className="absolute right-2 top-2 opacity-0 group-hover/code:opacity-100 transition-opacity">
+                    <CopyButton text={text} />
+                  </div>
+                  <pre className="bg-gray-900 text-gray-100 rounded-xl p-4 overflow-x-auto text-xs font-mono">
+                    <code {...props}>{children}</code>
+                  </pre>
+                </div>
+              ) : (
+                <code className="bg-blue-light text-navy rounded px-1.5 py-0.5 text-[13px] font-mono" {...props}>
+                  {children}
+                </code>
+              );
+            },
+          }}
+        >
+          {part}
+        </ReactMarkdown>
+      );
+    });
+  };
+
+  if (isUser) {
+    return (
+      <div className="flex justify-end gap-2.5 group">
+        <div className="max-w-[75%] bg-navy text-white rounded-2xl rounded-tr-sm px-4 py-3 shadow-sm">
+          <p className="text-sm leading-relaxed">{message.content}</p>
+        </div>
+        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-light border border-blue/20 flex items-center justify-center text-blue text-xs font-bold">
+          A
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex gap-2.5 group">
+      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue to-navy flex items-center justify-center shadow-sm">
+        <Sparkles size={14} className="text-white" />
+      </div>
+      <div className="max-w-[88%] relative">
+        <div className="bg-white border border-border rounded-2xl rounded-tl-sm px-5 py-4 shadow-sm">
+          {renderAssistantContent(message.content)}
+        </div>
+        <div className="flex items-center gap-2 mt-1.5 pl-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <span className="text-[10px] text-muted">
+            {message.timestamp.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
+          </span>
+          <CopyButton text={message.content} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function AIAssistantPage() {
   const [messages, setMessages] = useState<Message[]>([
@@ -112,410 +337,249 @@ export default function AIAssistantPage() {
       id: "welcome",
       role: "assistant",
       content:
-        "Halo! Saya adalah AI Assistant Laporin. Saya dapat membantu Anda menganalisis laporan, memberikan insight, dan rekomendasi untuk meningkatkan pelayanan. Apa yang ingin Anda ketahui?",
+        "Selamat datang! Saya **AI Assistant Laporin**, siap membantu Anda menganalisis data laporan infrastruktur secara real-time.\n\nSaya dapat:\n- 📊 **Membuat grafik** visualisasi data laporan\n- 🔍 **Menganalisis tren** dan pola laporan\n- ⚡ **Memberikan rekomendasi** berbasis data aktual\n- 💰 **Estimasi anggaran** penanganan laporan\n\nPilih analisis cepat di bawah atau ketik pertanyaan Anda.",
       timestamp: new Date(),
     },
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const handleQuickAction = async (action: QuickAction) => {
-    await handleSendMessage(action.prompt);
-  };
+  const { data: analyticsData } = useGovAnalytics("30");
 
-  const handleSendMessage = async (message?: string) => {
-    const messageText = message || input;
-    if (!messageText.trim() || isLoading) return;
+  const stats = [
+    {
+      label: "Total Laporan",
+      value: analyticsData?.overview?.totalReports ?? "—",
+      icon: MessageSquare,
+      iconBg: "bg-blue-50",
+      iconColor: "text-blue",
+    },
+    {
+      label: "Diselesaikan",
+      value: analyticsData?.overview?.completedReports ?? "—",
+      icon: Check,
+      iconBg: "bg-green-50",
+      iconColor: "text-green-600",
+    },
+    {
+      label: "SLA Compliance",
+      value: analyticsData?.overview?.slaCompliancePercent != null
+        ? `${analyticsData.overview.slaCompliancePercent}%`
+        : "—",
+      icon: Activity,
+      iconBg: "bg-amber-50",
+      iconColor: "text-amber-600",
+    },
+  ];
 
-    // Add user message
-    const userMessage: Message = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      content: messageText,
-      timestamp: new Date(),
-    };
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isLoading]);
 
-    setMessages((prev) => [...prev, userMessage]);
+  const sendMessage = useCallback(async (text: string) => {
+    const messageText = text.trim();
+    if (!messageText || isLoading) return;
+
+    setMessages((prev) => [...prev, {
+      id: `user-${Date.now()}`, role: "user", content: messageText, timestamp: new Date(),
+    }]);
     setInput("");
     setIsLoading(true);
 
-    // Simulate AI response
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    // Generate mock response based on message
-    let responseContent = "";
-    let responseData = null;
-
-    if (messageText.toLowerCase().includes("darurat")) {
-      responseContent = `Saat ini terdapat **5 laporan darurat** yang memerlukan perhatian segera:
-
-1. **Jalan Berlubang Besar** - Jl. Dago No. 123
-   - Prioritas: Darurat
-   - Bahaya: Tingkat 4/5
-   - Estimasi: Rp 15-25 juta
-   - Status: Belum ditugaskan
-
-2. **Pohon Tumbang Menghalangi Jalan** - Jl. Sudirman
-   - Prioritas: Darurat
-   - Bahaya: Tingkat 5/5
-   - Estimasi: Rp 5-8 juta
-   - Status: Sedang diproses
-
-3. **Lampu Jalan Mati Total** - Jl. Asia Afrika
-   - Prioritas: Darurat
-   - Bahaya: Tingkat 3/5
-   - Estimasi: Rp 3-5 juta
-   - Status: Belum ditugaskan
-
-**Rekomendasi:**
-- Prioritaskan pohon tumbang (risiko kecelakaan tinggi)
-- Tugaskan tim untuk jalan berlubang dalam 24 jam
-- Koordinasi dengan PLN untuk lampu jalan`;
-
-      responseData = {
-        type: "urgent-reports",
-        count: 5,
-        totalBudget: "Rp 23-38 juta",
-      };
-    } else if (messageText.toLowerCase().includes("trending") || messageText.toLowerCase().includes("isu")) {
-      responseContent = `Berdasarkan analisis 7 hari terakhir, berikut isu yang sedang trending:
-
-**Top 3 Kategori Laporan:**
-1. 🛣 **Jalan Rusak** - 45 laporan (+35% dari minggu lalu)
-2. 💡 **Lampu Jalan** - 28 laporan (+12%)
-3. 🌳 **Pohon & Taman** - 18 laporan (-5%)
-
-**Area Terdampak:**
-- Kec. Sumur Bandung: 32 laporan
-- Kec. Coblong: 24 laporan
-- Kec. Bandung Wetan: 19 laporan
-
-**Insight:**
-Peningkatan signifikan laporan jalan rusak kemungkinan disebabkan oleh hujan deras minggu lalu. Rekomendasi untuk melakukan inspeksi preventif di area rawan.`;
-
-      responseData = {
-        type: "trending",
-        topCategory: "Jalan Rusak",
-        increase: "+35%",
-      };
-    } else if (messageText.toLowerCase().includes("area") || messageText.toLowerCase().includes("hotspot")) {
-      responseContent = `**Area Hotspot Laporan (30 Hari Terakhir):**
-
-📍 **Kecamatan Sumur Bandung** - 67 laporan
-   - Jalan Rusak: 32 laporan
-   - Lampu Jalan: 18 laporan
-   - Drainase: 17 laporan
-   - Rata-rata waktu penyelesaian: 8 hari
-
-📍 **Kecamatan Coblong** - 54 laporan
-   - Jalan Rusak: 28 laporan
-   - Pohon & Taman: 15 laporan
-   - Lampu Jalan: 11 laporan
-   - Rata-rata waktu penyelesaian: 6 hari
-
-📍 **Kecamatan Bandung Wetan** - 48 laporan
-   - Drainase: 22 laporan
-   - Jalan Rusak: 16 laporan
-   - Lampu Jalan: 10 laporan
-   - Rata-rata waktu penyelesaian: 7 hari
-
-**Rekomendasi:**
-Alokasikan lebih banyak sumber daya ke Kec. Sumur Bandung untuk meningkatkan response time.`;
-
-      responseData = {
-        type: "hotspots",
-        topArea: "Kec. Sumur Bandung",
-        reportCount: 67,
-      };
-    } else if (messageText.toLowerCase().includes("sla")) {
-      responseContent = `**Analisis SLA Performance:**
-
-📊 **Status SLA Bulan Ini:**
-- ✅ Tepat Waktu: 92 laporan (92%)
-- ⚠️ Mendekati Deadline: 5 laporan (5%)
-- ❌ Melewati SLA: 3 laporan (3%)
-
-**Laporan yang Melewati SLA:**
-1. LP-2026-BDG-00089 - Jalan Rusak (terlambat 3 hari)
-2. LP-2026-BDG-00102 - Drainase Tersumbat (terlambat 2 hari)
-3. LP-2026-BDG-00115 - Lampu Jalan (terlambat 1 hari)
-
-**Rekomendasi:**
-- Prioritaskan 3 laporan yang terlambat untuk segera diselesaikan
-- Review proses untuk mencegah keterlambatan di masa depan
-- Pertimbangkan menambah tim untuk kategori jalan rusak`;
-
-      responseData = {
-        type: "sla",
-        onTime: 92,
-        breached: 3,
-      };
-    } else if (messageText.toLowerCase().includes("performa") || messageText.toLowerCase().includes("tim")) {
-      responseContent = `**Performa Tim Bulan Ini:**
-
-👥 **Top Performers:**
-1. **Budi Santosa** (NIP: 198512341234567890)
-   - Laporan diselesaikan: 28
-   - Rata-rata waktu: 5.2 hari
-   - Rating kepuasan: 4.8/5.0
-
-2. **Agus Permana** (NIP: 199012341234567890)
-   - Laporan diselesaikan: 24
-   - Rata-rata waktu: 6.1 hari
-   - Rating kepuasan: 4.6/5.0
-
-3. **Dewi Lestari** (NIP: 198803121234567890)
-   - Laporan diselesaikan: 22
-   - Rata-rata waktu: 5.8 hari
-   - Rating kepuasan: 4.7/5.0
-
-📈 **Metrik Tim:**
-- Total laporan diselesaikan: 100
-- Rata-rata waktu penyelesaian: 6.5 hari
-- Tingkat kepuasan warga: 4.5/5.0
-- Improvement dari bulan lalu: +8%`;
-
-      responseData = {
-        type: "performance",
-        topPerformer: "Budi Santosa",
-        avgTime: "6.5 hari",
-      };
-    } else if (messageText.toLowerCase().includes("budget") || messageText.toLowerCase().includes("biaya")) {
-      responseContent = `**Estimasi Budget Laporan Aktif:**
-
-💰 **Total Estimasi:** Rp 450 - 720 juta
-
-**Breakdown per Kategori:**
-1. 🛣 Jalan Rusak: Rp 280-450 juta (45 laporan)
-2. 🌊 Drainase: Rp 95-150 juta (22 laporan)
-3. 💡 Lampu Jalan: Rp 45-70 juta (28 laporan)
-4. 🌳 Pohon & Taman: Rp 30-50 juta (18 laporan)
-
-**Prioritas Budget:**
-- Darurat: Rp 85-120 juta (15 laporan)
-- Tinggi: Rp 180-280 juta (38 laporan)
-- Sedang: Rp 120-200 juta (42 laporan)
-- Rendah: Rp 65-120 juta (18 laporan)
-
-**Rekomendasi:**
-Alokasikan budget prioritas untuk 15 laporan darurat terlebih dahulu (Rp 85-120 juta).`;
-
-      responseData = {
-        type: "budget",
-        total: "Rp 450-720 juta",
-        urgent: "Rp 85-120 juta",
-      };
-    } else {
-      responseContent = `Saya dapat membantu Anda dengan:
-
-- 📊 Analisis laporan dan statistik
-- 🚨 Identifikasi laporan darurat
-- 📍 Pemetaan area hotspot
-- ⏱️ Monitoring SLA dan deadline
-- 👥 Evaluasi performa tim
-- 💰 Estimasi budget dan biaya
-- 📈 Trend dan prediksi
-
-Silakan pilih salah satu quick action di atas atau tanyakan apa yang Anda butuhkan!`;
+    try {
+      const response = await api.post<{ success: true; data: { message: string } }>("/gov/ai/chatbot", {
+        message: messageText,
+        history: messages.slice(-10).map((m) => ({ role: m.role, content: m.content })),
+      });
+      setMessages((prev) => [...prev, {
+        id: `assistant-${Date.now()}`,
+        role: "assistant",
+        content: response.data?.message || "Maaf, saya tidak dapat memproses permintaan Anda.",
+        timestamp: new Date(),
+      }]);
+    } catch {
+      setMessages((prev) => [...prev, {
+        id: `error-${Date.now()}`,
+        role: "assistant",
+        content: "⚠️ Gagal terhubung ke AI. Silakan coba lagi.",
+        timestamp: new Date(),
+      }]);
+    } finally {
+      setIsLoading(false);
+      inputRef.current?.focus();
     }
+  }, [isLoading, messages]);
 
-    const assistantMessage: Message = {
-      id: `assistant-${Date.now()}`,
-      role: "assistant",
-      content: responseContent,
-      timestamp: new Date(),
-      data: responseData,
-    };
-
-    setMessages((prev) => [...prev, assistantMessage]);
-    setIsLoading(false);
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    handleSendMessage();
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input); }
   };
 
   return (
-    <div className="dashboard-page h-[calc(100vh-4rem)] flex flex-col">
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 bg-gradient-to-br from-blue to-purple rounded-xl">
-            <Brain size={24} className="text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold font-display text-navy">
-              AI Assistant
-            </h1>
-            <p className="text-sm text-muted">
-              Asisten cerdas untuk analisis dan insight laporan
-            </p>
-          </div>
-        </div>
-      </div>
+    <div className="dashboard-page h-[calc(100vh-4rem)] flex gap-5">
 
-      {/* Insights Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        {MOCK_INSIGHTS.map((insight, index) => {
-          const Icon = insight.icon;
-          return (
-            <div
-              key={index}
-              className={cn(
-                "rounded-xl p-4 border",
-                insight.type === "warning" && "bg-orange-50 border-orange-200",
-                insight.type === "success" && "bg-green-50 border-green-200",
-                insight.type === "info" && "bg-blue-50 border-blue-200"
-              )}
-            >
-              <div className="flex items-start gap-3">
-                <div
-                  className={cn(
-                    "p-2 rounded-lg",
-                    insight.type === "warning" && "bg-orange-100",
-                    insight.type === "success" && "bg-green-100",
-                    insight.type === "info" && "bg-blue-100"
-                  )}
-                >
-                  <Icon
-                    size={18}
-                    className={cn(
-                      insight.type === "warning" && "text-orange-600",
-                      insight.type === "success" && "text-green-600",
-                      insight.type === "info" && "text-blue-600"
-                    )}
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-semibold text-navy mb-1">
-                    {insight.title}
-                  </h3>
-                  <p className="text-xs text-muted leading-relaxed">
-                    {insight.description}
-                  </p>
-                </div>
-              </div>
+      {/* ── Left Sidebar ── */}
+      <aside className="w-60 flex-shrink-0 flex flex-col gap-4 overflow-y-auto">
+
+        {/* Header Card */}
+        <div className="rounded-2xl bg-gradient-to-br from-navy to-blue p-5 shadow-sm">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
+              <Brain size={18} className="text-white" />
             </div>
-          );
-        })}
-      </div>
-
-      {/* Quick Actions */}
-      <div className="mb-6">
-        <h2 className="text-sm font-semibold text-navy mb-3">Quick Actions</h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          {QUICK_ACTIONS.map((action) => {
-            const Icon = action.icon;
-            return (
-              <button
-                key={action.id}
-                onClick={() => handleQuickAction(action)}
-                className={cn(
-                  "flex flex-col items-center gap-2 p-4 rounded-xl border border-border bg-white hover:shadow-md transition-all text-center",
-                  "hover:border-blue"
-                )}
-              >
-                <div className={cn("p-2 rounded-lg", action.color)}>
-                  <Icon size={20} />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-ink">
-                    {action.label}
-                  </p>
-                  <p className="text-[10px] text-muted mt-0.5 line-clamp-2">
-                    {action.description}
-                  </p>
-                </div>
-              </button>
-            );
-          })}
+            <div>
+              <h1 className="text-white font-bold text-sm leading-tight">AI Assistant</h1>
+              <p className="text-white/60 text-[10px]">Powered by Laporin AI</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+            <span className="text-white/70 text-[10px]">Online · Data real-time</span>
+          </div>
         </div>
-      </div>
 
-      {/* Chat Area */}
-      <div className="flex-1 flex flex-col min-h-0 rounded-2xl bg-white border border-border overflow-hidden">
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={cn(
-                "flex gap-3",
-                message.role === "user" ? "justify-end" : "justify-start"
-              )}
-            >
-              {message.role === "assistant" && (
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue to-purple">
-                  <Sparkles size={16} className="text-white" />
-                </div>
-              )}
-              <div
-                className={cn(
-                  "max-w-[80%] rounded-2xl px-4 py-3",
-                  message.role === "user"
-                    ? "bg-navy text-white"
-                    : "bg-surface text-ink"
-                )}
-              >
-                <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                  {message.content}
-                </p>
-                {message.data && (
-                  <div className="mt-3 pt-3 border-t border-border/50">
-                    <div className="flex items-center gap-2 text-xs text-muted">
-                      <Zap size={12} />
-                      <span>Data insight tersedia</span>
-                    </div>
+        {/* Live Stats */}
+        <div className="rounded-2xl bg-white border border-border p-4 shadow-sm">
+          <p className="text-[10px] uppercase tracking-widest text-muted font-semibold mb-3">Statistik Live</p>
+          <div className="space-y-3">
+            {stats.map((s) => {
+              const Icon = s.icon;
+              return (
+                <div key={s.label} className="flex items-center gap-3">
+                  <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0", s.iconBg)}>
+                    <Icon size={14} className={s.iconColor} />
                   </div>
-                )}
-              </div>
-              {message.role === "user" && (
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-light text-blue font-semibold text-sm">
-                  A
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] text-muted leading-none mb-0.5">{s.label}</p>
+                    <p className="text-sm font-bold text-navy">{s.value}</p>
+                  </div>
                 </div>
-              )}
-            </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Quick Prompts */}
+        <div className="rounded-2xl bg-white border border-border p-4 shadow-sm flex-1">
+          <p className="text-[10px] uppercase tracking-widest text-muted font-semibold mb-3">Analisis Cepat</p>
+          <div className="space-y-1">
+            {QUICK_PROMPTS.map((q) => {
+              const Icon = q.icon;
+              return (
+                <button
+                  key={q.id}
+                  onClick={() => sendMessage(q.prompt)}
+                  disabled={isLoading}
+                  className="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-left transition-all hover:bg-surface active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed group"
+                >
+                  <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0", q.iconBg)}>
+                    <Icon size={13} className={q.iconColor} />
+                  </div>
+                  <span className="text-xs text-ink group-hover:text-navy transition-colors font-medium leading-tight flex-1">
+                    {q.label}
+                  </span>
+                  <ChevronRight size={12} className="text-muted/40 group-hover:text-muted transition-colors flex-shrink-0" />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Guard badge */}
+        <div className="rounded-xl bg-surface border border-border p-3 flex items-start gap-2">
+          <Shield size={12} className="text-muted mt-0.5 flex-shrink-0" />
+          <p className="text-[10px] text-muted leading-relaxed">
+            AI ini dibatasi hanya untuk konteks laporan infrastruktur Laporin.
+          </p>
+        </div>
+      </aside>
+
+      {/* ── Main Chat Area ── */}
+      <div className="flex-1 flex flex-col min-w-0 rounded-2xl bg-white border border-border shadow-sm overflow-hidden">
+
+        {/* Chat Header */}
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border flex-shrink-0 bg-white">
+          <div className="flex items-center gap-3">
+            <div className="w-2 h-2 rounded-full bg-green-500" />
+            <span className="text-sm font-semibold text-navy">Sesi Chat</span>
+            <span className="text-xs text-muted bg-surface px-2 py-0.5 rounded-full border border-border">
+              {messages.length - 1} pesan
+            </span>
+          </div>
+          <button
+            onClick={() => setMessages([messages[0]])}
+            className="flex items-center gap-1.5 text-xs text-muted hover:text-ink transition-colors px-2.5 py-1.5 rounded-lg hover:bg-surface border border-transparent hover:border-border"
+          >
+            <RefreshCw size={12} />
+            Reset Chat
+          </button>
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5 bg-surface/40">
+          {messages.map((msg) => (
+            <MessageBubble key={msg.id} message={msg} />
           ))}
+
+          {/* Typing indicator */}
           {isLoading && (
-            <div className="flex gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue to-purple">
-                <Sparkles size={16} className="text-white" />
+            <div className="flex gap-2.5">
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue to-navy flex items-center justify-center shadow-sm">
+                <Sparkles size={14} className="text-white" />
               </div>
-              <div className="bg-surface rounded-2xl px-4 py-3">
-                <div className="flex items-center gap-2 text-muted">
-                  <Loader2 size={16} className="animate-spin" />
-                  <span className="text-sm">Menganalisis...</span>
+              <div className="bg-white border border-border rounded-2xl rounded-tl-sm px-5 py-4 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="flex gap-1">
+                    <span className="w-2 h-2 rounded-full bg-blue animate-bounce [animation-delay:0ms]" />
+                    <span className="w-2 h-2 rounded-full bg-blue animate-bounce [animation-delay:150ms]" />
+                    <span className="w-2 h-2 rounded-full bg-blue animate-bounce [animation-delay:300ms]" />
+                  </div>
+                  <span className="text-xs text-muted">AI sedang menganalisis data...</span>
                 </div>
               </div>
             </div>
           )}
+          <div ref={messagesEndRef} />
         </div>
 
-        {/* Input */}
-        <form
-          onSubmit={handleSubmit}
-          className="border-t border-border p-4 bg-surface"
-        >
-          <div className="flex gap-3">
-            <input
-              type="text"
+        {/* Input Area */}
+        <div className="flex-shrink-0 border-t border-border p-4 bg-white">
+          <div className="flex items-end gap-3 bg-surface border border-border rounded-xl px-4 py-3 focus-within:border-blue focus-within:bg-white focus-within:ring-2 focus-within:ring-blue/10 transition-all">
+            <textarea
+              ref={inputRef}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Tanyakan sesuatu tentang laporan..."
-              className="flex-1 rounded-xl border border-border bg-white px-4 py-3 text-sm text-ink placeholder:text-muted focus:border-blue focus:outline-none focus:ring-2 focus:ring-blue/20"
+              onChange={(e) => {
+                setInput(e.target.value);
+                e.target.style.height = "auto";
+                e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
+              }}
+              onKeyDown={handleKeyDown}
+              placeholder="Tanyakan tentang laporan, minta grafik, atau analisis data... (Enter untuk kirim)"
+              rows={1}
               disabled={isLoading}
+              className="flex-1 bg-transparent text-sm text-ink placeholder:text-muted outline-none resize-none leading-relaxed disabled:opacity-50 max-h-[120px]"
             />
-            <button
-              type="submit"
-              disabled={!input.trim() || isLoading}
-              className="flex items-center gap-2 rounded-xl bg-navy px-6 py-3 text-sm font-medium text-white hover:bg-navy/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Send size={16} />
-              <span className="hidden sm:inline">Kirim</span>
-            </button>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <span className="text-[10px] text-muted hidden sm:block">⏎ kirim</span>
+              <button
+                onClick={() => sendMessage(input)}
+                disabled={!input.trim() || isLoading}
+                className={cn(
+                  "w-8 h-8 rounded-xl flex items-center justify-center transition-all",
+                  input.trim() && !isLoading
+                    ? "bg-navy hover:bg-navy/90 shadow-sm text-white"
+                    : "bg-gray-100 text-muted cursor-not-allowed"
+                )}
+              >
+                {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+              </button>
+            </div>
           </div>
-        </form>
+          <p className="text-[10px] text-muted text-center mt-2">
+            AI dapat membuat kesalahan. Verifikasi data penting secara mandiri.
+          </p>
+        </div>
       </div>
     </div>
   );

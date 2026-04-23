@@ -16,7 +16,8 @@ import userRoutes from './user.js'
 import forumRoutes from './forum.js'
 import surveyRoutes from './survey.js'
 import gamificationRoutes from './gamification.js'
-// import notificationsRoutes from './notifications.js'
+import notificationsRoutes from './notifications.js'
+import faqRoutes from './faq.js'
 
 const app = new Hono()
 
@@ -43,7 +44,8 @@ app.route('/user', userRoutes)
 app.route('/forum', forumRoutes)
 app.route('/survey', surveyRoutes)
 app.route('/gamification', gamificationRoutes)
-// app.route('/notifications', notificationsRoutes)
+app.route('/notifications', notificationsRoutes)
+app.route('/faq', faqRoutes)
 
 // Placeholder routes for testing
 app.get('/', (c) => {

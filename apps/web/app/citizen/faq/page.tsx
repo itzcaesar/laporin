@@ -5,63 +5,7 @@ import { useState } from "react";
 import { Search, ChevronDown, ThumbsUp, ThumbsDown, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type FAQ = {
-  id: string;
-  question: string;
-  answer: string;
-  category: string;
-  views: number;
-  helpful: number;
-  notHelpful: number;
-};
-
-const MOCK_FAQS: FAQ[] = [
-  {
-    id: "1",
-    question: "Berapa lama waktu yang dibutuhkan untuk menindaklanjuti laporan?",
-    answer: "Waktu penanganan bervariasi tergantung tingkat prioritas. Laporan darurat ditangani dalam 24 jam, prioritas tinggi 3-5 hari, sedang 7-14 hari, dan rendah 14-30 hari.",
-    category: "Waktu Penanganan",
-    views: 1247,
-    helpful: 892,
-    notHelpful: 45,
-  },
-  {
-    id: "2",
-    question: "Bagaimana cara melacak status laporan saya?",
-    answer: "Anda dapat melacak status laporan melalui halaman 'Laporan Saya' atau dengan memasukkan kode tracking laporan di halaman beranda. Anda juga akan menerima notifikasi setiap ada pembaruan status.",
-    category: "Pelacakan Laporan",
-    views: 856,
-    helpful: 743,
-    notHelpful: 23,
-  },
-  {
-    id: "3",
-    question: "Apakah saya bisa melaporkan secara anonim?",
-    answer: "Ya, Anda dapat membuat laporan tanpa mencantumkan nama. Namun, kami menyarankan untuk memberikan kontak yang bisa dihubungi agar kami dapat meminta informasi tambahan jika diperlukan.",
-    category: "Privasi",
-    views: 634,
-    helpful: 521,
-    notHelpful: 18,
-  },
-  {
-    id: "4",
-    question: "Bagaimana jika laporan saya tidak ditanggapi?",
-    answer: "Jika laporan Anda tidak mendapat tanggapan dalam waktu yang wajar, Anda dapat menghubungi hotline kami atau menggunakan fitur 'Eskalasi' yang tersedia di halaman detail laporan.",
-    category: "Keluhan",
-    views: 423,
-    helpful: 387,
-    notHelpful: 12,
-  },
-  {
-    id: "5",
-    question: "Apakah ada biaya untuk membuat laporan?",
-    answer: "Tidak, semua layanan Laporin sepenuhnya gratis untuk warga. Kami berkomitmen untuk memberikan akses yang mudah dan terjangkau bagi semua masyarakat.",
-    category: "Biaya",
-    views: 789,
-    helpful: 756,
-    notHelpful: 8,
-  },
-];
+import { useFaq, type FAQ } from "@/hooks/useFaq";
 
 const CATEGORIES = ["Semua", "Waktu Penanganan", "Pelacakan Laporan", "Privasi", "Keluhan", "Biaya"];
 
@@ -71,7 +15,9 @@ export default function CitizenFAQPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [votedFAQs, setVotedFAQs] = useState<Record<string, "up" | "down">>({});
 
-  const filteredFAQs = MOCK_FAQS.filter((faq) => {
+  const { faqs, isLoading } = useFaq();
+
+  const filteredFAQs = faqs.filter((faq) => {
     const matchesSearch =
       faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
       faq.answer.toLowerCase().includes(searchQuery.toLowerCase());
@@ -144,7 +90,11 @@ export default function CitizenFAQPage() {
       </div>
 
       {/* FAQ List */}
-      {filteredFAQs.length === 0 ? (
+      {isLoading ? (
+        <div className="flex h-32 items-center justify-center">
+          <div className="text-sm text-muted">Memuat FAQ...</div>
+        </div>
+      ) : filteredFAQs.length === 0 ? (
         <div className="rounded-2xl bg-white p-12 text-center border border-border">
           <HelpCircle size={48} className="mx-auto text-muted mb-4" />
           <p className="text-muted">Tidak ada FAQ yang ditemukan</p>
@@ -219,7 +169,7 @@ export default function CitizenFAQPage() {
                             )}
                           >
                             <ThumbsDown size={14} />
-                            <span>{faq.notHelpful + (userVote === "down" ? 1 : 0)}</span>
+                            <span>{((faq as any).notHelpful || 0) + (userVote === "down" ? 1 : 0)}</span>
                           </button>
                         </div>
                       </div>

@@ -14,35 +14,10 @@ type CommentModalProps = {
   commentCount: number;
 };
 
-const MOCK_COMMENTS: Comment[] = [
-  {
-    id: "1",
-    content: "Sudah 3 hari belum ada tindakan. Mohon segera ditangani.",
-    authorName: "Ahmad Rizki",
-    isGovernment: false,
-    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    replies: [
-      {
-        id: "2",
-        content:
-          "Terima kasih atas laporannya. Tim kami sudah meninjau lokasi dan akan segera melakukan perbaikan dalam 2 hari ke depan.",
-        authorName: "Budi Santosa",
-        isGovernment: true,
-        isOfficial: true,
-        createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
-        replies: [],
-      },
-    ],
-  },
-  {
-    id: "3",
-    content: "Saya juga mengalami hal yang sama di area ini. Terima kasih sudah melaporkan!",
-    authorName: "Siti Nurhaliza",
-    isGovernment: false,
-    createdAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-    replies: [],
-  },
-];
+import { useReport } from "@/hooks/useReport";
+import { api } from "@/lib/api-client";
+import { useAuth } from "@/hooks/useAuth";
+import { Loader2 } from "lucide-react";
 
 export function CommentModal({
   isOpen,
@@ -51,7 +26,9 @@ export function CommentModal({
   reportTitle,
   commentCount,
 }: CommentModalProps) {
-  const [comments, setComments] = useState<Comment[]>(MOCK_COMMENTS);
+  const { report, isLoading, refetch } = useReport(reportId);
+  const { user } = useAuth();
+  const comments = report?.comments || [];
   const [newComment, setNewComment] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -73,21 +50,15 @@ export function CommentModal({
 
     setIsSubmitting(true);
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    const comment: Comment = {
-      id: `temp-${Date.now()}`,
-      content: newComment,
-      authorName: "Anda",
-      isGovernment: false,
-      createdAt: new Date().toISOString(),
-      replies: [],
-    };
-
-    setComments((prev) => [...prev, comment]);
-    setNewComment("");
-    setIsSubmitting(false);
+    try {
+      await api.post(`/reports/${reportId}/comments`, { content: newComment });
+      setNewComment("");
+      refetch();
+    } catch (err) {
+      console.error("Failed to post comment", err);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -179,7 +150,11 @@ export function CommentModal({
 
         {/* Comments List */}
         <div className="flex-1 overflow-y-auto p-4">
-          {comments.length === 0 ? (
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="animate-spin text-navy" size={24} />
+            </div>
+          ) : comments.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-sm text-muted">Belum ada komentar</p>
               <p className="text-xs text-muted mt-1">
@@ -203,8 +178,8 @@ export function CommentModal({
           className="border-t border-border p-4 bg-white shrink-0"
         >
           <div className="flex gap-3 items-center">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-white text-xs font-semibold">
-              A
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-navy text-white text-xs font-semibold">
+              {user?.name?.charAt(0).toUpperCase() || "U"}
             </div>
             <input
               type="text"

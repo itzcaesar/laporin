@@ -58,6 +58,8 @@ type GovReport = {
   }
   createdAt: string
   updatedAt: string
+  estimatedEnd: string | null
+  aiAnalysis?: any
 }
 
 type GovReportsFilters = {
@@ -148,5 +150,15 @@ export function useGovReports(
     filters.sortOrder,
   ])
 
-  return { data, meta, isLoading, error, refetch: fetchData }
+  const bulkAssign = async (reportIds: string[], officerId: string, picNip: string) => {
+    await api.post('/gov/reports/bulk-assign', { reportIds, officerId, picNip })
+    await fetchData()
+  }
+
+  const bulkUpdateStatus = async (reportIds: string[], status: string, note: string, officerNip: string) => {
+    await api.post('/gov/reports/bulk-status', { reportIds, status, note, officerNip })
+    await fetchData()
+  }
+
+  return { data, meta, isLoading, error, refetch: fetchData, bulkAssign, bulkUpdateStatus }
 }

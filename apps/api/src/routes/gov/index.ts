@@ -7,6 +7,9 @@ import govDashboard from './dashboard.js'
 import govAnalytics from './analytics.js'
 import govOfficers from './officers.js'
 import govExport from './export.js'
+import govAudit from './audit.js'
+import govSurveys from './surveys.js'
+import govAi from './ai.js'
 
 const gov = new Hono()
 
@@ -16,5 +19,9 @@ gov.route('/dashboard', govDashboard)
 gov.route('/analytics', govAnalytics)
 gov.route('/officers', govOfficers)
 gov.route('/export', govExport)
+gov.route('/audit', govAudit)
+gov.route('/surveys', govSurveys)
+gov.route('/ai', govAi)
 
 export default gov
+

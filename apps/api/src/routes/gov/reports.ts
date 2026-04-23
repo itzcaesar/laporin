@@ -2,6 +2,7 @@
 // Government report management endpoints
 
 import { Hono } from 'hono'
+import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
 import { db } from '../../db.js'
 import { authMiddleware, type AuthVariables } from '../../middleware/auth.js'
@@ -11,6 +12,7 @@ import { buildMeta } from '../../lib/pagination.js'
 import { getPublicUrl } from '../../services/storage.service.js'
 import { awardPoints, updateBadgeProgress } from '../gamification.js'
 import { invalidatePattern } from '../../lib/cache.js'
+import { addNotificationJob } from '../../jobs/queue.js'
 import {
   verifyReportSchema,
   assignReportSchema,
@@ -189,13 +191,13 @@ govReports.get('/:id', zValidator('param', reportIdSchema), async (c) => {
 
     // Check agency access
     if (user.role !== 'super_admin' && user.agencyId && report.agencyId !== user.agencyId) {
-      return c.json({ error: 'Access denied' }, 403)
+      return err(c, 'FORBIDDEN', 'Akses ditolak', 403)
     }
 
-    return c.json({ data: report })
+    return ok(c, report)
   } catch (error) {
     console.error('Get gov report error:', error)
-    return c.json({ error: 'Failed to fetch report' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Gagal memuat detail laporan', 500)
   }
 })
 
@@ -226,7 +228,7 @@ govReports.patch(
       // Get report
       const report = await db.report.findUnique({
         where: { id },
-        select: { id: true, status: true, agencyId: true, reporterId: true },
+        select: { id: true, status: true, agencyId: true, reporterId: true, title: true, trackingCode: true },
       })
 
       if (!report) {
@@ -302,12 +304,25 @@ govReports.patch(
         await invalidatePattern(`analytics:anomalies:${report.agencyId}`)
       }
 
-      // TODO: Send notification to citizen
+      // Send notification to citizen
+      if (result === 'valid' && report.reporterId) {
+        await addNotificationJob({
+          type: 'report_verified',
+          recipientId: report.reporterId,
+          recipientType: 'citizen',
+          data: {
+            reportId: id,
+            trackingCode: report.trackingCode,
+            title: report.title,
+            picName: user.name || 'Petugas',
+          },
+        }).catch(err => console.error('Failed to queue verification notification:', err))
+      }
 
-      return c.json({ data: updatedReport })
+      return ok(c, updatedReport)
     } catch (error) {
       console.error('Verify report error:', error)
-      return c.json({ error: 'Failed to verify report' }, 500)
+      return err(c, 'INTERNAL_ERROR', 'Failed to verify report', 500)
     }
   }
 )
@@ -330,7 +345,7 @@ govReports.patch(
       // Verify officer exists and NIP matches
       const officer = await db.user.findUnique({
         where: { id: officerId },
-        select: { nip: true, agencyId: true },
+        select: { nip: true, agencyId: true, name: true },
       })
 
       if (!officer) {
@@ -344,7 +359,7 @@ govReports.patch(
       // Get report
       const report = await db.report.findUnique({
         where: { id },
-        select: { id: true, status: true },
+        select: { id: true, status: true, title: true, trackingCode: true, reporterId: true },
       })
 
       if (!report) {
@@ -394,12 +409,41 @@ govReports.patch(
         await invalidatePattern(`analytics:anomalies:${officer.agencyId}`)
       }
 
-      // TODO: Send notification to citizen and assigned officer
+      // Send notification to citizen
+      if (report.reporterId) {
+        await addNotificationJob({
+          type: 'report_verified', // "Verified" is the state after assignment
+          recipientId: report.reporterId,
+          recipientType: 'citizen',
+          data: {
+            reportId: id,
+            trackingCode: report.trackingCode,
+            title: report.title,
+            picName: officer.name || 'Petugas',
+            estimatedEnd: estimatedEnd ? new Date(estimatedEnd).toLocaleDateString('id-ID') : undefined,
+          },
+        }).catch(err => console.error('Failed to queue assignment notification (citizen):', err))
+      }
 
-      return c.json({ data: updatedReport })
+      // Send notification to assigned officer
+      await addNotificationJob({
+        type: 'new_report_in_jurisdiction',
+        recipientId: officerId,
+        recipientType: 'officer',
+        data: {
+          reportId: id,
+          trackingCode: report.trackingCode,
+          title: report.title,
+          categoryName: 'Laporan Baru Ditugaskan',
+          dangerLevel: updatedReport.dangerLevel || 0,
+          regionName: updatedReport.regionCode || 'Wilayah Anda',
+        },
+      }).catch(err => console.error('Failed to queue assignment notification (officer):', err))
+
+      return ok(c, updatedReport)
     } catch (error) {
       console.error('Assign report error:', error)
-      return c.json({ error: 'Failed to assign report' }, 500)
+      return err(c, 'INTERNAL_ERROR', 'Failed to assign report', 500)
     }
   }
 )
@@ -431,7 +475,7 @@ govReports.patch(
       // Get report
       const report = await db.report.findUnique({
         where: { id },
-        select: { id: true, status: true, reporterId: true },
+        select: { id: true, status: true, reporterId: true, title: true, trackingCode: true },
       })
 
       if (!report) {
@@ -520,12 +564,36 @@ govReports.patch(
         await invalidatePattern(`analytics:anomalies:${reportWithAgency.agencyId}`)
       }
 
-      // TODO: Send notification to citizen
+      // Send notification to citizen
+      if (report.reporterId) {
+        let notificationType: any = null
+        let notificationData: any = {
+          reportId: id,
+          trackingCode: report.trackingCode,
+          title: report.title,
+        }
 
-      return c.json({ data: updatedReport })
+        if (newStatus === 'in_progress') {
+          notificationType = 'report_in_progress'
+        } else if (newStatus === 'completed') {
+          notificationType = 'report_completed'
+          notificationData.completedAt = new Date().toLocaleDateString('id-ID')
+        }
+
+        if (notificationType) {
+          await addNotificationJob({
+            type: notificationType,
+            recipientId: report.reporterId,
+            recipientType: 'citizen',
+            data: notificationData,
+          }).catch(err => console.error(`Failed to queue status notification (${notificationType}):`, err))
+        }
+      }
+
+      return ok(c, updatedReport)
     } catch (error) {
       console.error('Update status error:', error)
-      return c.json({ error: 'Failed to update status' }, 500)
+      return err(c, 'INTERNAL_ERROR', 'Failed to update status', 500)
     }
   }
 )
@@ -577,10 +645,10 @@ govReports.patch(
         },
       })
 
-      return c.json({ data: updatedReport })
+      return ok(c, updatedReport)
     } catch (error) {
       console.error('Update timeline error:', error)
-      return c.json({ error: 'Failed to update timeline' }, 500)
+      return err(c, 'INTERNAL_ERROR', 'Failed to update timeline', 500)
     }
   }
 )
@@ -627,10 +695,10 @@ govReports.patch(
         },
       })
 
-      return c.json({ data: updatedReport })
+      return ok(c, updatedReport)
     } catch (error) {
       console.error('Update priority error:', error)
-      return c.json({ error: 'Failed to update priority' }, 500)
+      return err(c, 'INTERNAL_ERROR', 'Failed to update priority', 500)
     }
   }
 )
@@ -675,10 +743,10 @@ govReports.post(
         },
       })
 
-      return c.json({ data: media }, 201)
+      return ok(c, media, 201)
     } catch (error) {
       console.error('Upload gov media error:', error)
-      return c.json({ error: 'Failed to upload media' }, 500)
+      return err(c, 'INTERNAL_ERROR', 'Failed to upload media', 500)
     }
   }
 )
@@ -741,5 +809,139 @@ govReports.post(
     }
   }
 )
+
+/**
+ * POST /gov/reports/bulk-assign
+ * Assign multiple reports to an officer (admin only)
+ */
+const bulkAssignSchema = z.object({
+  reportIds: z.array(z.string().uuid()),
+  officerId: z.string().uuid(),
+  picNip: z.string(),
+})
+
+govReports.post('/bulk-assign', requireRole('admin'), zValidator('json', bulkAssignSchema), async (c) => {
+  const { reportIds, officerId, picNip } = c.req.valid('json')
+  const user = c.get('user')
+
+  try {
+    const officer = await db.user.findUnique({
+      where: { id: officerId },
+      select: { agencyId: true },
+    })
+
+    if (!officer) return err(c, 'USER_NOT_FOUND', 'Petugas tidak ditemukan', 404)
+
+    await db.$transaction(async (tx) => {
+      // Update reports
+      await tx.report.updateMany({
+        where: { id: { in: reportIds } },
+        data: {
+          assignedOfficerId: officerId,
+          picNip,
+          agencyId: officer.agencyId,
+          status: 'verified',
+        },
+      })
+
+      // Create status history for each
+      for (const id of reportIds) {
+        await tx.statusHistory.create({
+          data: {
+            reportId: id,
+            oldStatus: 'new', // Best guess for bulk
+            newStatus: 'verified',
+            note: `Penugasan massal ke NIP ${picNip}`,
+            changedById: user.sub,
+            officerNip: picNip,
+          },
+        })
+      }
+
+      // Audit log
+      await tx.auditLog.create({
+        data: {
+          actorId: user.sub,
+          action: 'bulk_assign',
+          targetType: 'report',
+          targetId: reportIds[0],
+          metadata: { reportIds, officerId, picNip },
+        },
+      })
+    })
+
+    if (officer.agencyId) {
+      await invalidatePattern(`analytics:*:${officer.agencyId}:*`)
+    }
+
+    return ok(c, { success: true, count: reportIds.length })
+  } catch (error) {
+    console.error('Bulk assign error:', error)
+    return err(c, 'INTERNAL_ERROR', 'Gagal menugaskan laporan secara massal', 500)
+  }
+})
+
+/**
+ * POST /gov/reports/bulk-status
+ * Update status of multiple reports (admin only)
+ */
+const bulkStatusSchema = z.object({
+  reportIds: z.array(z.string().uuid()),
+  status: z.string(),
+  note: z.string().optional(),
+  officerNip: z.string(),
+})
+
+govReports.post('/bulk-status', requireRole('admin'), zValidator('json', bulkStatusSchema), async (c) => {
+  const { reportIds, status, note, officerNip } = c.req.valid('json')
+  const user = c.get('user')
+
+  try {
+    await db.$transaction(async (tx) => {
+      // Get current statuses for history
+      const currentReports = await tx.report.findMany({
+        where: { id: { in: reportIds } },
+        select: { id: true, status: true, agencyId: true },
+      })
+
+      await tx.report.updateMany({
+        where: { id: { in: reportIds } },
+        data: {
+          status: status as any,
+          ...(status === 'completed' && { completedAt: new Date() }),
+        },
+      })
+
+      for (const r of currentReports) {
+        await tx.statusHistory.create({
+          data: {
+            reportId: r.id,
+            oldStatus: r.status,
+            newStatus: status as any,
+            note: note || `Pembaruan status massal: ${status}`,
+            changedById: user.sub,
+            officerNip,
+          },
+        })
+      }
+
+      // Audit log
+      await tx.auditLog.create({
+        data: {
+          actorId: user.sub,
+          action: 'bulk_status_update',
+          targetType: 'report',
+          targetId: reportIds[0],
+          metadata: { reportIds, newStatus: status, note },
+        },
+      })
+    })
+
+    return ok(c, { success: true, count: reportIds.length })
+  } catch (error) {
+    console.error('Bulk status error:', error)
+    return err(c, 'INTERNAL_ERROR', 'Gagal memperbarui status secara massal', 500)
+  }
+})
 
 export default govReports

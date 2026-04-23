@@ -5,14 +5,29 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { MapPin, CheckCircle, Clock, AlertTriangle, ChevronDown, Heart, MessageCircle, Send } from "lucide-react";
 
-const HERO_STATS = [
-  { value: "1.247", label: "Laporan Selesai" },
-  { value: "23", label: "Kategori" },
-  { value: "<48 Jam", label: "Respons" },
-  { value: "4.8★", label: "Kepuasan" },
-] as const;
+import { useLandingStats } from "@/hooks/useLandingStats";
 
 export function Hero() {
+  const { stats, isLoading } = useLandingStats();
+
+  const heroStats = [
+    { 
+      value: stats ? stats.resolvedReports.toLocaleString('id-ID') : "1.247", 
+      label: "Laporan Selesai" 
+    },
+    { 
+      value: stats ? stats.activeDinas.toString() : "23", 
+      label: "Kategori" 
+    },
+    { 
+      value: "<48 Jam", // Still hardcoded as it's a target/average goal
+      label: "Respons" 
+    },
+    { 
+      value: stats && stats.satisfactionAvg ? `${stats.satisfactionAvg.toFixed(1)}★` : "4.8★", 
+      label: "Kepuasan" 
+    },
+  ];
   return (
     <section
       id="hero"
@@ -63,7 +78,7 @@ export function Hero() {
 
             {/* Stat pills */}
             <div className="stagger-item grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
-              {HERO_STATS.map((stat) => (
+              {heroStats.map((stat) => (
                 <div
                   key={stat.label}
                   className="rounded-xl bg-white/10 px-3 py-2.5 text-center backdrop-blur-sm sm:px-4 sm:py-3"

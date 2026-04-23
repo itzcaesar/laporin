@@ -383,4 +383,109 @@ forum.delete('/:id/vote', authMiddleware, zValidator('param', threadIdSchema), a
   }
 })
 
+/**
+ * PATCH /forum/:id/pin
+ * Toggle pin status of a thread (officers only)
+ */
+forum.patch('/:id/pin', authMiddleware, async (c) => {
+  const currentUser = c.get('user')
+  const id = c.req.param('id')
+
+  if (currentUser.role === 'citizen') {
+    return err(c, 'ACCESS_DENIED', 'Hanya petugas yang dapat menyematkan thread', 403)
+  }
+
+  try {
+    const thread = await db.forumThread.findUnique({
+      where: { id },
+      select: { isPinned: true },
+    })
+
+    if (!thread) {
+      return err(c, 'THREAD_NOT_FOUND', 'Thread tidak ditemukan', 404)
+    }
+
+    const updated = await db.forumThread.update({
+      where: { id },
+      data: { isPinned: !thread.isPinned },
+    })
+
+    return ok(c, { isPinned: updated.isPinned })
+  } catch (error) {
+    console.error('Toggle pin error:', error)
+    return err(c, 'INTERNAL_ERROR', 'Gagal menyematkan thread', 500)
+  }
+})
+
+/**
+ * PATCH /forum/:id/lock
+ * Toggle lock status of a thread (officers only)
+ */
+forum.patch('/:id/lock', authMiddleware, async (c) => {
+  const currentUser = c.get('user')
+  const id = c.req.param('id')
+
+  if (currentUser.role === 'citizen') {
+    return err(c, 'ACCESS_DENIED', 'Hanya petugas yang dapat mengunci thread', 403)
+  }
+
+  try {
+    const thread = await db.forumThread.findUnique({
+      where: { id },
+      select: { isLocked: true },
+    })
+
+    if (!thread) {
+      return err(c, 'THREAD_NOT_FOUND', 'Thread tidak ditemukan', 404)
+    }
+
+    const updated = await db.forumThread.update({
+      where: { id },
+      data: { isLocked: !thread.isLocked },
+    })
+
+    return ok(c, { isLocked: updated.isLocked })
+  } catch (error) {
+    console.error('Toggle lock error:', error)
+    return err(c, 'INTERNAL_ERROR', 'Gagal mengunci thread', 500)
+  }
+})
+
+/**
+ * DELETE /forum/:id
+ * Delete a forum thread (officers or author only)
+ */
+forum.delete('/:id', authMiddleware, async (c) => {
+  const currentUser = c.get('user')
+  const id = c.req.param('id')
+
+  try {
+    const thread = await db.forumThread.findUnique({
+      where: { id },
+      select: { authorId: true },
+    })
+
+    if (!thread) {
+      return err(c, 'THREAD_NOT_FOUND', 'Thread tidak ditemukan', 404)
+    }
+
+    // Check permissions: officer/admin OR thread author
+    const isOfficer = currentUser.role !== 'citizen'
+    const isAuthor = thread.authorId === currentUser.sub
+
+    if (!isOfficer && !isAuthor) {
+      return err(c, 'ACCESS_DENIED', 'Akses ditolak', 403)
+    }
+
+    await db.forumThread.delete({
+      where: { id },
+    })
+
+    return ok(c, { success: true })
+  } catch (error) {
+    console.error('Delete forum thread error:', error)
+    return err(c, 'INTERNAL_ERROR', 'Gagal menghapus thread', 500)
+  }
+})
+
 export default forum

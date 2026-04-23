@@ -5,94 +5,29 @@ import { useState } from "react";
 import { AuditTable } from "@/components/dashboard/gov/AuditTable";
 import { Pagination } from "@/components/dashboard/shared/Pagination";
 import EmptyState from "@/components/dashboard/shared/EmptyState";
+import LoadingSkeleton from "@/components/dashboard/shared/LoadingSkeleton";
 import { FileText } from "lucide-react";
 
-type AuditLog = {
-  id: string;
-  timestamp: string;
-  officerName: string;
-  action: string;
-  actionLabel: string;
-  reportId: string | null;
-  reportTrackingCode: string | null;
-};
-
-// Action labels mapping
-const ACTION_LABELS: Record<string, string> = {
-  "report.verify": "Verifikasi laporan",
-  "report.assign": "Penugasan PIC",
-  "report.status_update": "Update status laporan",
-  "report.media_upload": "Upload foto",
-  "report.timeline_set": "Set timeline & anggaran",
-  "report.comment_reply": "Balas komentar warga",
-  "officer.create": "Tambah petugas baru",
-  "officer.update": "Edit data petugas",
-  "officer.deactivate": "Nonaktifkan petugas",
-};
-
-// Mock data - replace with API call
-const MOCK_AUDIT_LOGS: AuditLog[] = [
-  {
-    id: "1",
-    timestamp: "2028-04-22T18:34:00Z",
-    officerName: "Budi Santosa",
-    action: "report.status_update",
-    actionLabel: ACTION_LABELS["report.status_update"],
-    reportId: "1",
-    reportTrackingCode: "LP-2026-BDG-00141",
-  },
-  {
-    id: "2",
-    timestamp: "2028-04-22T14:34:00Z",
-    officerName: "Agus Permana",
-    action: "officer.create",
-    actionLabel: "Tambah petugas baru",
-    reportId: null,
-    reportTrackingCode: null,
-  },
-  {
-    id: "3",
-    timestamp: "2028-04-22T13:34:00Z",
-    officerName: "Budi Santosa",
-    action: "report.assign",
-    actionLabel: ACTION_LABELS["report.assign"],
-    reportId: "2",
-    reportTrackingCode: "LP-2026-BDG-00140",
-  },
-  {
-    id: "4",
-    timestamp: "2028-04-21T13:34:00Z",
-    officerName: "Siti Nurhaliza",
-    action: "report.media_upload",
-    actionLabel: ACTION_LABELS["report.media_upload"],
-    reportId: "3",
-    reportTrackingCode: "LP-2026-BDG-00139",
-  },
-];
+import { useAudit } from "@/hooks/useAudit";
 
 export default function GovAuditPage() {
-  const [logs] = useState<AuditLog[]>(MOCK_AUDIT_LOGS);
   const [currentPage, setCurrentPage] = useState(1);
   const [actionFilter, setActionFilter] = useState("all");
   const [dateRange, setDateRange] = useState("all");
-
+  
   const itemsPerPage = 20;
+  const { logs, meta, isLoading } = useAudit(currentPage, itemsPerPage);
 
-  // Filter logs
+  // Client-side filtering just for the action since we don't have backend filter yet
+  // In a real app, actionFilter should be passed to useAudit and processed by backend
   const filteredLogs = logs.filter((log) => {
     if (actionFilter !== "all" && log.action !== actionFilter) {
       return false;
     }
-    // Add date range filtering here if needed
     return true;
   });
 
-  // Pagination
-  const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
-  const paginatedLogs = filteredLogs.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const totalPages = meta?.pages || 1;
 
   return (
     <div className="p-4 md:p-6 lg:p-8">
@@ -150,16 +85,18 @@ export default function GovAuditPage() {
       </div>
 
       {/* Audit Table */}
-      {paginatedLogs.length > 0 ? (
+      {isLoading ? (
+        <LoadingSkeleton variant="table" />
+      ) : filteredLogs.length > 0 ? (
         <>
-          <AuditTable logs={paginatedLogs} />
+          <AuditTable logs={filteredLogs} />
 
           {/* Pagination */}
           <div className="mt-4">
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
-              totalItems={filteredLogs.length}
+              totalItems={meta?.total || 0}
               onPageChange={setCurrentPage}
             />
           </div>

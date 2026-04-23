@@ -28,7 +28,21 @@ export function useNotifications(page = 1) {
     }
   }, [page])
 
-  useEffect(() => { fetchNotifications() }, [fetchNotifications])
+  const fetchUnreadCount = useCallback(async () => {
+    try {
+      const res = await api.get<{ success: true; data: { count: number } }>(
+        '/user/notifications/unread-count'
+      )
+      setUnreadCount(res.data.count)
+    } catch {
+      // Ignore error for count
+    }
+  }, [])
+
+  useEffect(() => { 
+    fetchNotifications() 
+    fetchUnreadCount()
+  }, [fetchNotifications, fetchUnreadCount])
 
   const markAllRead = async () => {
     await api.patch('/user/notifications/read-all', {})

@@ -5,59 +5,27 @@ import { useState } from "react";
 import { Star, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type SurveyResponse = {
-  id: string;
-  reportId: string;
-  reportTrackingCode: string;
-  ratings: {
-    speed: number;
-    quality: number;
-    communication: number;
-    satisfaction: number;
-  };
-  comment?: string;
-  submittedAt: string;
-};
-
-const MOCK_RESPONSES: SurveyResponse[] = [
-  {
-    id: "1",
-    reportId: "1",
-    reportTrackingCode: "LP-2026-BDG-00142",
-    ratings: { speed: 5, quality: 5, communication: 5, satisfaction: 5 },
-    comment: "Sangat puas dengan pelayanan yang cepat dan berkualitas!",
-    submittedAt: "2026-04-22T10:30:00Z",
-  },
-  {
-    id: "2",
-    reportId: "2",
-    reportTrackingCode: "LP-2026-BDG-00141",
-    ratings: { speed: 4, quality: 4, communication: 5, satisfaction: 4 },
-    submittedAt: "2026-04-21T14:20:00Z",
-  },
-  {
-    id: "3",
-    reportId: "3",
-    reportTrackingCode: "LP-2026-BDG-00140",
-    ratings: { speed: 3, quality: 4, communication: 3, satisfaction: 3 },
-    comment: "Cukup baik, tapi bisa lebih cepat lagi.",
-    submittedAt: "2026-04-20T09:15:00Z",
-  },
-];
+import { useSurveys, type SurveyResponse } from "@/hooks/useSurveys";
+import { useGovAnalytics } from "@/hooks/useGovAnalytics";
 
 export default function GovSurveysPage() {
-  const [responses] = useState<SurveyResponse[]>(MOCK_RESPONSES);
   const [timeRange, setTimeRange] = useState("30");
+  const { surveys: responses, isLoading } = useSurveys(1, 100);
+  const { data: analyticsData } = useGovAnalytics(timeRange as any);
 
   // Calculate averages
   const calculateAverage = (key: keyof SurveyResponse["ratings"]) => {
-    const sum = responses.reduce((acc, r) => acc + r.ratings[key], 0);
+    if (responses.length === 0) return "0.0";
+    const sum = responses.reduce((acc, r) => acc + (r.ratings[key] || 0), 0);
     return (sum / responses.length).toFixed(1);
   };
 
-  const overallSatisfaction = calculateAverage("satisfaction");
-  const responseRate = 75; // Mock data
-  const totalSurveys = responses.length;
+  const overallSatisfaction = analyticsData?.satisfaction?.averageRating 
+    ? analyticsData.satisfaction.averageRating.toFixed(1)
+    : calculateAverage("satisfaction");
+    
+  const responseRate = analyticsData?.satisfaction?.responseRate || 0;
+  const totalSurveys = analyticsData?.satisfaction?.totalRatings || responses.length;
 
   return (
     <div className="p-4 md:p-6 lg:p-8">
@@ -230,45 +198,55 @@ export default function GovSurveysPage() {
         <h3 className="text-base font-semibold text-navy mb-4">
           Tanggapan Terbaru
         </h3>
-        <div className="space-y-4">
-          {responses.map((response) => (
-            <div
-              key={response.id}
-              className="p-4 rounded-lg border border-border hover:bg-surface/50 transition-colors"
-            >
-              <div className="flex items-start justify-between mb-2">
-                <div>
-                  <span className="font-mono text-sm font-semibold text-blue">
-                    {response.reportTrackingCode}
-                  </span>
-                  <p className="text-xs text-muted mt-1">
-                    {new Date(response.submittedAt).toLocaleDateString("id-ID", {
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+        {isLoading ? (
+          <div className="flex h-32 items-center justify-center">
+            <div className="text-sm text-muted">Memuat survei...</div>
+          </div>
+        ) : responses.length > 0 ? (
+          <div className="space-y-4">
+            {responses.map((response) => (
+              <div
+                key={response.id}
+                className="p-4 rounded-lg border border-border hover:bg-surface/50 transition-colors"
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <div>
+                    <span className="font-mono text-sm font-semibold text-blue">
+                      {response.reportTrackingCode || "Unknown"}
+                    </span>
+                    <p className="text-xs text-muted mt-1">
+                      {new Date(response.submittedAt).toLocaleDateString("id-ID", {
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Star
+                      size={16}
+                      className="fill-amber-400 text-amber-400"
+                    />
+                    <span className="text-sm font-semibold text-navy">
+                      {response.ratings.satisfaction}.0
+                    </span>
+                  </div>
+                </div>
+                {response.comment && (
+                  <p className="text-sm text-ink leading-relaxed">
+                    "{response.comment}"
                   </p>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Star
-                    size={16}
-                    className="fill-amber-400 text-amber-400"
-                  />
-                  <span className="text-sm font-semibold text-navy">
-                    {response.ratings.satisfaction}.0
-                  </span>
-                </div>
+                )}
               </div>
-              {response.comment && (
-                <p className="text-sm text-ink leading-relaxed">
-                  "{response.comment}"
-                </p>
-              )}
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex h-32 flex-col items-center justify-center text-center">
+            <p className="text-sm text-muted">Belum ada tanggapan survei</p>
+          </div>
+        )}
       </div>
     </div>
   );

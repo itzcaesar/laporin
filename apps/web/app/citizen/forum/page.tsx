@@ -6,81 +6,7 @@ import Link from "next/link";
 import { Search, Plus, MessageSquare, ThumbsUp, Clock, Pin, Lock, TrendingUp } from "lucide-react";
 import { cn, formatRelativeTime } from "@/lib/utils";
 
-type ForumThread = {
-  id: string;
-  title: string;
-  content: string;
-  category: string;
-  author: {
-    name: string;
-    avatar: string;
-    reputation: number;
-  };
-  replies: number;
-  views: number;
-  upvotes: number;
-  isPinned: boolean;
-  isLocked: boolean;
-  lastActivity: string;
-  createdAt: string;
-};
-
-const MOCK_THREADS: ForumThread[] = [
-  {
-    id: "1",
-    title: "Tips Membuat Laporan yang Efektif",
-    content: "Saya ingin berbagi pengalaman tentang cara membuat laporan yang cepat ditanggapi...",
-    category: "Tips & Trik",
-    author: {
-      name: "Ahmad Rizki",
-      avatar: "AR",
-      reputation: 245,
-    },
-    replies: 23,
-    views: 456,
-    upvotes: 89,
-    isPinned: true,
-    isLocked: false,
-    lastActivity: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    createdAt: "2026-04-15T10:00:00Z",
-  },
-  {
-    id: "2",
-    title: "Jalan Rusak di Dago Masih Belum Diperbaiki",
-    content: "Sudah 2 minggu laporan saya belum ada tindak lanjut. Ada yang punya pengalaman serupa?",
-    category: "Diskusi Umum",
-    author: {
-      name: "Siti Nurhaliza",
-      avatar: "SN",
-      reputation: 128,
-    },
-    replies: 15,
-    views: 234,
-    upvotes: 34,
-    isPinned: false,
-    isLocked: false,
-    lastActivity: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-    createdAt: "2026-04-20T14:30:00Z",
-  },
-  {
-    id: "3",
-    title: "Apresiasi untuk Dinas PU yang Responsif!",
-    content: "Laporan saya ditanggapi dalam 1 hari dan selesai dalam seminggu. Terima kasih!",
-    category: "Apresiasi",
-    author: {
-      name: "Budi Santoso",
-      avatar: "BS",
-      reputation: 67,
-    },
-    replies: 8,
-    views: 189,
-    upvotes: 56,
-    isPinned: false,
-    isLocked: false,
-    lastActivity: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    createdAt: "2026-04-21T09:15:00Z",
-  },
-];
+import { useForumList, type ForumThread } from "@/hooks/useForum";
 
 const CATEGORIES = [
   "Semua",
@@ -92,32 +18,26 @@ const CATEGORIES = [
 ];
 
 export default function ForumPage() {
-  const [threads, setThreads] = useState<ForumThread[]>(MOCK_THREADS);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Semua");
   const [sortBy, setSortBy] = useState<"recent" | "popular" | "trending">("recent");
+  
+  const { threads: apiThreads, isLoading } = useForumList(1, 100, selectedCategory, sortBy);
+
+  const threads = apiThreads.map(t => ({
+    ...t,
+    author: {
+      ...t.author,
+      avatar: t.author.name.substring(0, 2).toUpperCase()
+    }
+  }));
 
   const filteredThreads = threads
     .filter((thread) => {
       const matchesSearch =
         thread.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         thread.content.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCategory =
-        selectedCategory === "Semua" || thread.category === selectedCategory;
-      return matchesSearch && matchesCategory;
-    })
-    .sort((a, b) => {
-      if (a.isPinned && !b.isPinned) return -1;
-      if (!a.isPinned && b.isPinned) return 1;
-      
-      switch (sortBy) {
-        case "popular":
-          return b.upvotes - a.upvotes;
-        case "trending":
-          return b.views - a.views;
-        default:
-          return new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime();
-      }
+      return matchesSearch;
     });
 
   return (
@@ -212,7 +132,11 @@ export default function ForumPage() {
       </div>
 
       {/* Thread List */}
-      {filteredThreads.length === 0 ? (
+      {isLoading ? (
+        <div className="flex h-32 items-center justify-center">
+          <div className="text-sm text-muted">Memuat forum...</div>
+        </div>
+      ) : filteredThreads.length === 0 ? (
         <div className="rounded-2xl bg-white p-12 text-center border border-border">
           <MessageSquare size={48} className="mx-auto text-muted mb-4" />
           <p className="text-muted">Tidak ada thread yang ditemukan</p>

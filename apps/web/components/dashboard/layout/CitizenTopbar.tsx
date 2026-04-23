@@ -21,33 +21,8 @@ const NAV_ITEMS = [
   { href: "/citizen/forum", icon: MessageSquare, label: "Forum" },
 ];
 
-// Mock notifications - replace with actual API call
-const MOCK_NOTIFICATIONS = [
-  {
-    id: "1",
-    title: "Laporan Diproses",
-    body: "Laporanmu LP-2026-BDG-00142 sekarang sedang diproses oleh petugas.",
-    isRead: false,
-    reportId: "1",
-    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "2",
-    title: "Laporan Selesai",
-    body: "Laporanmu LP-2026-BDG-00130 telah selesai! Silakan verifikasi penyelesaian pekerjaan.",
-    isRead: true,
-    reportId: "2",
-    createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "3",
-    title: "Komentar Baru",
-    body: "Petugas memberikan komentar pada laporanmu LP-2026-BDG-00125.",
-    isRead: true,
-    reportId: "3",
-    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-];
+import { useNotifications } from "@/hooks/useNotifications";
+
 
 export function CitizenTopbar() {
   const pathname = usePathname();
@@ -57,10 +32,9 @@ export function CitizenTopbar() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
   const [activeFilter, setActiveFilter] = useState("all");
-
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
+  
+  const { notifications, unreadCount, markAllRead } = useNotifications();
 
   const FILTER_OPTIONS = [
     { label: "Semua", value: "all" },
@@ -71,18 +45,8 @@ export function CitizenTopbar() {
     { label: "Terverifikasi", value: "terverifikasi" },
   ];
 
-  const handleMarkAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-  };
-
-  const handleMarkRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
-    );
-  };
-
-  const handleNotificationClick = (notification: typeof MOCK_NOTIFICATIONS[0]) => {
-    handleMarkRead(notification.id);
+  const handleNotificationClick = (notification: any) => {
+    // API logic to mark individual notification as read is handled in hook or backend when viewed
     setIsNotificationOpen(false);
     if (notification.reportId) {
       router.push(`/citizen/reports/${notification.reportId}`);
@@ -292,7 +256,7 @@ export function CitizenTopbar() {
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleMarkAllRead();
+                          markAllRead();
                         }}
                         className="flex items-center gap-1 text-xs font-medium text-blue hover:text-blue/80 transition-colors"
                       >

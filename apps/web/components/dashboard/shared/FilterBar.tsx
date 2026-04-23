@@ -103,7 +103,7 @@ export function FilterBar({
         <button
           type="button"
           onClick={() => setIsMobileFilterOpen(true)}
-          className="flex w-full items-center justify-between rounded-xl bg-white p-4 shadow-sm border border-border"
+          className="btn-interactive flex w-full items-center justify-between rounded-xl bg-white p-4 shadow-sm border border-border"
         >
           <div className="flex items-center gap-2">
             <SlidersHorizontal size={18} className="text-muted" />
@@ -145,21 +145,27 @@ export function FilterBar({
           />
 
           {/* Panel */}
-          <div className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl bg-white p-6 shadow-xl md:hidden max-h-[80vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold font-display text-navy">
+          <div className="fixed inset-x-0 bottom-0 z-50 rounded-t-3xl bg-white shadow-2xl md:hidden max-h-[90vh] overflow-y-auto"
+            style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)" }}
+          >
+            {/* Drag handle */}
+            <div className="pt-3 pb-2 flex justify-center">
+              <div className="h-1 w-10 rounded-full bg-border" />
+            </div>
+            <div className="flex items-center justify-between px-6 pb-4 border-b border-border">
+              <h3 className="text-base font-bold font-display text-navy">
                 Filter Laporan
               </h3>
               <button
                 type="button"
                 onClick={() => setIsMobileFilterOpen(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-surface transition-colors"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-surface text-muted hover:text-ink transition-colors"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
-            <div className="space-y-4">
+            <div className="px-6 pt-4 space-y-4">
               {filters.map((filter) => (
                 <div key={filter.key}>
                   <label className="block text-sm font-medium text-ink mb-2">
@@ -180,7 +186,7 @@ export function FilterBar({
               ))}
             </div>
 
-            <div className="mt-6 flex gap-3">
+            <div className="px-6 pt-5 flex gap-3">
               {hasActiveFilters && (
                 <button
                   type="button"
@@ -196,7 +202,7 @@ export function FilterBar({
               <button
                 type="button"
                 onClick={() => setIsMobileFilterOpen(false)}
-                className="flex-1 rounded-xl bg-navy px-4 py-3 text-sm font-medium text-white hover:bg-navy/90 transition-colors"
+                className="flex-1 btn-interactive rounded-xl bg-navy px-4 py-3 text-sm font-bold text-white hover:bg-navy/90 transition-colors"
               >
                 Terapkan
               </button>

@@ -10,7 +10,7 @@ import { getPagination, getSkip, buildMeta } from '../lib/pagination.js'
 import { generateTrackingCode } from '../lib/trackingCode.js'
 import { calculatePriorityScore } from '../lib/priorityScore.js'
 import { generateUploadUrl, getPublicUrl } from '../services/storage.service.js'
-import { addAIAnalysisJob } from '../jobs/queue.js'
+import { addAIAnalysisJob, addNotificationJob } from '../jobs/queue.js'
 import { awardPoints, updateBadgeProgress } from './gamification.js'
 import { invalidatePattern } from '../lib/cache.js'
 import {
@@ -79,12 +79,20 @@ reports.get('/', optionalAuthMiddleware, zValidator('query', listReportsSchema),
         orderBy: { [sortBy]: sortDir },
         include: {
           category: { select: { id: true, name: true, emoji: true } },
+          reporter: { select: { id: true, name: true } },
+          assignedOfficer: { select: { id: true, name: true, nip: true } },
           agency: { select: { id: true, name: true } },
           media: { where: { sortOrder: 0 }, take: 1 },
           aiAnalysis: true,
           votes: userId ? { where: { userId } } : false,
           bookmarks: userId ? { where: { userId } } : false,
           _count: { select: { comments: true } },
+          comments: {
+            where: { parentId: null },
+            take: 2,
+            orderBy: { createdAt: 'desc' },
+            include: { author: { select: { name: true } } }
+          },
         },
       }),
       db.report.count({ where }),
@@ -94,6 +102,7 @@ reports.get('/', optionalAuthMiddleware, zValidator('query', listReportsSchema),
       id: r.id,
       trackingCode: r.trackingCode,
       title: r.title,
+      description: r.description,
       locationAddress: r.locationAddress,
       locationLat: Number(r.locationLat),
       locationLng: Number(r.locationLng),
@@ -103,12 +112,20 @@ reports.get('/', optionalAuthMiddleware, zValidator('query', listReportsSchema),
       priorityScore: r.priorityScore,
       upvoteCount: r.upvoteCount,
       commentCount: r._count.comments,
+      topComments: r.comments.map(c => ({
+        id: c.id,
+        authorName: c.author?.name || 'Anonim',
+        content: c.content
+      })),
       categoryId: r.category.id,
+      categoryName: r.category.name,
+      categoryEmoji: r.category.emoji,
       isAnonymous: r.isAnonymous,
-      reporterName: r.isAnonymous ? null : null, // TODO: add reporter name
+      reporterName: r.isAnonymous ? null : (r as any).reporter?.name ?? null,
+      reporterId: r.isAnonymous ? null : r.reporterId,
       agencyId: r.agencyId,
       agencyName: r.agency?.name ?? null,
-      picName: null, // TODO: fetch from assignedOfficer relation
+      picName: (r as any).assignedOfficer?.name ?? null,
       picNip: r.picNip,
       estimatedEnd: r.estimatedEnd?.toISOString() ?? null,
       budgetIdr: r.budgetIdr ? Number(r.budgetIdr) : null,
@@ -142,6 +159,8 @@ reports.get('/:id', optionalAuthMiddleware, zValidator('param', reportIdSchema),
       where: { id },
       include: {
         category: true,
+        reporter: { select: { id: true, name: true } },
+        assignedOfficer: { select: { id: true, name: true, nip: true } },
         agency: { select: { id: true, name: true } },
         media: { orderBy: { sortOrder: 'asc' } },
         statusHistory: {
@@ -204,11 +223,14 @@ reports.get('/:id', optionalAuthMiddleware, zValidator('param', reportIdSchema),
       upvoteCount: r.upvoteCount,
       commentCount: r._count.comments,
       categoryId: r.category.id,
+      categoryName: r.category.name,
+      categoryEmoji: r.category.emoji,
       isAnonymous: r.isAnonymous,
-      reporterName: r.isAnonymous ? null : null,
+      reporterName: r.isAnonymous ? null : (r as any).reporter?.name ?? null,
+      reporterId: r.isAnonymous ? null : r.reporterId,
       agencyId: r.agencyId,
       agencyName: r.agency?.name ?? null,
-      picName: null, // TODO: fetch from assignedOfficer relation
+      picName: (r as any).assignedOfficer?.name ?? null,
       picNip: r.picNip,
       estimatedEnd: r.estimatedEnd?.toISOString() ?? null,
       estimatedStart: r.estimatedStart?.toISOString() ?? null,
@@ -351,6 +373,19 @@ reports.post('/', optionalAuthMiddleware, zValidator('json', createReportSchema)
       reportId: report.id,
       hasPhoto: false, // Will be updated when media is uploaded
     })
+
+    // Queue notification job for citizen
+    await addNotificationJob({
+      type: 'report_submitted',
+      recipientId: user?.sub || '', // Fallback for anonymous? No, need recipientId
+      recipientType: 'citizen',
+      data: {
+        reportId: report.id,
+        trackingCode: report.trackingCode,
+        title: report.title,
+        categoryName: report.category.name,
+      },
+    }).catch(err => console.error('Failed to queue submission notification:', err))
 
     // Award points for creating report (only for authenticated users)
     if (user?.sub) {

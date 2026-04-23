@@ -3,8 +3,10 @@
 
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { getStatusConfig } from "@/lib/status-config";
-import { ArrowBigUp, MessageCircle } from "lucide-react";
+import { ArrowBigUp, MessageCircle, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
+import { useRef } from "react";
+import { useConfetti } from "@/hooks/useConfetti";
 import type { Report } from "@/types";
 
 interface ReportCardProps {
@@ -14,14 +16,30 @@ interface ReportCardProps {
 
 export function ReportCard({ report, className }: ReportCardProps) {
   const statusConfig = getStatusConfig(report.status);
+  const { burst } = useConfetti();
+  const cardRef = useRef<HTMLAnchorElement>(null);
+  const isCompleted =
+    report.status === "completed" || report.status === "verified_complete";
+
+  const handleClick = () => {
+    if (isCompleted && cardRef.current) {
+      const rect = cardRef.current.getBoundingClientRect();
+      burst(
+        rect.left + rect.width / 2,
+        rect.top + rect.height / 2
+      );
+    }
+  };
 
   return (
     <Link
+      ref={cardRef}
       href={`/citizen/reports/${report.id}`}
+      onClick={handleClick}
       className={cn(
-        "card-base p-4 block transition-all duration-200",
-        "hover:shadow-md hover:border-navy/20",
+        "card-base card-interactive p-4 block",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue",
+        isCompleted && "border-green-200 bg-gradient-to-br from-white to-green-50/30",
         className
       )}
     >
@@ -40,11 +58,16 @@ export function ReportCard({ report, className }: ReportCardProps) {
             "inline-flex items-center gap-1.5 rounded-full px-3 py-1",
             "text-xs font-medium border",
             statusConfig.bg,
-            statusConfig.border
+            statusConfig.border,
+            isCompleted && "animate-bounce-in"
           )}
           style={{ color: statusConfig.textColor }}
         >
-          <span aria-hidden="true">{statusConfig.emoji}</span>
+          {isCompleted ? (
+            <CheckCircle2 size={12} className="text-green-600" />
+          ) : (
+            <span aria-hidden="true">{statusConfig.emoji}</span>
+          )}
           <span>{statusConfig.label}</span>
         </div>
       </div>

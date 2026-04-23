@@ -53,11 +53,11 @@ export default function GovAnalyticsPage() {
       )}
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-        <h1 className="text-2xl font-bold font-display text-navy">
-          Analitik & Statistik
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+        <h1 className="text-xl md:text-2xl font-bold font-display text-navy">
+          Analitik &amp; Statistik
         </h1>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {/* Period Selector */}
           <div className="flex items-center gap-1 rounded-xl border border-border bg-white p-1">
             {(["30", "90", "365"] as TimePeriod[]).map((p) => (
@@ -66,20 +66,21 @@ export default function GovAnalyticsPage() {
                 type="button"
                 onClick={() => setPeriod(p)}
                 className={cn(
-                  "rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+                  "rounded-lg px-2.5 py-1.5 text-xs md:px-4 md:py-2 md:text-sm font-medium transition-colors",
                   period === p
                     ? "bg-navy text-white"
                     : "text-ink hover:bg-surface"
                 )}
               >
-                {p} Hari
+                <span className="sm:hidden">{p}d</span>
+                <span className="hidden sm:inline">{p} Hari</span>
               </button>
             ))}
           </div>
           {/* Export Button */}
           <button
             type="button"
-            className="flex items-center gap-2 rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-ink hover:bg-surface transition-colors"
+            className="flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-1.5 md:px-4 md:py-2 text-sm font-medium text-ink hover:bg-surface transition-colors"
           >
             <Download size={16} />
             <span className="hidden sm:inline">Export PDF</span>
@@ -88,7 +89,7 @@ export default function GovAnalyticsPage() {
       </div>
 
       {/* KPI Summary Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
         <div className="rounded-2xl bg-white p-4 shadow-sm border border-border">
           <div className="text-2xl font-bold font-display text-ink mb-1">
             {isLoading ? "..." : (data.overview?.totalReports ?? 0).toLocaleString()}

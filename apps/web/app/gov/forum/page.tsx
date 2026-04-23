@@ -21,94 +21,7 @@ import { cn, formatRelativeTime } from "@/lib/utils";
 
 type ThreadStatus = "active" | "locked" | "flagged" | "deleted";
 
-type ForumThread = {
-  id: string;
-  title: string;
-  category: string;
-  author: {
-    name: string;
-    email: string;
-  };
-  replies: number;
-  views: number;
-  upvotes: number;
-  isPinned: boolean;
-  status: ThreadStatus;
-  flagCount: number;
-  lastActivity: string;
-  createdAt: string;
-};
-
-const MOCK_THREADS: ForumThread[] = [
-  {
-    id: "1",
-    title: "Tips Membuat Laporan yang Efektif",
-    category: "Tips & Trik",
-    author: {
-      name: "Ahmad Rizki",
-      email: "ahmad@example.com",
-    },
-    replies: 23,
-    views: 456,
-    upvotes: 89,
-    isPinned: true,
-    status: "active",
-    flagCount: 0,
-    lastActivity: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    createdAt: "2026-04-15T10:00:00Z",
-  },
-  {
-    id: "2",
-    title: "Jalan Rusak di Dago Masih Belum Diperbaiki",
-    category: "Diskusi Umum",
-    author: {
-      name: "Siti Nurhaliza",
-      email: "siti@example.com",
-    },
-    replies: 15,
-    views: 234,
-    upvotes: 34,
-    isPinned: false,
-    status: "active",
-    flagCount: 0,
-    lastActivity: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-    createdAt: "2026-04-20T14:30:00Z",
-  },
-  {
-    id: "3",
-    title: "SPAM: Jual Obat Murah!!!",
-    category: "Diskusi Umum",
-    author: {
-      name: "Spammer",
-      email: "spam@example.com",
-    },
-    replies: 2,
-    views: 45,
-    upvotes: 0,
-    isPinned: false,
-    status: "flagged",
-    flagCount: 12,
-    lastActivity: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
-    createdAt: "2026-04-22T08:00:00Z",
-  },
-  {
-    id: "4",
-    title: "Diskusi Lama yang Sudah Selesai",
-    category: "Pertanyaan",
-    author: {
-      name: "Budi Santoso",
-      email: "budi@example.com",
-    },
-    replies: 45,
-    views: 890,
-    upvotes: 67,
-    isPinned: false,
-    status: "locked",
-    flagCount: 0,
-    lastActivity: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-    createdAt: "2026-03-15T10:00:00Z",
-  },
-];
+import { useForumList, useForumActions, type ForumThread } from "@/hooks/useForum";
 
 const STATUS_CONFIG = {
   active: {
@@ -134,10 +47,18 @@ const STATUS_CONFIG = {
 };
 
 export default function GovForumPage() {
-  const [threads, setThreads] = useState<ForumThread[]>(MOCK_THREADS);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<ThreadStatus | "all">("all");
   const [sortBy, setSortBy] = useState<"recent" | "flagged" | "popular">("recent");
+  
+  const { threads: apiThreads, isLoading, refetch } = useForumList(1, 100, "Semua", sortBy === "flagged" ? "recent" : sortBy);
+  const { togglePin, toggleLock, deleteThread } = useForumActions();
+
+  const threads = apiThreads.map(t => ({
+    ...t,
+    status: t.isLocked ? "locked" : "active" as ThreadStatus,
+    flagCount: 0
+  }));
 
   const filteredThreads = threads
     .filter((thread) => {
@@ -146,46 +67,22 @@ export default function GovForumPage() {
         thread.author.name.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesStatus = statusFilter === "all" || thread.status === statusFilter;
       return matchesSearch && matchesStatus;
-    })
-    .sort((a, b) => {
-      switch (sortBy) {
-        case "flagged":
-          return b.flagCount - a.flagCount;
-        case "popular":
-          return b.views - a.views;
-        default:
-          return new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime();
-      }
     });
 
-  const handleTogglePin = (id: string) => {
-    setThreads((prev) =>
-      prev.map((thread) =>
-        thread.id === id ? { ...thread, isPinned: !thread.isPinned } : thread
-      )
-    );
+  const handleTogglePin = async (id: string) => {
+    await togglePin(id);
+    refetch();
   };
 
-  const handleToggleLock = (id: string) => {
-    setThreads((prev) =>
-      prev.map((thread) =>
-        thread.id === id
-          ? {
-              ...thread,
-              status: thread.status === "locked" ? "active" : "locked",
-            }
-          : thread
-      )
-    );
+  const handleToggleLock = async (id: string) => {
+    await toggleLock(id);
+    refetch();
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm("Yakin ingin menghapus thread ini?")) {
-      setThreads((prev) =>
-        prev.map((thread) =>
-          thread.id === id ? { ...thread, status: "deleted" } : thread
-        )
-      );
+      await deleteThread(id);
+      refetch();
     }
   };
 
@@ -284,7 +181,11 @@ export default function GovForumPage() {
       </div>
 
       {/* Thread List */}
-      {filteredThreads.length === 0 ? (
+      {isLoading ? (
+        <div className="flex h-32 items-center justify-center">
+          <div className="text-sm text-muted">Memuat forum...</div>
+        </div>
+      ) : filteredThreads.length === 0 ? (
         <div className="rounded-2xl bg-white p-12 text-center border border-border">
           <MessageSquare size={48} className="mx-auto text-muted mb-4" />
           <p className="text-muted">Tidak ada thread yang ditemukan</p>

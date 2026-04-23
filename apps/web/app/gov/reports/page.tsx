@@ -93,18 +93,48 @@ export default function GovReportsPage() {
       priority: report.priority,
       picName: report.assignedOfficer?.name || null,
       createdAt: report.createdAt,
-      isHoaxFlagged: false, // TODO: Add hoax detection flag from AI analysis
-      aiAnalysis: {
+      isHoaxFlagged: report.aiAnalysis ? report.aiAnalysis.hoaxConfidence >= 70 : false,
+      aiAnalysis: report.aiAnalysis ? {
         priorityScore: report.priorityScore,
         priorityLabel: getPriorityLabel(report.priorityScore),
-        hoaxConfidence: 0, // TODO: Get from AI analysis
-        hoaxLabel: "Aman",
+        hoaxConfidence: report.aiAnalysis.hoaxConfidence,
+        hoaxLabel: getHoaxLabel(report.aiAnalysis.hoaxConfidence),
         dangerLevel: report.dangerLevel,
         dangerLabel: getDangerLabel(report.dangerLevel),
-        aiSummary: null, // TODO: Get from report if available
-      },
+        aiSummary: report.aiAnalysis.summary,
+      } : null,
     }));
   }, [apiReports]);
+
+  // Bulk Actions
+  const { bulkAssign, bulkUpdateStatus } = useGovReports();
+
+  const handleAssignBulk = async () => {
+    const officerId = window.prompt("Masukkan ID Petugas:");
+    const picNip = window.prompt("Masukkan NIP Petugas:");
+    if (!officerId || !picNip) return;
+
+    try {
+      await bulkAssign(selectedIds, officerId, picNip);
+      setSelectedIds([]);
+      alert("Laporan berhasil ditugaskan massal");
+    } catch (err: any) {
+      alert("Gagal menugaskan: " + err.message);
+    }
+  };
+
+  const handleUpdateStatusBulk = async () => {
+    const status = window.prompt("Masukkan Status Baru (verified/in_progress/completed/rejected):");
+    if (!status) return;
+
+    try {
+      await bulkUpdateStatus(selectedIds, status, "Pembaruan massal dari dasbor", "SYSTEM");
+      setSelectedIds([]);
+      alert("Status berhasil diperbarui massal");
+    } catch (err: any) {
+      alert("Gagal memperbarui: " + err.message);
+    }
+  };
 
   // Apply client-side filters (for filters not supported by API)
   const filteredReports = useMemo(() => {
@@ -206,21 +236,21 @@ export default function GovReportsPage() {
   return (
     <div className="p-4 md:p-6 lg:p-8">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold font-display text-navy">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+        <h1 className="text-xl md:text-2xl font-bold font-display text-navy">
           Daftar Laporan
         </h1>
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className="flex items-center gap-2 rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-ink hover:bg-surface transition-colors"
+            className="btn-interactive flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink hover:bg-surface transition-colors"
           >
             <Download size={16} />
             <span className="hidden sm:inline">Export PDF</span>
           </button>
           <button
             type="button"
-            className="flex items-center gap-2 rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-ink hover:bg-surface transition-colors"
+            className="btn-interactive flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink hover:bg-surface transition-colors"
           >
             <Download size={16} />
             <span className="hidden sm:inline">Export Excel</span>
@@ -243,8 +273,8 @@ export default function GovReportsPage() {
       {/* Bulk Action Bar */}
       <BulkActionBar
         selectedCount={selectedIds.length}
-        onAssignBulk={() => console.log("Assign bulk")}
-        onUpdateStatusBulk={() => console.log("Update status bulk")}
+        onAssignBulk={handleAssignBulk}
+        onUpdateStatusBulk={handleUpdateStatusBulk}
         onClearSelection={() => setSelectedIds([])}
       />
 
@@ -263,11 +293,14 @@ export default function GovReportsPage() {
       ) : filteredReports.length > 0 ? (
         /* Success State */
         <>
-          <ReportTable
-            reports={filteredReports}
-            selectedIds={selectedIds}
-            onSelectChange={setSelectedIds}
-          />
+          {/* Desktop Table */}
+          <div className="hidden md:block">
+            <ReportTable
+              reports={filteredReports}
+              selectedIds={selectedIds}
+              onSelectChange={setSelectedIds}
+            />
+          </div>
 
           {/* Mobile Cards */}
           <div className="md:hidden space-y-3">

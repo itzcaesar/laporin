@@ -399,55 +399,64 @@ export default function GovReportDetailPage() {
         </div>
       </div>
 
-      {/* Mobile Action Panel Button */}
+      {/* Mobile Action Panel Button – sits above the bottom nav */}
       <button
         type="button"
         onClick={() => setIsActionPanelOpen(true)}
-        className="fixed bottom-4 left-4 right-4 z-30 rounded-xl bg-navy px-6 py-3 text-sm font-medium text-white shadow-lg hover:bg-navy/90 transition-colors lg:hidden"
+        className="fixed bottom-20 left-4 right-4 z-30 rounded-xl bg-navy px-6 py-3 text-sm font-bold text-white shadow-xl hover:bg-navy/90 transition-all btn-interactive lg:hidden flex items-center justify-center gap-2"
       >
-        Panel Aksi ▾
+        <span>Panel Aksi</span>
+        <span className="text-white/60">▾</span>
       </button>
 
       {/* Mobile Action Panel Bottom Sheet */}
       {isActionPanelOpen && (
         <>
           <div
-            className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
             onClick={() => setIsActionPanelOpen(false)}
           />
-          <div className="fixed inset-x-0 bottom-0 z-50 max-h-[80vh] overflow-y-auto rounded-t-2xl bg-surface p-6 lg:hidden">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold font-display text-navy">
-                Panel Aksi
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsActionPanelOpen(false)}
-                className="text-muted hover:text-ink transition-colors"
-              >
-                ✕
-              </button>
+          <div className="fixed inset-x-0 bottom-0 z-50 max-h-[85vh] overflow-y-auto rounded-t-3xl bg-surface lg:hidden"
+            style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+          >
+            {/* Handle */}
+            <div className="sticky top-0 bg-surface pt-3 pb-2 px-6 border-b border-border/50">
+              <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-bold font-display text-navy">
+                  Panel Aksi
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setIsActionPanelOpen(false)}
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-2 text-muted hover:text-ink transition-colors text-lg leading-none"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
-            <ActionPanel
-              reportId={report.id}
-              status={report.status as any}
-              hasPic={!!report.picName}
-              hoaxConfidence={report.aiAnalysis.hoaxConfidence}
-              slaStatus={calculateSlaStatus()}
-              recentAuditActions={getRecentAuditActions()}
-              actions={actions}
-              onSuccess={(message) => showToast(message, 'success')}
-              onError={(message) => showToast(message, 'error')}
-            />
+            <div className="p-4">
+              <ActionPanel
+                reportId={report.id}
+                status={report.status as any}
+                hasPic={!!report.picName}
+                hoaxConfidence={report.aiAnalysis.hoaxConfidence}
+                slaStatus={calculateSlaStatus()}
+                recentAuditActions={getRecentAuditActions()}
+                actions={actions}
+                onSuccess={(message) => showToast(message, 'success')}
+                onError={(message) => showToast(message, 'error')}
+              />
+            </div>
           </div>
         </>
       )}
 
       {/* Toast Notification */}
       {toast && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
+        <div className="fixed bottom-36 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
           <div className={cn(
-            "rounded-xl px-6 py-3 shadow-lg text-sm font-medium text-white",
+            "rounded-xl px-6 py-3 shadow-lg text-sm font-medium text-white whitespace-nowrap",
             toast.type === 'success' ? "bg-green-600" : "bg-red-600"
           )}>
             {toast.message}
