@@ -11,8 +11,8 @@ const faq = new Hono<{ Variables: AuthVariables }>()
  */
 faq.get('/', async (c) => {
   try {
-    const items = await db.fAQ.findMany({
-      orderBy: { sortOrder: 'asc' },
+    const items = await db.faq.findMany({
+      orderBy: { createdAt: 'desc' },
     })
     return ok(c, items)
   } catch {
@@ -35,8 +35,8 @@ faq.post('/', authMiddleware, async (c) => {
     if (!question || !answer || !category) {
       return err(c, 'INVALID_INPUT', 'Pertanyaan, jawaban, dan kategori wajib diisi', 400)
     }
-    const count = await db.fAQ.count()
-    const item = await db.fAQ.create({
+    const count = await db.faq.count()
+    const item = await db.faq.create({
       data: { question, answer, category, isPublished, authorId: user.sub },
     })
     return ok(c, item)
@@ -58,7 +58,7 @@ faq.patch('/:id', authMiddleware, async (c) => {
     const { id } = c.req.param()
     const body = await c.req.json()
     const { question, answer, category, isPublished } = body
-    const item = await db.fAQ.update({
+    const item = await db.faq.update({
       where: { id },
       data: {
         ...(question !== undefined && { question }),
@@ -84,7 +84,7 @@ faq.delete('/:id', authMiddleware, async (c) => {
   }
   try {
     const { id } = c.req.param()
-    await db.fAQ.delete({ where: { id } })
+    await db.faq.delete({ where: { id } })
     return ok(c, { id })
   } catch {
     return err(c, 'INTERNAL_ERROR', 'Gagal menghapus FAQ', 500)
