@@ -89,10 +89,6 @@ export default function ForumThreadPage() {
   const [threadVoteCount, setThreadVoteCount] = useState<number | null>(null);
   const [threadVotePending, setThreadVotePending] = useState(false);
 
-  // Optimistic state for reply votes: Map<replyId, { count, voted }>
-  const [replyVotes, setReplyVotes] = useState<
-    Record<string, { count: number; voted: boolean }>
-  >({});
 
   // Local replies (optimistic add)
   const [localReplies, setLocalReplies] = useState<any[]>([]);
@@ -121,7 +117,7 @@ export default function ForumThreadPage() {
 
     setThreadVotePending(true);
     try {
-      await api.post(`/forum/threads/${id}/vote`, {});
+      await api.post(`/forum/${id}/vote`, {});
     } catch {
       // Roll back on failure
       setThreadVoted(wasVoted);
@@ -131,34 +127,8 @@ export default function ForumThreadPage() {
     }
   }, [apiThread, threadVotePending, threadVoteCount, threadVoted, id, burst]);
 
-  // ── Reply vote (optimistic) ───────────────────────────────
-  const handleReplyVote = useCallback(
-    async (replyId: string, baseCount: number) => {
-      const current = replyVotes[replyId];
-      const wasVoted = current?.voted ?? false;
-      const currentCount = current?.count ?? baseCount;
-
-      // Optimistic update
-      setReplyVotes((prev) => ({
-        ...prev,
-        [replyId]: {
-          count: wasVoted ? currentCount - 1 : currentCount + 1,
-          voted: !wasVoted,
-        },
-      }));
-
-      try {
-        await api.post(`/forum/replies/${replyId}/vote`, {});
-      } catch {
-        // Roll back
-        setReplyVotes((prev) => ({
-          ...prev,
-          [replyId]: { count: currentCount, voted: wasVoted },
-        }));
-      }
-    },
-    [replyVotes]
-  );
+  // ── Reply vote removed: backend has no /forum/replies/:id/vote route ──
+  // Reply-level votes are not supported; the VoteButton is hidden on replies.
 
   // ── Reply submit (optimistic add) ────────────────────────
   const handleSubmitReply = async (e: React.FormEvent) => {
@@ -180,7 +150,7 @@ export default function ForumThreadPage() {
     setIsSubmitting(true);
 
     try {
-      const res = await api.post<any>(`/forum/threads/${id}/replies`, {
+      const res = await api.post<any>(`/forum/${id}/replies`, {
         content: optimisticReply.content,
       });
       // Replace optimistic entry with real one
@@ -352,11 +322,6 @@ export default function ForumThreadPage() {
 
           <div className="space-y-4">
             {thread.repliesList.map((reply: any) => {
-              const optimisticVote = replyVotes[reply.id];
-              const displayCount =
-                optimisticVote?.count ?? reply.upvotes;
-              const isVoted = optimisticVote?.voted ?? false;
-
               return (
                 <div
                   key={reply.id}
@@ -410,13 +375,6 @@ export default function ForumThreadPage() {
                   {/* Actions */}
                   {!reply.isOptimistic && (
                     <div className="flex items-center gap-2">
-                      <VoteButton
-                        count={displayCount}
-                        voted={isVoted}
-                        onVote={() =>
-                          handleReplyVote(reply.id, reply.upvotes)
-                        }
-                      />
                       <button className="btn-interactive text-xs font-medium text-muted hover:text-ink transition-colors px-2.5 py-1.5 rounded-lg border border-transparent hover:border-border">
                         Balas
                       </button>

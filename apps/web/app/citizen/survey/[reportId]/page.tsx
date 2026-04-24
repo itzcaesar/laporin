@@ -1,10 +1,11 @@
 // ── app/citizen/survey/[reportId]/page.tsx ──
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Star, Send, CheckCircle } from "lucide-react";
+import { Star, Send, CheckCircle, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { api, ApiClientError } from "@/lib/api-client";
 
 const RATING_LABELS = [
   "Sangat Tidak Puas",
@@ -44,8 +45,29 @@ export default function SurveyPage() {
   const [comment, setComment] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [eligibilityError, setEligibilityError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const reportId = params.reportId as string;
+
+  // Check eligibility on mount
+  useEffect(() => {
+    if (!reportId) return;
+    api
+      .get<{ data: { eligible: boolean; reason?: string } }>(
+        `/survey/report/${reportId}/eligibility`
+      )
+      .then((res) => {
+        if (!res.data.eligible) {
+          setEligibilityError(
+            res.data.reason ?? "Anda tidak memenuhi syarat untuk mengisi survei ini."
+          );
+        }
+      })
+      .catch(() => {
+        // Non-blocking: if check fails, let user try anyway
+      });
+  }, [reportId]);
 
   const handleRating = (questionId: string, rating: number) => {
     setRatings((prev) => ({ ...prev, [questionId]: rating }));
@@ -60,13 +82,34 @@ export default function SurveyPage() {
     }
 
     setIsSubmitting(true);
-    
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    
-    setIsSubmitting(false);
-    setIsSubmitted(true);
+    setSubmitError(null);
+
+    try {
+      // Calculate overall rating as average of all question ratings
+      const avgRating = Math.round(
+        Object.values(ratings).reduce((a, b) => a + b, 0) /
+          Object.values(ratings).length
+      );
+
+      await api.post("/survey", {
+        reportId,
+        rating: avgRating,
+        comment: comment.trim() || undefined,
+        wouldRecommend: avgRating >= 4,
+      });
+
+      setIsSubmitted(true);
+    } catch (err) {
+      const message =
+        err instanceof ApiClientError
+          ? err.userMessage
+          : "Gagal mengirim survei. Coba lagi.";
+      setSubmitError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
 
   if (isSubmitted) {
     return (
@@ -110,6 +153,14 @@ export default function SurveyPage() {
             Laporan: <span className="font-mono font-semibold">{reportId}</span>
           </p>
         </div>
+
+        {/* Eligibility warning banner */}
+        {eligibilityError && (
+          <div className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+            <AlertCircle size={20} className="text-amber-600 shrink-0 mt-0.5" />
+            <p className="text-sm text-amber-800">{eligibilityError}</p>
+          </div>
+        )}
 
         {/* Survey Questions */}
         <div className="space-y-6 mb-8">
@@ -172,6 +223,14 @@ export default function SurveyPage() {
             className="w-full rounded-lg border border-border bg-surface px-4 py-3 text-sm text-ink placeholder:text-muted focus:border-blue focus:outline-none focus:ring-2 focus:ring-blue/20 resize-none"
           />
         </div>
+
+        {/* Submit error */}
+        {submitError && (
+          <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 mb-4">
+            <AlertCircle size={16} className="text-red-500 shrink-0" />
+            <p className="text-sm text-red-700">{submitError}</p>
+          </div>
+        )}
 
         {/* Submit Button */}
         <button

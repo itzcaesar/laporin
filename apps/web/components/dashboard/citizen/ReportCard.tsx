@@ -3,7 +3,7 @@
 
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { getStatusConfig } from "@/lib/status-config";
-import { ArrowBigUp, MessageCircle, CheckCircle2 } from "lucide-react";
+import { ArrowBigUp, MessageCircle, CheckCircle2, Star } from "lucide-react";
 import Link from "next/link";
 import { useRef } from "react";
 import { useConfetti } from "@/hooks/useConfetti";
@@ -119,6 +119,19 @@ export function ReportCard({ report, className }: ReportCardProps) {
           {formatRelativeTime(report.createdAt)}
         </span>
       </div>
+      {/* Survey CTA for completed reports */}
+      {isCompleted && (
+        <div className="mt-3 pt-3 border-t border-green-100">
+          <Link
+            href={`/citizen/survey/${report.id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="flex items-center justify-center gap-1.5 w-full rounded-lg bg-amber-50 border border-amber-200 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
+          >
+            <Star size={12} className="fill-amber-400 text-amber-400" />
+            Beri Penilaian Layanan
+          </Link>
+        </div>
+      )}
     </Link>
   );
 }

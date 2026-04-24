@@ -4,6 +4,8 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { api, ApiClientError } from "@/lib/api-client";
+import { useCategories } from "@/hooks/useCategories";
 import {
   ArrowLeft,
   ArrowRight,
@@ -23,34 +25,6 @@ const LocationPicker = dynamic(
   { ssr: false }
 );
 
-// ── Category Data ──
-const CATEGORIES = [
-  { id: "roads", emoji: "🛣️", name: "Jalan Rusak", agency: "Dinas PU" },
-  { id: "bus-shelters", emoji: "🚏", name: "Halte Bus Rusak", agency: "Dinas Perhubungan" },
-  { id: "street-lights", emoji: "💡", name: "Lampu & Jalan", agency: "Dinas PU" },
-  { id: "drainage", emoji: "🌊", name: "Saluran Air", agency: "Dinas PU" },
-  { id: "illegal-waste", emoji: "🗑️", name: "Sampah Liar", agency: "Dinas LH" },
-  { id: "parks", emoji: "🏞️", name: "Fasilitas Taman", agency: "Dinas PU" },
-  { id: "traffic-signs", emoji: "🚦", name: "Rambu Lalu Lintas", agency: "Dinas Perhubungan" },
-  { id: "sidewalks", emoji: "♿", name: "Trotoar", agency: "Dinas PU" },
-  { id: "public-bridges", emoji: "🌉", name: "Jembatan", agency: "Dinas PU" },
-  { id: "clean-water", emoji: "💧", name: "Air Bersih", agency: "PDAM" },
-  { id: "public-transport", emoji: "🚌", name: "Transportasi Publik", agency: "Dinas Perhubungan" },
-  { id: "cables", emoji: "🔌", name: "Kabel Semrawut", agency: "Dinas PU" },
-  { id: "flooding", emoji: "🌧️", name: "Banjir & Genangan", agency: "BPBD" },
-  { id: "parking", emoji: "🅿️", name: "Parkir Liar", agency: "Dinas Perhubungan" },
-  { id: "health", emoji: "🏥", name: "Faskes Pemerintah", agency: "Dinas Kesehatan" },
-  { id: "schools", emoji: "🏫", name: "Fasilitas Sekolah", agency: "Dinas Pendidikan" },
-  { id: "abandoned", emoji: "🏚️", name: "Bangunan Terbengkalai", agency: "Dinas PU" },
-  { id: "wifi", emoji: "📡", name: "WiFi Publik", agency: "Diskominfo" },
-  { id: "cctv", emoji: "📹", name: "CCTV Publik", agency: "Diskominfo" },
-  { id: "gov-apps", emoji: "📱", name: "Website Usang", agency: "Diskominfo" },
-  { id: "hacked-sites", emoji: "🎰", name: "Situs Diretas", agency: "Diskominfo" },
-  { id: "railways", emoji: "🚂", name: "Perlintasan Kereta", agency: "Dinas Perhubungan" },
-  { id: "hydrants", emoji: "🧯", name: "Alat Pemadam", agency: "Damkar" },
-  { id: "bridges-crosswalks", emoji: "🚶", name: "JPO", agency: "Dinas PU" },
-] as const;
-
 const PRIORITY_OPTIONS = [
   { value: "Rendah", label: "Rendah", color: "#10B981", description: "Tidak mendesak, bisa ditangani nanti" },
   { value: "Sedang", label: "Sedang", color: "#F59E0B", description: "Perlu diperbaiki dalam waktu dekat" },
@@ -66,7 +40,7 @@ const STEPS = [
 ] as const;
 
 interface FormData {
-  category: string;
+  categoryId: number | null;
   categoryName: string;
   title: string;
   description: string;
@@ -84,10 +58,16 @@ export function ReportForm() {
   const [submitted, setSubmitted] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [direction, setDirection] = useState<"next" | "prev">("next");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [trackingCode, setTrackingCode] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Fetch real categories from backend
+  const { categories, isLoading: categoriesLoading } = useCategories();
+
   const [formData, setFormData] = useState<FormData>({
-    category: "",
+    categoryId: null,
     categoryName: "",
     title: "",
     description: "",
@@ -128,7 +108,7 @@ export function ReportForm() {
   const canProceed = useCallback(() => {
     switch (step) {
       case 0:
-        return formData.category !== "";
+        return formData.categoryId !== null;
       case 1:
         return formData.title.trim().length >= 5 && formData.description.trim().length >= 10;
       case 2:
@@ -166,13 +146,86 @@ export function ReportForm() {
     });
   }, []);
 
-  const handleSubmit = useCallback(() => {
-    setIsAnimating(true);
-    setTimeout(() => {
-      setSubmitted(true);
-      setIsAnimating(false);
-    }, 600);
-  }, []);
+  const handleSubmit = useCallback(async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      // Derive region code from coords (default to Jakarta region)
+      const regionCode = "3171";
+      const regionName = "Kota Jakarta Pusat";
+
+      // 1. Create the report
+      const res = await api.post<{ data: { id: string; trackingCode: string } }>(
+        "/reports",
+        {
+          title: formData.title,
+          description: formData.description,
+          categoryId: formData.categoryId,
+          locationLat: formData.locationLat ?? -6.2,
+          locationLng: formData.locationLng ?? 106.816,
+          locationAddress: formData.location,
+          regionCode,
+          regionName,
+          isAnonymous: !formData.reporter.trim(),
+        }
+      );
+
+      const reportId = res.data.id;
+      const code = res.data.trackingCode;
+
+      // 2. Upload photos via pre-signed URLs (best-effort — report is already saved)
+      if (formData.photos.length > 0) {
+        await Promise.allSettled(
+          formData.photos.map(async (photo) => {
+            try {
+              // Get pre-signed upload URL
+              const urlRes = await api.post<{
+                data: { uploadUrl: string; fileKey: string };
+              }>(`/reports/${reportId}/media/upload-url`, {
+                mediaType: "photo",
+                mimeType: photo.type || "image/jpeg",
+                fileSizeBytes: photo.size,
+              });
+
+              const { uploadUrl, fileKey } = urlRes.data;
+
+              // PUT file directly to storage
+              await fetch(uploadUrl, {
+                method: "PUT",
+                headers: { "Content-Type": photo.type || "image/jpeg" },
+                body: photo,
+              });
+
+              // Confirm upload to backend
+              await api.post(`/reports/${reportId}/media`, {
+                fileKey,
+                mediaType: "photo",
+              });
+            } catch (photoErr) {
+              console.error("Photo upload failed (continuing):", photoErr);
+            }
+          })
+        );
+      }
+
+      setTrackingCode(code);
+      setIsAnimating(true);
+      setTimeout(() => {
+        setSubmitted(true);
+        setIsAnimating(false);
+      }, 300);
+    } catch (err) {
+      const message =
+        err instanceof ApiClientError
+          ? err.userMessage
+          : "Gagal mengirim laporan. Periksa koneksi internet Anda dan coba lagi.";
+      setSubmitError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [isSubmitting, formData]);
 
   // ── Success State ──
   if (submitted) {
@@ -191,7 +244,7 @@ export function ReportForm() {
             Nomor laporan Anda:
           </p>
           <div className="mb-6 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-6 py-3 font-display text-lg font-bold text-white backdrop-blur-sm sm:text-xl">
-            RPT-2026-{String(Math.floor(Math.random() * 9000) + 1000).padStart(4, "0")}
+            {trackingCode ?? "—"}
           </div>
           <p className="mb-8 text-sm leading-relaxed text-white/60 sm:text-base">
             Laporan Anda akan segera ditinjau oleh tim kami. Anda akan menerima notifikasi saat ada pembaruan status.
@@ -202,7 +255,7 @@ export function ReportForm() {
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-6 py-3 font-display font-semibold text-navy shadow-lg transition-all hover:bg-white/90 sm:w-auto"
             >
               <ArrowLeft size={18} />
-              Kembali ke Beranda
+              Lihat Laporan Saya
             </Link>
             <Link
               href="/citizen/map"
@@ -306,39 +359,47 @@ export function ReportForm() {
                   Pilih jenis kerusakan infrastruktur yang ingin Anda laporkan
                 </p>
               </div>
-              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-                {CATEGORIES.map((cat) => {
-                  const isSelected = formData.category === cat.id;
-                  return (
-                    <button
-                      key={cat.id}
-                      onClick={() => {
-                        updateField("category", cat.id);
-                        updateField("categoryName", cat.name);
-                      }}
-                      className={`group relative flex flex-col items-center gap-2 rounded-2xl border-2 p-4 text-center transition-all duration-200 sm:gap-2.5 sm:p-5 ${
-                        isSelected
-                          ? "border-blue bg-blue/5 shadow-[0_0_0_4px_rgba(37,99,235,0.1)]"
-                          : "border-gray-100 bg-white hover:border-blue/30 hover:bg-blue/[0.02] hover:shadow-sm"
-                      }`}
-                    >
-                      {/* Selected checkmark */}
-                      {isSelected && (
-                        <div className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-blue text-white shadow-md">
-                          <CheckCircle size={14} />
-                        </div>
-                      )}
-                      <span className="text-2xl transition-transform duration-200 group-hover:scale-110 sm:text-3xl">
-                        {cat.emoji}
-                      </span>
-                      <span className="font-display text-xs font-semibold leading-tight text-navy sm:text-sm">
-                        {cat.name}
-                      </span>
-                      <span className="text-[10px] text-muted sm:text-xs">{cat.agency}</span>
-                    </button>
-                  );
-                })}
-              </div>
+              {categoriesLoading ? (
+                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4">
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <div key={i} className="animate-pulse h-24 rounded-2xl bg-gray-100" />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                  {categories.map((cat) => {
+                    const isSelected = formData.categoryId === cat.id;
+                    return (
+                      <button
+                        key={cat.id}
+                        onClick={() => {
+                          updateField("categoryId", cat.id);
+                          updateField("categoryName", cat.name);
+                        }}
+                        className={`group relative flex flex-col items-center gap-2 rounded-2xl border-2 p-4 text-center transition-all duration-200 sm:gap-2.5 sm:p-5 ${
+                          isSelected
+                            ? "border-blue bg-blue/5 shadow-[0_0_0_4px_rgba(37,99,235,0.1)]"
+                            : "border-gray-100 bg-white hover:border-blue/30 hover:bg-blue/[0.02] hover:shadow-sm"
+                        }`}
+                      >
+                        {/* Selected checkmark */}
+                        {isSelected && (
+                          <div className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-blue text-white shadow-md">
+                            <CheckCircle size={14} />
+                          </div>
+                        )}
+                        <span className="text-2xl transition-transform duration-200 group-hover:scale-110 sm:text-3xl">
+                          {cat.emoji}
+                        </span>
+                        <span className="font-display text-xs font-semibold leading-tight text-navy sm:text-sm">
+                          {cat.name}
+                        </span>
+                        <span className="text-[10px] text-muted sm:text-xs">{cat.leadAgency}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
@@ -686,13 +747,31 @@ export function ReportForm() {
               <ArrowRight size={16} />
             </button>
           ) : (
-            <button
-              onClick={handleSubmit}
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue to-teal px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue/30 transition-all hover:shadow-lg hover:brightness-110 sm:px-8 sm:py-3"
-            >
-              <Send size={16} />
-              Kirim Laporan
-            </button>
+            <div className="flex flex-col items-end gap-2">
+              {submitError && (
+                <p className="text-xs text-red-500 text-right max-w-xs">{submitError}</p>
+              )}
+              <button
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue to-teal px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue/30 transition-all hover:shadow-lg hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed sm:px-8 sm:py-3"
+              >
+                {isSubmitting ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                    </svg>
+                    Mengirim...
+                  </>
+                ) : (
+                  <>
+                    <Send size={16} />
+                    Kirim Laporan
+                  </>
+                )}
+              </button>
+            </div>
           )}
         </div>
       </div>
