@@ -20,21 +20,36 @@ import type {
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 const API_KEY = env.OPENROUTER_API_KEY || env.ANTHROPIC_API_KEY
 
-// Free models available on OpenRouter
+// Free models available on OpenRouter (in priority order)
 const MODELS = {
-  vision: 'google/gemini-flash-1.5-8b', // For image classification (free)
-  text: 'meta-llama/llama-3.1-8b-instruct', // For text analysis (free)
-  quick: 'meta-llama/llama-3.2-3b-instruct', // For quick tasks (free)
+  vision: 'google/gemini-flash-1.5-8b',         // For image classification (free)
+  text: 'meta-llama/llama-3.3-70b-instruct:free', // Primary text model (free)
+  quick: 'meta-llama/llama-3.2-3b-instruct:free', // Quick tasks (free)
 }
 
+// Fallback chain when free models are rate-limited (429)
+const TEXT_FALLBACKS = [
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'nousresearch/hermes-3-llama-3.1-405b:free',
+  'google/gemma-3-27b-it:free',
+  'meta-llama/llama-3.1-8b-instruct:free',
+  'meta-llama/llama-3.1-8b-instruct', // Paid fallback — last resort
+]
+
+const QUICK_FALLBACKS = [
+  'meta-llama/llama-3.2-3b-instruct:free',
+  'meta-llama/llama-3.1-8b-instruct:free',
+  'meta-llama/llama-3.1-8b-instruct',
+]
+
 /**
- * Call OpenRouter API
+ * Call OpenRouter API with a single model, returns { content, status }
  */
-async function callOpenRouter(
+async function callModel(
   model: string,
   messages: OpenRouterMessage[],
-  maxTokens: number = 500
-): Promise<string> {
+  maxTokens: number
+): Promise<{ content: string; status: number }> {
   const response = await fetch(OPENROUTER_API_URL, {
     method: 'POST',
     headers: {
@@ -43,21 +58,56 @@ async function callOpenRouter(
       'HTTP-Referer': 'https://laporin.site',
       'X-Title': 'Laporin',
     },
-    body: JSON.stringify({
-      model,
-      messages,
-      max_tokens: maxTokens,
-    }),
+    body: JSON.stringify({ model, messages, max_tokens: maxTokens }),
   })
+  return { content: await response.text(), status: response.status }
+}
 
-  if (!response.ok) {
-    const error = await response.text()
-    throw new Error(`OpenRouter API error: ${response.status} - ${error}`)
+/**
+ * Call OpenRouter API with automatic model fallback on 429 rate limits
+ */
+async function callOpenRouter(
+  model: string,
+  messages: OpenRouterMessage[],
+  maxTokens: number = 500
+): Promise<string> {
+  // Build fallback list: start with requested model, then apply appropriate chain
+  const isQuickModel = model === MODELS.quick || QUICK_FALLBACKS.includes(model)
+  const chain = isQuickModel ? QUICK_FALLBACKS : TEXT_FALLBACKS
+
+  // Ensure the requested model is tried first even if not in chain
+  const tryOrder = [model, ...chain.filter((m) => m !== model)]
+
+  let lastError = ''
+  for (const tryModel of tryOrder) {
+    console.log(`[AI] Trying model: ${tryModel}`)
+    try {
+      const { content, status } = await callModel(tryModel, messages, maxTokens)
+
+      if (status === 429) {
+        console.log(`[AI] Model unavailable (429): ${tryModel} — trying next fallback.`)
+        lastError = `${tryModel} rate limited`
+        continue
+      }
+
+      if (!String(status).startsWith('2')) {
+        console.warn(`[AI] Model error (${status}): ${tryModel} — ${content.substring(0, 100)}`)
+        lastError = `${tryModel} returned ${status}`
+        continue
+      }
+
+      const data = JSON.parse(content) as OpenRouterResponse
+      return data.choices[0].message.content
+    } catch (err) {
+      lastError = String(err)
+      console.warn(`[AI] Model threw: ${tryModel} — ${lastError}`)
+      continue
+    }
   }
 
-  const data = (await response.json()) as OpenRouterResponse
-  return data.choices[0].message.content
+  throw new Error(`All AI models exhausted. Last error: ${lastError}`)
 }
+
 
 /**
  * Classify report photo using vision model
