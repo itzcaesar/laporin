@@ -485,4 +485,75 @@ govOfficers.get('/:id/stats', async (c) => {
   }
 })
 
+/**
+ * POST /gov/officers/:id/reset-password
+ * Reset officer password — generates a temporary password and returns it to the admin.
+ * Admin is responsible for communicating the temp password to the officer securely.
+ */
+govOfficers.post('/:id/reset-password', async (c) => {
+  const id = c.req.param('id')
+  const user = c.get('user')
+
+  try {
+    // Get officer
+    const officer = await db.user.findUnique({
+      where: { id },
+      select: { id: true, agencyId: true, name: true, email: true, isActive: true },
+    })
+
+    if (!officer) {
+      return c.json({ error: 'Officer not found' }, 404)
+    }
+
+    // Check access
+    if (user.role !== 'super_admin' && user.agencyId !== officer.agencyId) {
+      return c.json({ error: 'Can only reset passwords for officers in your own agency' }, 403)
+    }
+
+    if (!officer.isActive) {
+      return c.json({ error: 'Cannot reset password for an inactive officer' }, 400)
+    }
+
+    // Generate a random 12-character temporary password
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+    const tempPassword = Array.from({ length: 12 }, () =>
+      chars[Math.floor(Math.random() * chars.length)]
+    ).join('')
+
+    // Hash and store
+    const passwordHash = await hashPassword(tempPassword)
+    await db.user.update({
+      where: { id },
+      data: { passwordHash },
+    })
+
+    // Revoke all active refresh tokens so existing sessions are invalidated
+    await db.refreshToken.updateMany({
+      where: { userId: id, isRevoked: false },
+      data: { isRevoked: true },
+    })
+
+    // Audit log
+    await db.auditLog.create({
+      data: {
+        actorId: user.sub,
+        action: 'reset_officer_password',
+        targetType: 'user',
+        targetId: id,
+        metadata: { officerEmail: officer.email },
+      },
+    })
+
+    return c.json({
+      data: {
+        tempPassword,
+        message: `Password petugas ${officer.name ?? officer.email} berhasil direset. Sampaikan kata sandi sementara ini kepada petugas dan minta mereka segera mengubahnya.`,
+      },
+    })
+  } catch (error) {
+    console.error('Reset officer password error:', error)
+    return c.json({ error: 'Failed to reset officer password' }, 500)
+  }
+})
+
 export default govOfficers

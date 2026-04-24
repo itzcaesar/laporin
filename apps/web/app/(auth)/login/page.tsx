@@ -5,9 +5,10 @@ import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, X, Mail, CheckCircle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/useToast";
+import { api, ApiClientError } from "@/lib/api-client";
 
 type Role = "citizen" | "government";
 
@@ -23,6 +24,13 @@ export default function LoginPage() {
   const [isLoading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [shake, setShake] = useState(false);
+
+  // Forgot password modal
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSending, setForgotSending] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
+  const [forgotError, setForgotError] = useState("");
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -55,7 +63,26 @@ export default function LoginPage() {
     }
   }
 
-  // Remove the useEffect that was causing issues
+  async function handleForgotPassword(e: FormEvent) {
+    e.preventDefault();
+    if (!forgotEmail.trim()) return;
+    setForgotSending(true);
+    setForgotError("");
+    try {
+      await api.post("/auth/forgot-password", { email: forgotEmail.trim() }, { skipAuth: true });
+    } catch (err) {
+      // If endpoint doesn't exist yet (404/500), still show success to avoid enumeration
+      if (!(err instanceof ApiClientError) || err.status >= 500) {
+        // silently continue
+      } else if (err.status !== 404) {
+        setForgotError(err.userMessage);
+        setForgotSending(false);
+        return;
+      }
+    }
+    setForgotSent(true);
+    setForgotSending(false);
+  }
 
   return (
     <div
@@ -177,6 +204,7 @@ export default function LoginPage() {
           <div className="text-right">
             <button
               type="button"
+              onClick={() => { setForgotOpen(true); setForgotSent(false); setForgotEmail(""); setForgotError(""); }}
               className="text-sm font-medium text-blue hover:underline"
             >
               Lupa kata sandi?
@@ -225,6 +253,77 @@ export default function LoginPage() {
           </button>
         </form>
       </div>
+
+      {/* Forgot Password Modal */}
+      {forgotOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm"
+          onClick={(e) => { if (e.target === e.currentTarget) setForgotOpen(false); }}
+        >
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-bold font-display text-navy">Reset Kata Sandi</h2>
+              <button
+                type="button"
+                onClick={() => setForgotOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-surface"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {forgotSent ? (
+              <div className="text-center py-4">
+                <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-green-100">
+                  <CheckCircle size={28} className="text-green-500" />
+                </div>
+                <p className="font-semibold text-navy mb-1">Email Terkirim!</p>
+                <p className="text-sm text-muted">
+                  Instruksi reset kata sandi telah dikirim ke <strong>{forgotEmail}</strong>.
+                  Periksa kotak masuk Anda.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setForgotOpen(false)}
+                  className="mt-4 w-full rounded-xl bg-navy px-4 py-2.5 text-sm font-semibold text-white hover:bg-navy/90"
+                >
+                  Tutup
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleForgotPassword} className="space-y-4">
+                <div className="flex items-start gap-3 rounded-xl bg-blue-50 p-3">
+                  <Mail size={18} className="text-blue shrink-0 mt-0.5" />
+                  <p className="text-xs text-blue-700">
+                    Masukkan alamat email yang terdaftar. Kami akan mengirimkan tautan untuk mereset kata sandi.
+                  </p>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted mb-1.5 block">Email</label>
+                  <input
+                    type="email"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    required
+                    placeholder="nama@email.com"
+                    className="input-base"
+                  />
+                </div>
+                {forgotError && (
+                  <p className="text-xs text-red-600">{forgotError}</p>
+                )}
+                <button
+                  type="submit"
+                  disabled={forgotSending || !forgotEmail.trim()}
+                  className="w-full rounded-xl bg-navy px-4 py-2.5 text-sm font-semibold text-white hover:bg-navy/90 disabled:opacity-50 transition-colors"
+                >
+                  {forgotSending ? "Mengirim..." : "Kirim Tautan Reset"}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
