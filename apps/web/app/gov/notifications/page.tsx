@@ -127,9 +127,9 @@ export default function GovNotificationsPage() {
                       {notification.body}
                     </p>
                     
-                    {notification.reportTrackingCode && (
+                    {notification.trackingCode && (
                       <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-surface text-[11px] font-mono font-medium text-navy border border-border">
-                        #{notification.reportTrackingCode}
+                        #{notification.trackingCode}
                       </div>
                     )}
                   </div>
