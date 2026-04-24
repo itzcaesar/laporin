@@ -1,43 +1,94 @@
 import { Hono } from 'hono'
-import { ok } from '../lib/response.js'
+import { authMiddleware, type AuthVariables } from '../middleware/auth.js'
+import { ok, err } from '../lib/response.js'
+import { db } from '../db.js'
 
-const faq = new Hono()
+const faq = new Hono<{ Variables: AuthVariables }>()
 
-const MOCK_FAQS = [
-  {
-    id: "1",
-    question: "Bagaimana cara membuat laporan yang baik?",
-    answer: "Untuk membuat laporan yang baik, pastikan Anda menyertakan foto yang jelas, deskripsi yang detail, dan lokasi yang akurat menggunakan fitur pin peta.",
-    category: "Umum",
-    isPublished: true,
-    views: 1250,
-    helpful: 856,
-    updatedAt: "2026-04-15T10:00:00Z",
-  },
-  {
-    id: "2",
-    question: "Berapa lama laporan saya akan diproses?",
-    answer: "Waktu pemrosesan bergantung pada prioritas: Darurat (2 hari), Tinggi (7 hari), Sedang (14 hari), dan Rendah (30 hari).",
-    category: "Proses Laporan",
-    isPublished: true,
-    views: 980,
-    helpful: 645,
-    updatedAt: "2026-04-10T08:30:00Z",
-  },
-  {
-    id: "3",
-    question: "Apakah identitas saya aman?",
-    answer: "Ya, Anda dapat memilih opsi 'Lapor Anonim' saat membuat laporan. Identitas Anda tidak akan ditampilkan ke publik maupun petugas lapangan.",
-    category: "Privasi",
-    isPublished: true,
-    views: 2100,
-    helpful: 1890,
-    updatedAt: "2026-04-05T14:20:00Z",
-  },
-];
+/**
+ * GET /faq
+ * Public: returns all published FAQs (admin sees all)
+ */
+faq.get('/', async (c) => {
+  try {
+    const items = await db.fAQ.findMany({
+      orderBy: { sortOrder: 'asc' },
+    })
+    return ok(c, items)
+  } catch {
+    return err(c, 'INTERNAL_ERROR', 'Gagal memuat FAQ', 500)
+  }
+})
 
-faq.get('/', (c) => {
-  return ok(c, MOCK_FAQS)
+/**
+ * POST /faq
+ * Admin only: create a new FAQ entry
+ */
+faq.post('/', authMiddleware, async (c) => {
+  const user = c.get('user')
+  if (!['admin', 'super_admin'].includes(user.role)) {
+    return err(c, 'FORBIDDEN', 'Akses ditolak', 403)
+  }
+  try {
+    const body = await c.req.json()
+    const { question, answer, category, isPublished = false } = body
+    if (!question || !answer || !category) {
+      return err(c, 'INVALID_INPUT', 'Pertanyaan, jawaban, dan kategori wajib diisi', 400)
+    }
+    const count = await db.fAQ.count()
+    const item = await db.fAQ.create({
+      data: { question, answer, category, isPublished, authorId: user.sub },
+    })
+    return ok(c, item)
+  } catch {
+    return err(c, 'INTERNAL_ERROR', 'Gagal membuat FAQ', 500)
+  }
+})
+
+/**
+ * PATCH /faq/:id
+ * Admin only: update FAQ fields
+ */
+faq.patch('/:id', authMiddleware, async (c) => {
+  const user = c.get('user')
+  if (!['admin', 'super_admin'].includes(user.role)) {
+    return err(c, 'FORBIDDEN', 'Akses ditolak', 403)
+  }
+  try {
+    const { id } = c.req.param()
+    const body = await c.req.json()
+    const { question, answer, category, isPublished } = body
+    const item = await db.fAQ.update({
+      where: { id },
+      data: {
+        ...(question !== undefined && { question }),
+        ...(answer !== undefined && { answer }),
+        ...(category !== undefined && { category }),
+        ...(isPublished !== undefined && { isPublished }),
+      },
+    })
+    return ok(c, item)
+  } catch {
+    return err(c, 'INTERNAL_ERROR', 'Gagal memperbarui FAQ', 500)
+  }
+})
+
+/**
+ * DELETE /faq/:id
+ * Admin only: delete a FAQ entry
+ */
+faq.delete('/:id', authMiddleware, async (c) => {
+  const user = c.get('user')
+  if (!['admin', 'super_admin'].includes(user.role)) {
+    return err(c, 'FORBIDDEN', 'Akses ditolak', 403)
+  }
+  try {
+    const { id } = c.req.param()
+    await db.fAQ.delete({ where: { id } })
+    return ok(c, { id })
+  } catch {
+    return err(c, 'INTERNAL_ERROR', 'Gagal menghapus FAQ', 500)
+  }
 })
 
 export default faq

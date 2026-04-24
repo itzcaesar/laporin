@@ -8,28 +8,28 @@ const FOOTER_COLUMNS: FooterColumn[] = [
   {
     heading: "Platform",
     links: [
-      { label: "Buat Laporan", href: "#lapor" },
+      { label: "Buat Laporan", href: "/lapor" },
       { label: "Peta Laporan", href: "/peta" },
-      { label: "Cara Kerja", href: "#cara-kerja" },
-      { label: "Statistik", href: "#statistik" },
+      { label: "Cara Kerja", href: "/#cara-kerja" },
+      { label: "Statistik", href: "/#statistik" },
     ],
   },
   {
     heading: "Kategori",
     links: [
-      { label: "Jalan Rusak", href: "#kategori" },
-      { label: "Lampu Jalan", href: "#kategori" },
-      { label: "Drainase", href: "#kategori" },
-      { label: "Lihat Semua →", href: "#kategori" },
+      { label: "Jalan Rusak", href: "/lapor" },
+      { label: "Lampu Jalan", href: "/lapor" },
+      { label: "Drainase", href: "/lapor" },
+      { label: "Lihat Semua →", href: "/lapor" },
     ],
   },
   {
     heading: "Kontak",
     links: [
       { label: "halo@Laporin.site", href: "mailto:halo@Laporin.site" },
-      { label: "Panduan Pengguna", href: "#panduan" },
-      { label: "FAQ", href: "#faq" },
-      { label: "Kebijakan Privasi", href: "#privasi" },
+      { label: "Panduan Pengguna", href: "/#panduan" },
+      { label: "FAQ", href: "/#faq" },
+      { label: "Kebijakan Privasi", href: "/privasi" },
     ],
   },
 ] as const;
