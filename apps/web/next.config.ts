@@ -7,6 +7,10 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
+        hostname: 'media.laporin.site',
+      },
+      {
+        protocol: 'https',
         hostname: '*.cartocdn.com',
       },
       {
