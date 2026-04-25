@@ -33,7 +33,12 @@ app.use('*', secureHeaders())
 app.use(
   '*',
   cors({
-    origin: env.ALLOWED_ORIGINS.split(',').map((origin) => origin.trim()),
+    origin: (origin, c) => {
+      if (!origin) return env.ALLOWED_ORIGINS.split(',')[0]
+      if (env.NODE_ENV === 'development') return origin
+      const allowed = env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
+      return allowed.includes(origin) ? origin : allowed[0]
+    },
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
     exposeHeaders: ['Content-Length', 'X-Request-Id', 'Content-Disposition'],

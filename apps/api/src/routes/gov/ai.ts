@@ -24,7 +24,7 @@ const FALLBACK_MODELS = [
   "meta-llama/llama-3.3-70b-instruct:free", // primary   — 70B Llama 3.3, confirmed working
   "nousresearch/hermes-3-llama-3.1-405b:free", // fallback 1 — 405B Hermes, different provider
   "qwen/qwen3-next-80b-a3b-instruct:free", // fallback 2 — 80B Qwen3, strong multilingual
-  "google/gemma-3-27b-it:free", // fallback 3 — 27B Gemma 3, stable Google endpoint
+  "deepseek/deepseek-chat-v3-0324:free", // fallback 3 — DeepSeek V3, supports system prompts
   "meta-llama/llama-3.1-8b-instruct", // fallback 4 — confirmed working (ai.service.ts), no :free
 ] as const;
 
@@ -144,10 +144,12 @@ async function callModel(
 
   if (!response.ok) {
     const errorText = await response.text();
-    // Treat rate-limit and missing-endpoint as "skip to next model".
+    // Treat rate-limit, missing-endpoint, and unsupported-feature as "skip to next model".
     if (
       response.status === 429 ||
-      (response.status === 404 && errorText.includes("No endpoints found"))
+      (response.status === 404 && errorText.includes("No endpoints found")) ||
+      (response.status === 400 && errorText.includes("Provider returned error")) ||
+      (response.status === 400 && errorText.includes("Developer instruction"))
     ) {
       throw new ModelUnavailableError(model, response.status);
     }

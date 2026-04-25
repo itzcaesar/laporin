@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useRef } from "react";
 import { useConfetti } from "@/hooks/useConfetti";
 import type { Report } from "@/types";
+import { useRouter } from "next/navigation";
 
 interface ReportCardProps {
   report: Report;
@@ -17,6 +18,7 @@ interface ReportCardProps {
 export function ReportCard({ report, className }: ReportCardProps) {
   const statusConfig = getStatusConfig(report.status);
   const { burst } = useConfetti();
+  const router = useRouter();
   const cardRef = useRef<HTMLAnchorElement>(null);
   const isCompleted =
     report.status === "completed" || report.status === "verified_complete";
@@ -122,14 +124,18 @@ export function ReportCard({ report, className }: ReportCardProps) {
       {/* Survey CTA for completed reports */}
       {isCompleted && (
         <div className="mt-3 pt-3 border-t border-green-100">
-          <Link
-            href={`/citizen/survey/${report.id}`}
-            onClick={(e) => e.stopPropagation()}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              router.push(`/citizen/survey/${report.id}`);
+            }}
             className="flex items-center justify-center gap-1.5 w-full rounded-lg bg-amber-50 border border-amber-200 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
           >
             <Star size={12} className="fill-amber-400 text-amber-400" />
             Beri Penilaian Layanan
-          </Link>
+          </button>
         </div>
       )}
     </Link>

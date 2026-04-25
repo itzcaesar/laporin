@@ -1,7 +1,20 @@
 // ── lib/api-client.ts ──
 // Core API client with automatic token refresh and error handling
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
+const getBaseUrl = () => {
+  if (typeof window !== 'undefined') {
+    // If NEXT_PUBLIC_API_URL is explicitly set to a non-localhost remote URL, use it
+    if (process.env.NEXT_PUBLIC_API_URL && !process.env.NEXT_PUBLIC_API_URL.includes('localhost')) {
+      return process.env.NEXT_PUBLIC_API_URL
+    }
+    // Otherwise, dynamically construct it based on the window's hostname
+    // This allows local network testing (e.g., accessing via 192.168.x.x or 10.x.x.x)
+    return `${window.location.protocol}//${window.location.hostname}:4000`
+  }
+  return process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
+}
+
+const BASE_URL = getBaseUrl()
 
 // ── Token helpers ─────────────────────────────────────────────────────────
 

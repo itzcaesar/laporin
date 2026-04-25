@@ -38,6 +38,9 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ['lucide-react', 'react-leaflet', 'leaflet'],
   },
+
+  // Fix warning on development
+  allowedDevOrigins: ['10.110.2.213'],
 };
 
 export default nextConfig;
