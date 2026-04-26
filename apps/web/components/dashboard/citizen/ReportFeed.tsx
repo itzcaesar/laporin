@@ -15,6 +15,7 @@ import {
   MapPin,
 } from "lucide-react";
 import type { Report } from "@/types";
+import { api } from "@/lib/api-client";
 import { CommentModal } from "./CommentModal";
 
 interface ReportFeedProps {
@@ -58,25 +59,59 @@ function CommentPreview({
 }
 
 function ReportFeedItem({ report }: { report: Report }) {
-  const [isUpvoted, setIsUpvoted] = useState(false);
-  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [isUpvoted, setIsUpvoted] = useState(report.hasVoted);
+  const [upvoteCount, setUpvoteCount] = useState(report.upvoteCount);
+  const [isBookmarked, setIsBookmarked] = useState(report.hasBookmarked);
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
+  const [isVoting, setIsVoting] = useState(false);
+  const [isBookmarkLoading, setIsBookmarkLoading] = useState(false);
   const statusConfig = getStatusConfig(report.status);
 
-  // Placeholder image - in production, use actual report images
-  const reportImage =
-    "https://images.unsplash.com/photo-1581094271901-8022df4466f9?w=800&q=80";
+  // Use actual report thumbnail or a fallback placeholder
+  const reportImage = report.thumbnailUrl || null;
 
-  const handleUpvote = (e: React.MouseEvent) => {
+  const handleUpvote = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsUpvoted(!isUpvoted);
+    if (isVoting) return;
+
+    setIsVoting(true);
+    try {
+      if (isUpvoted) {
+        await api.delete(`/reports/${report.id}/vote`);
+        setIsUpvoted(false);
+        setUpvoteCount((prev) => Math.max(0, prev - 1));
+      } else {
+        await api.post(`/reports/${report.id}/vote`, {});
+        setIsUpvoted(true);
+        setUpvoteCount((prev) => prev + 1);
+      }
+    } catch (err) {
+      console.error("Vote error:", err);
+    } finally {
+      setIsVoting(false);
+    }
   };
 
-  const handleBookmark = (e: React.MouseEvent) => {
+  const handleBookmark = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsBookmarked(!isBookmarked);
+    if (isBookmarkLoading) return;
+
+    setIsBookmarkLoading(true);
+    try {
+      if (isBookmarked) {
+        await api.delete(`/user/bookmarks/${report.id}`);
+        setIsBookmarked(false);
+      } else {
+        await api.post(`/user/bookmarks/${report.id}`, {});
+        setIsBookmarked(true);
+      }
+    } catch (err) {
+      console.error("Bookmark error:", err);
+    } finally {
+      setIsBookmarkLoading(false);
+    }
   };
 
   const handleComment = (e: React.MouseEvent) => {
@@ -136,13 +171,20 @@ function ReportFeedItem({ report }: { report: Report }) {
         {/* Image */}
         <Link href={`/citizen/reports/${report.id}`}>
           <div className="relative aspect-square bg-gray-100">
-            <Image
-              src={reportImage}
-              alt={report.title}
-              fill
-              className="object-cover"
-              sizes="(max-width: 768px) 100vw, 600px"
-            />
+            {reportImage ? (
+              <Image
+                src={reportImage}
+                alt={report.title}
+                fill
+                className="object-cover"
+                sizes="(max-width: 768px) 100vw, 600px"
+              />
+            ) : (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
+                <span className="text-6xl mb-2">{report.categoryEmoji}</span>
+                <span className="text-xs text-muted font-medium">Foto Laporan</span>
+              </div>
+            )}
             {/* Status Badge Overlay */}
             <div className="absolute top-3 right-3">
               <div
@@ -163,11 +205,13 @@ function ReportFeedItem({ report }: { report: Report }) {
             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 via-black/40 to-transparent p-4 pt-16">
               <div className="flex items-center gap-2 mb-2">
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm text-white font-semibold text-xs border-2 border-white/50">
-                  W
+                  {report.reporterName?.charAt(0)?.toUpperCase() || "W"}
                 </div>
                 <div>
                   <p className="text-xs text-white/80">Dilaporkan oleh</p>
-                  <p className="text-sm font-semibold text-white">Warga Bandung</p>
+                  <p className="text-sm font-semibold text-white">
+                    {report.reporterName || "Warga"}
+                  </p>
                 </div>
               </div>
             </div>
@@ -179,8 +223,9 @@ function ReportFeedItem({ report }: { report: Report }) {
           <div className="flex items-center gap-4">
             <button
               onClick={handleUpvote}
+              disabled={isVoting}
               className={cn(
-                "flex items-center gap-1.5 transition-colors",
+                "flex items-center gap-1.5 transition-colors disabled:opacity-50",
                 isUpvoted ? "text-blue" : "text-muted"
               )}
             >
@@ -188,7 +233,7 @@ function ReportFeedItem({ report }: { report: Report }) {
                 size={24}
                 className={isUpvoted ? "fill-current" : ""}
               />
-              <span className="text-sm font-medium">{report.upvoteCount}</span>
+              <span className="text-sm font-medium">{upvoteCount}</span>
             </button>
             <button
               onClick={handleComment}
@@ -206,8 +251,9 @@ function ReportFeedItem({ report }: { report: Report }) {
           </div>
           <button
             onClick={handleBookmark}
+            disabled={isBookmarkLoading}
             className={cn(
-              "transition-colors",
+              "transition-colors disabled:opacity-50",
               isBookmarked ? "text-yellow-600" : "text-muted hover:text-ink"
             )}
           >

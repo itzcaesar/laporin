@@ -21,7 +21,7 @@ const CACHE_TTL_STATS = parseInt(process.env.CACHE_TTL_STATS || '300')
  */
 app.get('/public', async (c) => {
   try {
-    const [totalReports, resolvedReports, activeDinas, satisfactionData] =
+    const [totalReports, resolvedReports, activeDinas, satisfactionData, avgResolution] =
       await Promise.all([
         db.report.count(),
         db.report.count({
@@ -29,6 +29,15 @@ app.get('/public', async (c) => {
         }),
         db.agency.count({ where: { isActive: true } }),
         db.satisfactionRating.aggregate({ _avg: { rating: true } }),
+        db.$queryRaw<Array<{ avg_days: number }>>`
+          SELECT COALESCE(
+            AVG(EXTRACT(EPOCH FROM (completed_at - created_at)) / 86400),
+            0
+          )::float as avg_days
+          FROM reports
+          WHERE status IN ('completed', 'verified_complete')
+            AND completed_at IS NOT NULL
+        `,
       ])
 
     return ok(c, {
@@ -36,7 +45,7 @@ app.get('/public', async (c) => {
       resolvedReports,
       resolutionRate:
         totalReports > 0 ? Math.round((resolvedReports / totalReports) * 100) : 0,
-      avgDaysToResolve: 0, // TODO: compute from raw SQL if needed
+      avgDaysToResolve: Math.round((avgResolution[0]?.avg_days || 0) * 10) / 10,
       activeDinas,
       satisfactionAvg: satisfactionData._avg.rating,
     })

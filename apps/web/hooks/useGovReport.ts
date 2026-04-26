@@ -98,11 +98,22 @@ type GovReportDetail = {
   comments: Array<{
     id: string
     content: string
+    isGovernment: boolean
     author: {
       name: string | null
       role: string
     } | null
     createdAt: string
+    replies: Array<{
+      id: string
+      content: string
+      isGovernment: boolean
+      author: {
+        name: string | null
+        role: string
+      } | null
+      createdAt: string
+    }>
   }>
   rating: {
     id: string

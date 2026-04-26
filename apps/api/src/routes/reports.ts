@@ -200,7 +200,7 @@ reports.get('/:id', optionalAuthMiddleware, zValidator('param', reportIdSchema),
     const mapComment = (comment: any): any => ({
       id: comment.id,
       content: comment.content,
-      authorName: comment.isGovernment ? null : comment.author?.name ?? null,
+      authorName: comment.author?.name ?? null,
       isGovernment: comment.isGovernment,
       upvoteCount: comment.upvoteCount,
       parentId: comment.parentId,
@@ -557,8 +557,6 @@ reports.post(
   }
 )
 
-export default reports
-
 /**
  * POST /reports/:id/vote
  * Upvote a report (authenticated users only)
@@ -783,6 +781,13 @@ reports.post(
         }
       }
 
+      // Determine if comment is from a government officer
+      const commentAuthor = await db.user.findUnique({
+        where: { id: user.sub },
+        select: { role: true },
+      })
+      const isGovComment = commentAuthor?.role === 'officer' || commentAuthor?.role === 'admin' || commentAuthor?.role === 'super_admin'
+
       // Create comment
       const comment = await db.comment.create({
         data: {
@@ -790,6 +795,7 @@ reports.post(
           authorId: user.sub,
           content,
           parentId: parentId || null,
+          isGovernment: isGovComment,
         },
         include: {
           author: {
@@ -1033,3 +1039,5 @@ reports.post(
     }
   }
 )
+
+export default reports

@@ -11,6 +11,21 @@ import { getPagination, getSkip, buildMeta } from '../lib/pagination.js'
 
 const forum = new Hono<{ Variables: AuthVariables }>()
 
+/**
+ * Calculate user reputation from gamification points
+ */
+async function calculateReputation(userId: string): Promise<number> {
+  try {
+    const gamification = await db.userGamification.findUnique({
+      where: { userId },
+      select: { totalPoints: true },
+    })
+    return gamification?.totalPoints || 0
+  } catch {
+    return 0
+  }
+}
+
 // Validation schemas
 const createThreadSchema = z.object({
   title: z.string().min(10).max(200),
@@ -77,23 +92,25 @@ forum.get('/', async (c) => {
       db.forumThread.count({ where }),
     ])
 
-    const data = items.map((thread) => ({
-      id: thread.id,
-      title: thread.title,
-      content: thread.content.substring(0, 200) + (thread.content.length > 200 ? '...' : ''),
-      category: thread.category,
-      author: {
-        name: thread.author.name || 'Anonim',
-        reputation: 0, // TODO: Calculate from user activity
-      },
-      replies: thread._count.replies,
-      views: thread.viewCount,
-      upvotes: thread.upvoteCount,
-      isPinned: thread.isPinned,
-      isLocked: thread.isLocked,
-      lastActivity: thread.lastActivityAt.toISOString(),
-      createdAt: thread.createdAt.toISOString(),
-    }))
+    const data = await Promise.all(
+      items.map(async (thread) => ({
+        id: thread.id,
+        title: thread.title,
+        content: thread.content.substring(0, 200) + (thread.content.length > 200 ? '...' : ''),
+        category: thread.category,
+        author: {
+          name: thread.author.name || 'Anonim',
+          reputation: await calculateReputation(thread.author.id),
+        },
+        replies: thread._count.replies,
+        views: thread.viewCount,
+        upvotes: thread.upvoteCount,
+        isPinned: thread.isPinned,
+        isLocked: thread.isLocked,
+        lastActivity: thread.lastActivityAt.toISOString(),
+        createdAt: thread.createdAt.toISOString(),
+      }))
+    )
 
     return paginated(c, data, buildMeta(total, { page, limit }))
   } catch (error) {
@@ -151,7 +168,7 @@ forum.get('/:id', zValidator('param', threadIdSchema), async (c) => {
       author: {
         id: thread.author.id,
         name: thread.author.name || 'Anonim',
-        reputation: 0, // TODO: Calculate
+        reputation: await calculateReputation(thread.author.id),
       },
       replies: thread.replies.map((reply) => ({
         id: reply.id,

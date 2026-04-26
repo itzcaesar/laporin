@@ -619,10 +619,30 @@ export async function predictWorkload(agencyId: string): Promise<WorkloadPredict
       LIMIT 10
     `
 
+    // Get officer count per region for staffing context
+    const officerCounts = await db.$queryRaw<
+      Array<{ region_code: string; officer_count: bigint }>
+    >`
+      SELECT 
+        r.region_code,
+        COUNT(DISTINCT u.id) as officer_count
+      FROM reports r
+      LEFT JOIN users u ON u.agency_id = ${agencyId}::uuid
+        AND u.role IN ('officer', 'admin')
+        AND u.is_active = true
+      WHERE r.agency_id = ${agencyId}::uuid
+        AND r.created_at >= ${ninetyDaysAgo}
+      GROUP BY r.region_code
+    `
+
+    const officerMap = new Map(
+      officerCounts.map((o) => [o.region_code, Number(o.officer_count)])
+    )
+
     const subdistrictPredictions = bySubdistrict.map((item) => ({
       code: item.region_code,
       predicted: Math.round((Number(item.count) / 90) * 7 * 1.1), // Weekly prediction
-      currentStaff: 0, // TODO: Get from officers table
+      currentStaff: officerMap.get(item.region_code) || 0,
     }))
 
     // Generate recommendation if needed

@@ -10,6 +10,7 @@ import { encrypt } from '../lib/crypto.js'
 import { generateOtp } from '../lib/crypto.js'
 import { authMiddleware, type AuthVariables } from '../middleware/auth.js'
 import { ok, err } from '../lib/response.js'
+import { sendOtpEmail } from '../services/notification.service.js'
 import {
   registerSchema,
   loginSchema,
@@ -317,8 +318,13 @@ auth.post('/otp/send', zValidator('json', sendOtpSchema), async (c) => {
     const otpKey = `otp:${email}`
     await redis.setex(otpKey, 600, otp) // 600 seconds = 10 minutes
 
-    // TODO: Send OTP via email (implement in notification service)
-    // For now, log it in development
+    // Send OTP via email
+    const emailResult = await sendOtpEmail(email, user.name, otp)
+    if (!emailResult.success) {
+      console.warn(`Failed to send OTP email to ${email}:`, emailResult.error)
+    }
+
+    // Also log in development for debugging
     if (env.NODE_ENV === 'development') {
       console.log(`📧 OTP for ${email}: ${otp}`)
     }

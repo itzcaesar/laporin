@@ -2,6 +2,7 @@
 "use client";
 
 import { useState } from "react";
+import { api } from "@/lib/api-client";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, MapPin } from "lucide-react";
 import { AiAnalysisCard } from "@/components/dashboard/gov/AiAnalysisCard";
@@ -112,11 +113,20 @@ export default function GovReportDetailPage() {
       id: c.id,
       content: c.content,
       authorName: c.author?.name || "Anonim",
-      isGovernment: c.author?.role === 'officer' || c.author?.role === 'admin',
+      isGovernment: c.isGovernment || c.author?.role === 'officer' || c.author?.role === 'admin',
       upvoteCount: 0,
       parentId: null,
       createdAt: c.createdAt,
-      replies: [],
+      replies: (c.replies ?? []).map(r => ({
+        id: r.id,
+        content: r.content,
+        authorName: r.author?.name || "Anonim",
+        isGovernment: r.isGovernment || r.author?.role === 'officer' || r.author?.role === 'admin',
+        upvoteCount: 0,
+        parentId: c.id,
+        createdAt: r.createdAt,
+        replies: [],
+      })),
     })),
     statusHistory: reportData.statusHistory.map(h => ({
       id: h.id,
@@ -178,14 +188,17 @@ export default function GovReportDetailPage() {
   }
 
   const handleReply = async (commentId: string, content: string) => {
-    // TODO: API call to POST /reports/{reportId}/comments
-    console.log("Reply to", commentId, ":", content);
-    
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    // Refetch report to get updated comments
-    await refetch();
+    try {
+      await api.post(`/reports/${reportId}/comments`, {
+        content,
+        parentId: commentId,
+      });
+      // Refetch report to get updated comments
+      await refetch();
+    } catch (err) {
+      console.error('Failed to reply:', err);
+      throw err;
+    }
   };
 
   // Calculate SLA status

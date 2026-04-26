@@ -5,6 +5,7 @@ import cron from 'node-cron'
 import { db } from '../db.js'
 import { redis } from '../lib/redis.js'
 import { generateDailyInsight, predictWorkload } from '../services/ai.service.js'
+import { sendEmail, generateEmailHTML } from '../services/notification.service.js'
 
 /**
  * Daily insight generation job
@@ -190,7 +191,32 @@ export function scheduleAnomalyDetectionJob() {
 
             console.log(`✓ Detected ${anomalies.length} anomalies for ${agency.name}`)
 
-            // TODO: Send push notification to admin users if severity is high
+            // Send in-app notification to admin users for high-severity anomalies
+            const adminUsers = await db.user.findMany({
+              where: {
+                agencyId: agency.id,
+                role: { in: ['admin', 'super_admin'] },
+                isActive: true,
+              },
+              select: { id: true },
+            })
+
+            for (const admin of adminUsers) {
+              try {
+                await db.notification.create({
+                  data: {
+                    userId: admin.id,
+                    channel: 'push',
+                    status: 'sent',
+                    title: `⚠️ Lonjakan Laporan Terdeteksi`,
+                    body: `Terdeteksi ${anomalies.length} wilayah dengan lonjakan laporan tidak biasa. Periksa dashboard untuk detail.`,
+                    sentAt: new Date(),
+                  },
+                })
+              } catch (notifErr) {
+                console.error(`Failed to notify admin ${admin.id}:`, notifErr)
+              }
+            }
           } else {
             // Clear cache if no anomalies
             const cacheKey = `laporin:anomalies:gov:${agency.id}`
@@ -277,6 +303,19 @@ export function scheduleWeeklyReportJob() {
           // Get last 7 days data
           const last7Days = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
+          // Calculate avgResolutionDays from raw SQL
+          const avgResult = await db.$queryRaw<Array<{ avg_days: number }>>`
+            SELECT COALESCE(
+              AVG(EXTRACT(EPOCH FROM (completed_at - created_at)) / 86400),
+              0
+            )::float as avg_days
+            FROM reports
+            WHERE agency_id = ${agency.id}::uuid
+              AND created_at >= ${last7Days}
+              AND status IN ('completed', 'verified_complete', 'closed')
+              AND completed_at IS NOT NULL
+          `
+
           const weeklyStats = {
             totalReports: await db.report.count({
               where: {
@@ -291,7 +330,7 @@ export function scheduleWeeklyReportJob() {
                 status: { in: ['completed', 'verified_complete', 'closed'] },
               },
             }),
-            avgResolutionDays: 0, // TODO: Calculate
+            avgResolutionDays: Math.round((avgResult[0]?.avg_days || 0) * 10) / 10,
             topCategories: await db.report.groupBy({
               by: ['categoryId'],
               where: {
@@ -304,8 +343,63 @@ export function scheduleWeeklyReportJob() {
             }),
           }
 
-          // TODO: Send email to all admin users
-          // For now, just log
+          // Get category names for the email
+          const categoryIds = weeklyStats.topCategories.map((c) => c.categoryId)
+          const categories = await db.category.findMany({
+            where: { id: { in: categoryIds } },
+            select: { id: true, name: true, emoji: true },
+          })
+
+          const topCatList = weeklyStats.topCategories
+            .map((c) => {
+              const cat = categories.find((cat) => cat.id === c.categoryId)
+              return `${cat?.emoji || '📍'} ${cat?.name || 'Unknown'}: ${c._count} laporan`
+            })
+            .join('<br/>')
+
+          // Send email to all admin users in this agency
+          const adminUsers = await db.user.findMany({
+            where: {
+              agencyId: agency.id,
+              role: { in: ['admin', 'super_admin'] },
+              isActive: true,
+            },
+            select: { email: true, name: true },
+          })
+
+          const resolutionRate = weeklyStats.totalReports > 0
+            ? Math.round((weeklyStats.completed / weeklyStats.totalReports) * 100)
+            : 0
+
+          const emailContent = `
+            <p>Berikut ringkasan laporan minggu ini untuk <strong>${agency.name}</strong>:</p>
+            <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+              <tr><td style="padding:8px;border-bottom:1px solid #e5e7eb;">Total Laporan</td><td style="padding:8px;border-bottom:1px solid #e5e7eb;font-weight:bold;text-align:right;">${weeklyStats.totalReports}</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid #e5e7eb;">Selesai</td><td style="padding:8px;border-bottom:1px solid #e5e7eb;font-weight:bold;text-align:right;">${weeklyStats.completed}</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid #e5e7eb;">Tingkat Penyelesaian</td><td style="padding:8px;border-bottom:1px solid #e5e7eb;font-weight:bold;text-align:right;">${resolutionRate}%</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid #e5e7eb;">Rata-rata Waktu</td><td style="padding:8px;border-bottom:1px solid #e5e7eb;font-weight:bold;text-align:right;">${weeklyStats.avgResolutionDays} hari</td></tr>
+            </table>
+            <p><strong>Kategori Teratas:</strong></p>
+            <p>${topCatList || 'Tidak ada data'}</p>
+          `
+
+          for (const admin of adminUsers) {
+            try {
+              await sendEmail(
+                admin.email,
+                `📊 Laporan Mingguan - ${agency.name}`,
+                generateEmailHTML(
+                  `📊 Laporan Mingguan - ${agency.name}`,
+                  emailContent,
+                  'Buka Dashboard',
+                  'https://laporin.site/gov'
+                )
+              )
+            } catch (emailErr) {
+              console.error(`Failed to send weekly report to ${admin.email}:`, emailErr)
+            }
+          }
+
           console.log(`✓ Generated weekly report for ${agency.name}:`, weeklyStats)
         } catch (error) {
           console.error(`✗ Failed to generate weekly report for ${agency.name}:`, error)

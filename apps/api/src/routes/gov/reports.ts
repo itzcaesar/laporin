@@ -168,11 +168,23 @@ govReports.get('/:id', zValidator('param', reportIdSchema), async (c) => {
           },
         },
         comments: {
+          where: { parentId: null },
           include: {
             author: {
               select: {
                 name: true,
                 role: true,
+              },
+            },
+            replies: {
+              orderBy: { createdAt: 'asc' },
+              include: {
+                author: {
+                  select: {
+                    name: true,
+                    role: true,
+                  },
+                },
               },
             },
           },

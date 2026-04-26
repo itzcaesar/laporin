@@ -77,7 +77,7 @@ export type NotificationType = keyof NotificationData
 /**
  * Send email notification
  */
-async function sendEmail(
+export async function sendEmail(
   to: string,
   subject: string,
   html: string
@@ -157,6 +157,29 @@ async function sendPush(
 }
 
 /**
+ * Send OTP verification email
+ */
+export async function sendOtpEmail(
+  to: string,
+  name: string | null,
+  otp: string
+): Promise<{ success: boolean; error?: string }> {
+  const title = '🔐 Kode Verifikasi Laporin'
+  const content = `
+    <p>Halo ${name || 'Pengguna'},</p>
+    <p>Berikut adalah kode OTP untuk verifikasi akun Anda:</p>
+    <div style="text-align:center;margin:24px 0;">
+      <span style="display:inline-block;font-size:32px;font-weight:bold;letter-spacing:8px;padding:16px 32px;background:#f0f4ff;border:2px dashed #2563eb;border-radius:12px;color:#1f2937;">
+        ${otp}
+      </span>
+    </div>
+    <p>Kode ini berlaku selama <strong>10 menit</strong>. Jangan bagikan kode ini kepada siapapun.</p>
+    <p>Jika Anda tidak meminta kode ini, abaikan email ini.</p>
+  `
+  return sendEmail(to, title, generateEmailHTML(title, content))
+}
+
+/**
  * Log notification to database
  */
 async function logNotification(
@@ -187,7 +210,7 @@ async function logNotification(
 /**
  * Generate email HTML template
  */
-function generateEmailHTML(
+export function generateEmailHTML(
   title: string,
   content: string,
   ctaText?: string,
