@@ -1,13 +1,9 @@
-import type { ReactNode } from 'react';
-
 // ── Shared Types ─────────────────────────────────────────────────────────────
 // Shared TypeScript types for the Laporin monorepo
+// Pure data types only - no React dependencies
 
 // ── Variant & Enum Types ──
 
-export type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "outline-white";
-export type ButtonSize = "sm" | "md" | "lg";
-export type Alignment = "left" | "center";
 export type ReportStatus =
   | "new"
   | "verified"
@@ -18,139 +14,9 @@ export type ReportStatus =
   | "disputed"
   | "closed";
 
-
-
-// ── Data Interfaces ──
-
-export interface Feature {
-  icon: string;
-  title: string;
-  description: string;
-  accent?: string;
-}
-
-export interface Step {
-  number: number;
-  icon: string;
-  title: string;
-  description: string;
-}
-
-export interface Category {
-  id: string;
-  emoji: string;
-  name: string;
-  agency: string;
-}
-
-export interface Stat {
-  value: number;
-  suffix?: string;
-  prefix?: string;
-  label: string;
-  decimals?: number;
-}
-
-export interface Testimonial {
-  quote: string;
-  name: string;
-  role: string;
-  location: string;
-  rating: number;
-  isGovernment?: boolean;
-  initials: string;
-}
-
-export interface StatusStage {
-  status: ReportStatus;
-  label: string;
-  description: string;
-  color: string;
-  textColor: string;
-  emoji: string;
-}
-
-export interface NavLink {
-  label: string;
-  href: string;
-}
-
-export interface FooterColumn {
-  heading: string;
-  links: Array<{ label: string; href: string }>;
-}
-
-export interface EmergencyNumber {
-  emoji: string;
-  service: string;
-  number: string;
-}
-
-
-// ── Component Props ──
-
-export interface ButtonProps {
-  variant?: ButtonVariant;
-  size?: ButtonSize;
-  href?: string;
-  onClick?: () => void;
-  disabled?: boolean;
-  className?: string;
-  children: ReactNode;
-  ariaLabel?: string;
-}
-
-export interface CardProps {
-  children: ReactNode;
-  className?: string;
-  hover?: boolean;
-  padding?: "sm" | "md" | "lg";
-}
-
-export interface SectionHeaderProps {
-  eyebrow?: string;
-  heading: string;
-  subheading?: string;
-  alignment?: Alignment;
-  className?: string;
-}
-
-export interface StatCounterProps {
-  stat: Stat;
-  className?: string;
-}
-
-export interface CategoryChipProps {
-  category: Category;
-  className?: string;
-}
-
-export interface StepCardProps {
-  step: Step;
-  isLast?: boolean;
-  className?: string;
-}
-
-export interface FeatureCardProps {
-  feature: Feature;
-  className?: string;
-}
-
-export interface TestimonialCardProps {
-  testimonial: Testimonial;
-  className?: string;
-}
-
-export interface StatusBadgeProps {
-  stage: StatusStage;
-  className?: string;
-}
-
-export interface BadgeProps {
-  variant?: "default" | "success" | "warning" | "danger" | "info";
-  children: ReactNode;
-  className?: string;
-}
+export type Priority = "low" | "medium" | "high" | "urgent";
+export type Role = "citizen" | "officer" | "admin" | "super_admin";
+export type MediaType = "photo" | "video" | "progress_photo" | "completion_photo";
 
 // ── Dashboard Types ─────────────────────────────────────────────────────
 
@@ -158,7 +24,7 @@ export interface User {
   id: string;
   name: string | null;
   email: string;
-  role: "citizen" | "officer" | "admin" | "super_admin";
+  role: Role;
   agencyId: string | null;
   agencyName?: string | null;
   nip: string | null;
@@ -168,12 +34,12 @@ export interface Report {
   id: string;
   trackingCode: string;
   title: string;
-  description?: string; // Optional description for feed display
+  description?: string;
   locationAddress: string;
   locationLat?: number;
   locationLng?: number;
   status: ReportStatus;
-  priority: "low" | "medium" | "high" | "urgent";
+  priority: Priority;
   dangerLevel: number;
   priorityScore: number;
   upvoteCount: number;
@@ -221,7 +87,7 @@ export interface ReportDetail extends Report {
 
 export interface MediaItem {
   id: string;
-  mediaType: "photo" | "video" | "progress_photo" | "completion_photo";
+  mediaType: MediaType;
   fileUrl: string;
   sortOrder: number;
   createdAt: string;
@@ -324,11 +190,7 @@ export interface PaginationMeta {
 
 export type ApiResult<T> = ApiResponse<T> | ApiError;
 
-// ── Additional Core Types ───────────────────────────────────────────────
-
-export type Priority = "low" | "medium" | "high" | "urgent";
-export type Role = "citizen" | "officer" | "admin" | "super_admin";
-export type MediaType = "photo" | "video" | "progress_photo" | "completion_photo";
+// ── Map Types ───────────────────────────────────────────────────────────
 
 export interface MapPin {
   id: string;
@@ -339,6 +201,8 @@ export interface MapPin {
   categoryId: number;
   dangerLevel: number;
 }
+
+// ── Government Dashboard Types ──────────────────────────────────────────
 
 export interface GovDashboardStats {
   totalReports: number;
@@ -373,9 +237,9 @@ export interface GovDashboardStats {
     count: number;
   }>;
   aiInsight: string | null;
-  workloadForecast: number | null;  // % change prediction for next week
-  efficiencyScore: number | null;   // 0-10 score
-  trendPercent: number | null;      // % change in total reports vs previous period
+  workloadForecast: number | null;
+  trendPercent: number | null;
+  efficiencyScore: number | null;
 }
 
 // ── Analytics Types ─────────────────────────────────────────────────────
@@ -383,7 +247,7 @@ export interface GovDashboardStats {
 export type AnalyticsPeriod = '30' | '90' | '365';
 
 export interface TrendDataPoint {
-  date: string; // YYYY-MM-DD format
+  date: string;
   count: number;
 }
 

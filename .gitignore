@@ -71,6 +71,8 @@ lerna-debug.log*
 .idea/
 .docs/
 .kiro/
+_bmad
+_bmad-output
 *.swp
 *.swo
 *.swn
