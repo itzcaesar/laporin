@@ -9,6 +9,7 @@ import { requireRole } from '../../middleware/requireRole.js'
 import { exportQuerySchema } from '../../validators/gov.validator.js'
 import PDFDocument from 'pdfkit'
 import ExcelJS from 'exceljs'
+import { err } from '../../lib/response.js'
 
 const govExport = new Hono<{ Variables: AuthVariables }>()
 
@@ -156,7 +157,7 @@ govExport.get('/pdf', zValidator('query', exportQuerySchema), async (c) => {
     return c.body(pdfBuffer)
   } catch (error) {
     console.error('Export PDF error:', error)
-    return c.json({ error: 'Failed to export PDF' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Gagal export PDF', 500)
   }
 })
 
@@ -296,7 +297,7 @@ govExport.get('/excel', zValidator('query', exportQuerySchema), async (c) => {
     return c.body(buffer)
   } catch (error) {
     console.error('Export Excel error:', error)
-    return c.json({ error: 'Failed to export Excel' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Gagal export Excel', 500)
   }
 })
 
@@ -398,7 +399,7 @@ govExport.get('/summary', requireRole('admin'), async (c) => {
     return c.body(pdfBuffer)
   } catch (error) {
     console.error('Export summary error:', error)
-    return c.json({ error: 'Failed to export summary' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Gagal export summary', 500)
   }
 })
 

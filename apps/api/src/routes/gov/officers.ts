@@ -12,6 +12,7 @@ import {
   updateOfficerSchema,
 } from '../../validators/gov.validator.js'
 import { z } from 'zod'
+import { err, ok } from '../../lib/response.js'
 
 const govOfficers = new Hono<{ Variables: AuthVariables }>()
 
@@ -92,7 +93,7 @@ govOfficers.get('/', async (c) => {
     })
   } catch (error) {
     console.error('List officers error:', error)
-    return c.json({ error: 'Failed to fetch officers' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Gagal fetch officers', 500)
   }
 })
 
@@ -156,7 +157,7 @@ govOfficers.get('/:id', async (c) => {
     })
 
     if (!officer) {
-      return c.json({ error: 'Officer not found' }, 404)
+      return err(c, 'NOT_FOUND', 'Officer not found', 404)
     }
 
     // Check access
@@ -165,13 +166,13 @@ govOfficers.get('/:id', async (c) => {
       user.agencyId &&
       officer.agencyId !== user.agencyId
     ) {
-      return c.json({ error: 'Access denied' }, 403)
+      return err(c, 'FORBIDDEN', 'Akses ditolak', 403)
     }
 
-    return c.json({ data: officer })
+    return ok(c, officer)
   } catch (error) {
     console.error('Get officer error:', error)
-    return c.json({ error: 'Failed to fetch officer' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Gagal fetch officer', 500)
   }
 })
 
@@ -190,7 +191,7 @@ govOfficers.post('/', zValidator('json', createOfficerSchema), async (c) => {
     })
 
     if (existingUser) {
-      return c.json({ error: 'Email already registered' }, 400)
+      return err(c, 'INVALID_REQUEST', 'Email already registered', 400)
     }
 
     // Check if NIP already exists
@@ -199,7 +200,7 @@ govOfficers.post('/', zValidator('json', createOfficerSchema), async (c) => {
     })
 
     if (existingNip) {
-      return c.json({ error: 'NIP already registered' }, 400)
+      return err(c, 'INVALID_REQUEST', 'NIP already registered', 400)
     }
 
     // Verify agency exists
@@ -208,12 +209,12 @@ govOfficers.post('/', zValidator('json', createOfficerSchema), async (c) => {
     })
 
     if (!agency) {
-      return c.json({ error: 'Agency not found' }, 404)
+      return err(c, 'NOT_FOUND', 'Agency not found', 404)
     }
 
     // Check access - can only create officers in own agency (unless super_admin)
     if (user.role !== 'super_admin' && user.agencyId !== agencyId) {
-      return c.json({ error: 'Can only create officers in your own agency' }, 403)
+      return err(c, 'FORBIDDEN', 'Can only create officers in your own agency', 403)
     }
 
     // Hash password
@@ -256,10 +257,10 @@ govOfficers.post('/', zValidator('json', createOfficerSchema), async (c) => {
       },
     })
 
-    return c.json({ data: officer }, 201)
+    return ok(c, officer, 201)
   } catch (error) {
     console.error('Create officer error:', error)
-    return c.json({ error: 'Failed to create officer' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Gagal create officer', 500)
   }
 })
 
@@ -280,12 +281,12 @@ govOfficers.patch('/:id', zValidator('json', updateOfficerSchema), async (c) => 
     })
 
     if (!officer) {
-      return c.json({ error: 'Officer not found' }, 404)
+      return err(c, 'NOT_FOUND', 'Officer not found', 404)
     }
 
     // Check access
     if (user.role !== 'super_admin' && user.agencyId !== officer.agencyId) {
-      return c.json({ error: 'Can only update officers in your own agency' }, 403)
+      return err(c, 'FORBIDDEN', 'Can only update officers in your own agency', 403)
     }
 
     // If changing agency, verify new agency exists
@@ -295,12 +296,12 @@ govOfficers.patch('/:id', zValidator('json', updateOfficerSchema), async (c) => 
       })
 
       if (!agency) {
-        return c.json({ error: 'Agency not found' }, 404)
+        return err(c, 'NOT_FOUND', 'Agency not found', 404)
       }
 
       // Check access for new agency
       if (user.role !== 'super_admin' && user.agencyId !== updates.agencyId) {
-        return c.json({ error: 'Can only assign to your own agency' }, 403)
+        return err(c, 'FORBIDDEN', 'Can only assign to your own agency', 403)
       }
     }
 
@@ -332,10 +333,10 @@ govOfficers.patch('/:id', zValidator('json', updateOfficerSchema), async (c) => 
       },
     })
 
-    return c.json({ data: updatedOfficer })
+    return ok(c, updatedOfficer)
   } catch (error) {
     console.error('Update officer error:', error)
-    return c.json({ error: 'Failed to update officer' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Gagal update officer', 500)
   }
 })
 
@@ -355,17 +356,17 @@ govOfficers.delete('/:id', async (c) => {
     })
 
     if (!officer) {
-      return c.json({ error: 'Officer not found' }, 404)
+      return err(c, 'NOT_FOUND', 'Officer not found', 404)
     }
 
     // Check access
     if (user.role !== 'super_admin' && user.agencyId !== officer.agencyId) {
-      return c.json({ error: 'Can only deactivate officers in your own agency' }, 403)
+      return err(c, 'FORBIDDEN', 'Can only deactivate officers in your own agency', 403)
     }
 
     // Cannot deactivate self
     if (id === user.sub) {
-      return c.json({ error: 'Cannot deactivate your own account' }, 400)
+      return err(c, 'INVALID_REQUEST', 'Cannot deactivate your own account', 400)
     }
 
     // Deactivate (soft delete)
@@ -388,7 +389,7 @@ govOfficers.delete('/:id', async (c) => {
     return c.json({ data: { success: true } })
   } catch (error) {
     console.error('Deactivate officer error:', error)
-    return c.json({ error: 'Failed to deactivate officer' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Gagal deactivate officer', 500)
   }
 })
 
@@ -409,12 +410,12 @@ govOfficers.get('/:id/stats', async (c) => {
     })
 
     if (!officer) {
-      return c.json({ error: 'Officer not found' }, 404)
+      return err(c, 'NOT_FOUND', 'Officer not found', 404)
     }
 
     // Check access
     if (user.role !== 'super_admin' && user.agencyId !== officer.agencyId) {
-      return c.json({ error: 'Access denied' }, 403)
+      return err(c, 'FORBIDDEN', 'Akses ditolak', 403)
     }
 
     // Calculate date range
@@ -481,7 +482,7 @@ govOfficers.get('/:id/stats', async (c) => {
     })
   } catch (error) {
     console.error('Officer stats error:', error)
-    return c.json({ error: 'Failed to fetch officer stats' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Gagal fetch officer stats', 500)
   }
 })
 
@@ -502,16 +503,16 @@ govOfficers.post('/:id/reset-password', async (c) => {
     })
 
     if (!officer) {
-      return c.json({ error: 'Officer not found' }, 404)
+      return err(c, 'NOT_FOUND', 'Officer not found', 404)
     }
 
     // Check access
     if (user.role !== 'super_admin' && user.agencyId !== officer.agencyId) {
-      return c.json({ error: 'Can only reset passwords for officers in your own agency' }, 403)
+      return err(c, 'FORBIDDEN', 'Can only reset passwords for officers in your own agency', 403)
     }
 
     if (!officer.isActive) {
-      return c.json({ error: 'Cannot reset password for an inactive officer' }, 400)
+      return err(c, 'INVALID_REQUEST', 'Cannot reset password for an inactive officer', 400)
     }
 
     // Generate a random 12-character temporary password
@@ -552,7 +553,7 @@ govOfficers.post('/:id/reset-password', async (c) => {
     })
   } catch (error) {
     console.error('Reset officer password error:', error)
-    return c.json({ error: 'Failed to reset officer password' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Gagal reset officer password', 500)
   }
 })
 

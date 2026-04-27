@@ -20,22 +20,11 @@ import {
   verifyOtpSchema,
   changePasswordSchema,
 } from '../validators/auth.validator.js'
-import { Redis } from 'ioredis'
+import { redis } from '../lib/redis.js'
 import { env } from '../env.js'
 
 const auth = new Hono<{ Variables: AuthVariables }>()
 
-// Redis client for OTP storage (optional in development)
-let redis: Redis | null = null
-try {
-  redis = new Redis(env.REDIS_URL)
-  redis.on('error', (err: Error) => {
-    console.warn('Redis connection error:', err.message)
-    redis = null
-  })
-} catch (error) {
-  console.warn('Redis not available, OTP features will be disabled')
-}
 
 /**
  * POST /auth/register
@@ -292,10 +281,6 @@ auth.post('/logout', zValidator('json', logoutSchema), async (c) => {
 auth.post('/otp/send', zValidator('json', sendOtpSchema), async (c) => {
   const { email } = c.req.valid('json')
 
-  if (!redis) {
-    return c.json({ error: 'OTP service temporarily unavailable' }, 503)
-  }
-
   try {
     // Check if user exists
     const user = await db.user.findUnique({
@@ -304,11 +289,11 @@ auth.post('/otp/send', zValidator('json', sendOtpSchema), async (c) => {
     })
 
     if (!user) {
-      return c.json({ error: 'User not found' }, 404)
+      return err(c, 'NOT_FOUND', 'User not found', 404)
     }
 
     if (user.isVerified) {
-      return c.json({ error: 'Email already verified' }, 400)
+      return err(c, 'INVALID_REQUEST', 'Email already verified', 400)
     }
 
     // Generate 6-digit OTP
@@ -339,7 +324,7 @@ auth.post('/otp/send', zValidator('json', sendOtpSchema), async (c) => {
     })
   } catch (error) {
     console.error('Send OTP error:', error)
-    return c.json({ error: 'Failed to send OTP' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Gagal send OTP', 500)
   }
 })
 
@@ -350,21 +335,17 @@ auth.post('/otp/send', zValidator('json', sendOtpSchema), async (c) => {
 auth.post('/otp/verify', zValidator('json', verifyOtpSchema), async (c) => {
   const { email, otp } = c.req.valid('json')
 
-  if (!redis) {
-    return c.json({ error: 'OTP service temporarily unavailable' }, 503)
-  }
-
   try {
     // Get OTP from Redis
     const otpKey = `otp:${email}`
     const storedOtp = await redis.get(otpKey)
 
     if (!storedOtp) {
-      return c.json({ error: 'OTP expired or not found' }, 400)
+      return err(c, 'INVALID_REQUEST', 'OTP expired or not found', 400)
     }
 
     if (storedOtp !== otp) {
-      return c.json({ error: 'Invalid OTP' }, 400)
+      return err(c, 'INVALID_REQUEST', 'Tidak valid OTP', 400)
     }
 
     // Mark user as verified
@@ -414,7 +395,7 @@ auth.post('/otp/verify', zValidator('json', verifyOtpSchema), async (c) => {
     })
   } catch (error) {
     console.error('Verify OTP error:', error)
-    return c.json({ error: 'OTP verification failed' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'OTP verification failed', 500)
   }
 })
 
@@ -486,14 +467,14 @@ auth.patch('/password/change', authMiddleware, zValidator('json', changePassword
     })
 
     if (!dbUser) {
-      return c.json({ error: 'User not found' }, 404)
+      return err(c, 'NOT_FOUND', 'User not found', 404)
     }
 
     // Verify current password
     const isPasswordValid = await comparePassword(currentPassword, dbUser.passwordHash)
 
     if (!isPasswordValid) {
-      return c.json({ error: 'Current password is incorrect' }, 400)
+      return err(c, 'INVALID_REQUEST', 'Current password is incorrect', 400)
     }
 
     // Hash new password
@@ -516,7 +497,7 @@ auth.patch('/password/change', authMiddleware, zValidator('json', changePassword
     })
   } catch (error) {
     console.error('Change password error:', error)
-    return c.json({ error: 'Failed to change password' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Gagal change password', 500)
   }
 })
 

@@ -1,33 +1,7 @@
-// ── apps/api/src/middleware/rateLimit.ts ──
 // Redis-backed sliding window rate limiter
 
 import { Context, Next } from 'hono'
-import { Redis } from 'ioredis'
-import { env } from '../env.js'
-
-/**
- * Redis client singleton
- */
-let redis: Redis | null = null
-
-/**
- * Gets or creates the Redis client.
- */
-function getRedisClient(): Redis {
-  if (!redis) {
-    redis = new Redis(env.REDIS_URL, {
-      maxRetriesPerRequest: 3,
-      enableReadyCheck: true,
-      lazyConnect: true,
-    })
-
-    redis.on('error', (err: Error) => {
-      console.error('Redis error:', err)
-    })
-  }
-
-  return redis
-}
+import { redis } from '../lib/redis.js'
 
 /**
  * Rate limit configuration
@@ -69,8 +43,6 @@ export interface RateLimitConfig {
  */
 export function rateLimit(config: RateLimitConfig) {
   return async (c: Context, next: Next) => {
-    const client = getRedisClient()
-
     // Generate rate limit key
     const identifier = config.keyGenerator
       ? config.keyGenerator(c)
@@ -82,7 +54,7 @@ export function rateLimit(config: RateLimitConfig) {
 
     try {
       // Sliding window algorithm using sorted set
-      const multi = client.multi()
+      const multi = redis.multi()
 
       // Remove old entries outside the window
       multi.zremrangebyscore(key, 0, windowStart)
@@ -141,9 +113,8 @@ export function rateLimit(config: RateLimitConfig) {
  * @param identifier - User/IP identifier
  */
 export async function clearRateLimit(keyPrefix: string, identifier: string): Promise<void> {
-  const client = getRedisClient()
   const key = `${keyPrefix}:${identifier}`
-  await client.del(key)
+  await redis.del(key)
 }
 
 /**
@@ -159,13 +130,12 @@ export async function getRateLimitStatus(
   identifier: string,
   windowSeconds: number
 ): Promise<number> {
-  const client = getRedisClient()
   const key = `${keyPrefix}:${identifier}`
   const now = Date.now()
   const windowStart = now - windowSeconds * 1000
 
-  await client.zremrangebyscore(key, 0, windowStart)
-  const count = await client.zcard(key)
+  await redis.zremrangebyscore(key, 0, windowStart)
+  const count = await redis.zcard(key)
 
   return count
 }

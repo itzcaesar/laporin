@@ -9,6 +9,38 @@ import { authMiddleware, type AuthVariables } from '../../middleware/auth.js'
 import { requireRole } from '../../middleware/requireRole.js'
 import { ok, paginated, err } from '../../lib/response.js'
 import { buildMeta } from '../../lib/pagination.js'
+
+/**
+ * Format AI analysis cache for frontend consumption
+ */
+const formatAiAnalysis = (analysis: any) => {
+  if (!analysis) return null
+
+  const priorityScore = analysis.priorityScore || 0
+  let priorityLabel = 'Sedang'
+  if (priorityScore < 30) priorityLabel = 'Rendah'
+  else if (priorityScore < 60) priorityLabel = 'Sedang'
+  else if (priorityScore < 85) priorityLabel = 'Tinggi'
+  else priorityLabel = 'Darurat'
+
+  const dangerLevel = analysis.dangerLevel || 1
+  const dangerLabels = ['', 'Sangat Rendah', 'Rendah', 'Sedang', 'Tinggi', 'Ekstrim']
+  const dangerLabel = dangerLabels[dangerLevel] || 'Sedang'
+
+  const hoaxConfidence = analysis.hoaxConfidence || 0
+  let hoaxLabel = 'Aman'
+  if (hoaxConfidence > 60) hoaxLabel = 'Kemungkinan Hoaks'
+  else if (hoaxConfidence > 20) hoaxLabel = 'Perlu Verifikasi'
+
+  return {
+    ...analysis,
+    priorityLabel,
+    dangerLabel,
+    hoaxLabel,
+    aiSummary: analysis.impactSummary, // Map impactSummary to aiSummary for frontend
+  }
+}
+
 import { getPublicUrl } from '../../services/storage.service.js'
 import { awardPoints, updateBadgeProgress } from '../gamification.js'
 import { invalidatePattern } from '../../lib/cache.js'
@@ -106,11 +138,17 @@ govReports.get('/', zValidator('query', listGovReportsSchema), async (c) => {
               votes: true,
             },
           },
+          aiAnalysis: true,
         },
       }),
     ])
 
-    return paginated(c, reports, buildMeta(total, { page, limit }))
+    const formattedReports = reports.map(r => ({
+      ...r,
+      aiAnalysis: formatAiAnalysis(r.aiAnalysis)
+    }))
+
+    return paginated(c, formattedReports, buildMeta(total, { page, limit }))
   } catch (error) {
     console.error('List gov reports error:', error)
     return err(c, 'INTERNAL_ERROR', 'Gagal memuat laporan', 500)
@@ -206,7 +244,12 @@ govReports.get('/:id', zValidator('param', reportIdSchema), async (c) => {
       return err(c, 'FORBIDDEN', 'Akses ditolak', 403)
     }
 
-    return ok(c, report)
+    const formattedReport = {
+      ...report,
+      aiAnalysis: formatAiAnalysis(report.aiAnalysis)
+    }
+
+    return ok(c, formattedReport)
   } catch (error) {
     console.error('Get gov report error:', error)
     return err(c, 'INTERNAL_ERROR', 'Gagal memuat detail laporan', 500)
@@ -234,7 +277,7 @@ govReports.patch(
       })
 
       if (officer?.nip !== officerNip) {
-        return c.json({ error: 'NIP does not match' }, 403)
+        return err(c, 'FORBIDDEN', 'NIP does not match', 403)
       }
 
       // Get report
@@ -244,7 +287,7 @@ govReports.patch(
       })
 
       if (!report) {
-        return c.json({ error: 'Report not found' }, 404)
+        return err(c, 'NOT_FOUND', 'Report not found', 404)
       }
 
       // Determine new status based on verification result
@@ -361,11 +404,11 @@ govReports.patch(
       })
 
       if (!officer) {
-        return c.json({ error: 'Officer not found' }, 404)
+        return err(c, 'NOT_FOUND', 'Officer not found', 404)
       }
 
       if (officer.nip !== picNip) {
-        return c.json({ error: 'NIP does not match officer' }, 400)
+        return err(c, 'INVALID_REQUEST', 'NIP does not match officer', 400)
       }
 
       // Get report
@@ -375,7 +418,7 @@ govReports.patch(
       })
 
       if (!report) {
-        return c.json({ error: 'Report not found' }, 404)
+        return err(c, 'NOT_FOUND', 'Report not found', 404)
       }
 
       // Update report
@@ -481,7 +524,7 @@ govReports.patch(
       })
 
       if (officer?.nip !== officerNip) {
-        return c.json({ error: 'NIP does not match' }, 403)
+        return err(c, 'FORBIDDEN', 'NIP does not match', 403)
       }
 
       // Get report
@@ -491,7 +534,7 @@ govReports.patch(
       })
 
       if (!report) {
-        return c.json({ error: 'Report not found' }, 404)
+        return err(c, 'NOT_FOUND', 'Report not found', 404)
       }
 
       // Validate status transition
@@ -632,7 +675,7 @@ govReports.patch(
       })
 
       if (officer?.nip !== officerNip) {
-        return c.json({ error: 'NIP does not match' }, 403)
+        return err(c, 'FORBIDDEN', 'NIP does not match', 403)
       }
 
       // Update report
@@ -687,7 +730,7 @@ govReports.patch(
       })
 
       if (officer?.nip !== officerNip) {
-        return c.json({ error: 'NIP does not match' }, 403)
+        return err(c, 'FORBIDDEN', 'NIP does not match', 403)
       }
 
       // Update report
@@ -736,12 +779,12 @@ govReports.post(
       })
 
       if (!report) {
-        return c.json({ error: 'Report not found' }, 404)
+        return err(c, 'NOT_FOUND', 'Report not found', 404)
       }
 
       // Check if user is assigned officer or admin
       if (user.role !== 'admin' && report.assignedOfficerId !== user.sub) {
-        return c.json({ error: 'Only assigned officer can upload media' }, 403)
+        return err(c, 'FORBIDDEN', 'Only assigned officer can upload media', 403)
       }
 
       // Create media record
@@ -783,12 +826,12 @@ govReports.post(
       })
 
       if (!report) {
-        return c.json({ error: 'Report not found' }, 404)
+        return err(c, 'NOT_FOUND', 'Report not found', 404)
       }
 
       // Check agency access
       if (user.role !== 'super_admin' && user.agencyId && report.agencyId !== user.agencyId) {
-        return c.json({ error: 'Access denied' }, 403)
+        return err(c, 'FORBIDDEN', 'Akses ditolak', 403)
       }
 
       // Delete existing AI analysis cache
@@ -817,7 +860,7 @@ govReports.post(
       })
     } catch (error) {
       console.error('Reanalyze report error:', error)
-      return c.json({ error: 'Failed to reanalyze report' }, 500)
+      return err(c, 'INTERNAL_ERROR', 'Gagal reanalyze report', 500)
     }
   }
 )

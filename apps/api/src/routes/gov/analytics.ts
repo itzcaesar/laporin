@@ -9,6 +9,7 @@ import { authMiddleware, type AuthVariables } from '../../middleware/auth.js'
 import { requireRole } from '../../middleware/requireRole.js'
 import { analyticsQuerySchema as legacyAnalyticsQuerySchema } from '../../validators/gov.validator.js'
 import { analyticsQuerySchema } from '../../validators/analytics.validator.js'
+import { err } from '../../lib/response.js'
 
 const govAnalytics = new Hono<{ Variables: AuthVariables }>()
 
@@ -406,7 +407,10 @@ govAnalytics.get('/heatmap', async (c) => {
   try {
     // Calculate date range
     const now = new Date()
-    const daysMap: Record<string, number> = { '7d': 7, '30d': 30, '90d': 90, '365d': 365 }
+    const daysMap: Record<string, number> = { 
+      '7d': 7, '30d': 30, '90d': 90, '365d': 365,
+      '7': 7, '30': 30, '90': 90, '365': 365
+    }
     const days = daysMap[period] || 30
     const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
 
@@ -420,22 +424,22 @@ govAnalytics.get('/heatmap', async (c) => {
     }
 
     // PostGIS query for spatial clustering
-    const heatmapData = await db.$queryRaw<
+    const heatmapData = await db.$queryRawUnsafe<
       Array<{ lat: number; lng: number; count: bigint; priority_avg: number }>
-    >`
+    >(`
       SELECT 
         ST_Y(ST_Centroid(ST_Collect(location))) as lat,
         ST_X(ST_Centroid(ST_Collect(location))) as lng,
         COUNT(*) as count,
         AVG(priority_score) as priority_avg
       FROM reports
-      WHERE ${db.$queryRawUnsafe(whereConditions)}
+      WHERE ${whereConditions}
         AND location IS NOT NULL
       GROUP BY ST_SnapToGrid(location, 0.01)
       HAVING COUNT(*) > 0
       ORDER BY count DESC
       LIMIT 500
-    `
+    `)
 
     return c.json({
       data: heatmapData.map((item: any) => ({
@@ -447,7 +451,7 @@ govAnalytics.get('/heatmap', async (c) => {
     })
   } catch (error) {
     console.error('Analytics heatmap error:', error)
-    return c.json({ error: 'Failed to fetch heatmap data' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Gagal fetch heatmap data', 500)
   }
 })
 
@@ -455,28 +459,32 @@ govAnalytics.get('/heatmap', async (c) => {
  * GET /gov/analytics/performance
  * Officer and agency performance metrics
  */
-govAnalytics.get('/performance', zValidator('query', legacyAnalyticsQuerySchema), async (c) => {
+govAnalytics.get('/performance', zValidator('query', analyticsQuerySchema), async (c) => {
   const user = c.get('user')
-  const { period, agencyId } = c.req.valid('query')
+  const { period } = c.req.valid('query')
+  const { agencyId } = c.req.query()
 
   try {
     // Calculate date range
     const now = new Date()
-    const daysMap = { '7d': 7, '30d': 30, '90d': 90, '365d': 365 }
-    const days = daysMap[period]
+    const daysMap: Record<string, number> = { 
+      '7d': 7, '30d': 30, '90d': 90, '365d': 365,
+      '7': 7, '30': 30, '90': 90, '365': 365
+    }
+    const days = daysMap[period] || 30
     const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
 
     // Build where clause
-    let whereConditions = `created_at >= '${startDate.toISOString()}'`
+    let whereConditions = `r.created_at >= '${startDate.toISOString()}'`
     if (user.role !== 'super_admin' && user.agencyId) {
-      whereConditions += ` AND agency_id = '${user.agencyId}'`
+      whereConditions += ` AND r.agency_id = '${user.agencyId}'`
     }
     if (agencyId) {
-      whereConditions += ` AND agency_id = '${agencyId}'`
+      whereConditions += ` AND r.agency_id = '${agencyId}'`
     }
 
     // Officer performance
-    const officerPerformance = await db.$queryRaw<
+    const officerPerformance = await db.$queryRawUnsafe<
       Array<{
         officer_id: string
         officer_name: string
@@ -484,7 +492,7 @@ govAnalytics.get('/performance', zValidator('query', legacyAnalyticsQuerySchema)
         completed: bigint
         avg_resolution_days: number
       }>
-    >`
+    >(`
       SELECT 
         u.id as officer_id,
         u.name as officer_name,
@@ -499,12 +507,12 @@ govAnalytics.get('/performance', zValidator('query', legacyAnalyticsQuerySchema)
         ) as avg_resolution_days
       FROM reports r
       JOIN users u ON r.assigned_officer_id = u.id
-      WHERE ${db.$queryRawUnsafe(whereConditions)}
+      WHERE ${whereConditions}
         AND r.assigned_officer_id IS NOT NULL
       GROUP BY u.id, u.name
       ORDER BY completed DESC
       LIMIT 20
-    `
+    `)
 
     // Agency performance (if super_admin)
     let agencyPerformance: any[] = []
@@ -531,10 +539,10 @@ govAnalytics.get('/performance', zValidator('query', legacyAnalyticsQuerySchema)
               ELSE NULL
             END
           ) as avg_resolution_days,
-          AVG(rat.score) as satisfaction_avg
+          AVG(rat.rating) as satisfaction_avg
         FROM reports r
         JOIN agencies a ON r.agency_id = a.id
-        LEFT JOIN ratings rat ON r.id = rat.report_id
+        LEFT JOIN satisfaction_ratings rat ON r.id = rat.report_id
         WHERE r.created_at >= ${startDate}
         GROUP BY a.id, a.name
         ORDER BY completed DESC
@@ -576,7 +584,7 @@ govAnalytics.get('/performance', zValidator('query', legacyAnalyticsQuerySchema)
     })
   } catch (error) {
     console.error('Analytics performance error:', error)
-    return c.json({ error: 'Failed to fetch performance metrics' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Gagal fetch performance metrics', 500)
   }
 })
 
@@ -1290,7 +1298,7 @@ govAnalytics.get('/ai-insights', async (c) => {
     })
   } catch (error) {
     console.error('Analytics AI insights error:', error)
-    return c.json({ error: 'Failed to fetch AI insights' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Gagal fetch AI insights', 500)
   }
 })
 
@@ -1307,7 +1315,7 @@ govAnalytics.get('/predicted-heatmap', async (c) => {
     const cached = await redis.get(cacheKey)
 
     if (cached) {
-      return c.json({ data: JSON.parse(cached), cached: true })
+      return c.json({ success: true, data: JSON.parse(cached), cached: true })
     }
 
     // Get historical hotspots (last 90 days)
@@ -1345,10 +1353,10 @@ govAnalytics.get('/predicted-heatmap', async (c) => {
     // Cache for 6 hours
     await redis.setex(cacheKey, 6 * 60 * 60, JSON.stringify(formattedData))
 
-    return c.json({ data: formattedData, cached: false })
+    return c.json({ success: true, data: formattedData, cached: false })
   } catch (error) {
     console.error('Analytics predicted heatmap error:', error)
-    return c.json({ error: 'Failed to fetch predicted heatmap' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Gagal fetch predicted heatmap', 500)
   }
 })
 

@@ -416,7 +416,7 @@ reports.post('/', optionalAuthMiddleware, zValidator('json', createReportSchema)
     )
   } catch (error) {
     console.error('Create report error:', error)
-    return c.json({ error: 'Failed to create report' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Gagal create report', 500)
   }
 })
 
@@ -455,24 +455,24 @@ reports.post(
       })
 
       if (!report) {
-        return c.json({ error: 'Report not found' }, 404)
+        return err(c, 'NOT_FOUND', 'Laporan tidak ditemukan', 404)
       }
 
       // Check permission (reporter or anonymous token holder)
       const anonymousToken = c.req.header('X-Anonymous-Token')
       if (report.reporterId && report.reporterId !== user?.sub) {
-        return c.json({ error: 'Unauthorized' }, 403)
+        return err(c, 'FORBIDDEN', 'Tidak diizinkan', 403)
       }
       if (report.anonymousToken && report.anonymousToken !== anonymousToken) {
-        return c.json({ error: 'Unauthorized' }, 403)
+        return err(c, 'FORBIDDEN', 'Tidak diizinkan', 403)
       }
 
       // Check media limits (4 photos + 1 video)
       if (mediaType === 'photo' && report._count.media >= 4) {
-        return c.json({ error: 'Maximum 4 photos allowed per report' }, 400)
+        return err(c, 'INVALID_REQUEST', 'Maximum 4 photos allowed per report', 400)
       }
       if (mediaType === 'video' && report._count.media >= 1) {
-        return c.json({ error: 'Maximum 1 video allowed per report' }, 400)
+        return err(c, 'INVALID_REQUEST', 'Maximum 1 video allowed per report', 400)
       }
 
       // Generate presigned URL
@@ -484,13 +484,13 @@ reports.post(
       })
 
       if (!result) {
-        return c.json({ error: 'Failed to generate upload URL' }, 500)
+        return err(c, 'INTERNAL_ERROR', 'Gagal generate upload URL', 500)
       }
 
-      return c.json({ data: result })
+      return ok(c, result)
     } catch (error) {
       console.error('Generate upload URL error:', error)
-      return c.json({ error: 'Failed to generate upload URL' }, 500)
+      return err(c, 'INTERNAL_ERROR', 'Gagal generate upload URL', 500)
     }
   }
 )
@@ -521,16 +521,16 @@ reports.post(
       })
 
       if (!report) {
-        return c.json({ error: 'Report not found' }, 404)
+        return err(c, 'NOT_FOUND', 'Laporan tidak ditemukan', 404)
       }
 
       // Check permission
       const anonymousToken = c.req.header('X-Anonymous-Token')
       if (report.reporterId && report.reporterId !== user?.sub) {
-        return c.json({ error: 'Unauthorized' }, 403)
+        return err(c, 'FORBIDDEN', 'Tidak diizinkan', 403)
       }
       if (report.anonymousToken && report.anonymousToken !== anonymousToken) {
-        return c.json({ error: 'Unauthorized' }, 403)
+        return err(c, 'FORBIDDEN', 'Tidak diizinkan', 403)
       }
 
       // Create media record
@@ -549,10 +549,10 @@ reports.post(
         },
       })
 
-      return c.json({ data: media }, 201)
+      return ok(c, media, 201)
     } catch (error) {
       console.error('Confirm media upload error:', error)
-      return c.json({ error: 'Failed to confirm media upload' }, 500)
+      return err(c, 'INTERNAL_ERROR', 'Gagal confirm media upload', 500)
     }
   }
 )
@@ -573,7 +573,7 @@ reports.post('/:id/vote', authMiddleware, zValidator('param', reportIdSchema), a
     })
 
     if (!report) {
-      return c.json({ error: 'Report not found' }, 404)
+      return err(c, 'NOT_FOUND', 'Laporan tidak ditemukan', 404)
     }
 
     // Check if user already voted
@@ -585,7 +585,7 @@ reports.post('/:id/vote', authMiddleware, zValidator('param', reportIdSchema), a
     })
 
     if (existingVote) {
-      return c.json({ error: 'Already voted' }, 400)
+      return err(c, 'INVALID_REQUEST', 'Sudah voted', 400)
     }
 
     // Create vote
@@ -638,7 +638,7 @@ reports.post('/:id/vote', authMiddleware, zValidator('param', reportIdSchema), a
     })
   } catch (error) {
     console.error('Vote error:', error)
-    return c.json({ error: 'Failed to vote' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Gagal memberikan vote', 500)
   }
 })
 
@@ -660,7 +660,7 @@ reports.delete('/:id/vote', authMiddleware, zValidator('param', reportIdSchema),
     })
 
     if (deletedVote.count === 0) {
-      return c.json({ error: 'Vote not found' }, 404)
+      return err(c, 'NOT_FOUND', 'Vote tidak ditemukan', 404)
     }
 
     // Decrement upvote count
@@ -683,7 +683,7 @@ reports.delete('/:id/vote', authMiddleware, zValidator('param', reportIdSchema),
     })
   } catch (error) {
     console.error('Remove vote error:', error)
-    return c.json({ error: 'Failed to remove vote' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Gagal menghapus vote', 500)
   }
 })
 
@@ -729,10 +729,10 @@ reports.get('/:id/comments', zValidator('param', reportIdSchema), async (c) => {
       },
     })
 
-    return c.json({ data: comments })
+    return ok(c, comments)
   } catch (error) {
     console.error('Get comments error:', error)
-    return c.json({ error: 'Failed to fetch comments' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Gagal memuat komentar', 500)
   }
 })
 
@@ -758,7 +758,7 @@ reports.post(
       })
 
       if (!report) {
-        return c.json({ error: 'Report not found' }, 404)
+        return err(c, 'NOT_FOUND', 'Laporan tidak ditemukan', 404)
       }
 
       // If parentId provided, check if parent comment exists and is top-level
@@ -769,15 +769,15 @@ reports.post(
         })
 
         if (!parentComment) {
-          return c.json({ error: 'Parent comment not found' }, 404)
+          return err(c, 'NOT_FOUND', 'Komentar induk tidak ditemukan', 404)
         }
 
         if (parentComment.reportId !== id) {
-          return c.json({ error: 'Parent comment belongs to different report' }, 400)
+          return err(c, 'INVALID_REQUEST', 'Komentar induk milik laporan lain', 400)
         }
 
         if (parentComment.parentId !== null) {
-          return c.json({ error: 'Cannot reply to a reply (only 1 level nesting allowed)' }, 400)
+          return err(c, 'INVALID_REQUEST', 'Tidak bisa membalas balasan (hanya 1 level)', 400)
         }
       }
 
@@ -831,10 +831,10 @@ reports.post(
       const commentCount = await db.comment.count({ where: { authorId: user.sub } })
       await updateBadgeProgress(user.sub, 'community-helper', commentCount)
 
-      return c.json({ data: comment }, 201)
+      return ok(c, comment, 201)
     } catch (error) {
       console.error('Create comment error:', error)
-      return c.json({ error: 'Failed to create comment' }, 500)
+      return err(c, 'INTERNAL_ERROR', 'Gagal membuat komentar', 500)
     }
   }
 )
@@ -864,10 +864,10 @@ reports.get('/:id/status-history', zValidator('param', reportIdSchema), async (c
       },
     })
 
-    return c.json({ data: history })
+    return ok(c, history)
   } catch (error) {
     console.error('Get status history error:', error)
-    return c.json({ error: 'Failed to fetch status history' }, 500)
+    return err(c, 'INTERNAL_ERROR', 'Gagal fetch status history', 500)
   }
 })
 
@@ -898,16 +898,16 @@ reports.post(
       })
 
       if (!report) {
-        return c.json({ error: 'Report not found' }, 404)
+        return err(c, 'NOT_FOUND', 'Laporan tidak ditemukan', 404)
       }
 
       if (report.status !== 'completed' && report.status !== 'verified_complete') {
-        return c.json({ error: 'Can only rate completed reports' }, 400)
+        return err(c, 'INVALID_REQUEST', 'Can only rate completed reports', 400)
       }
 
       // Check if user is the reporter
       if (report.reporterId !== user.sub) {
-        return c.json({ error: 'Only the reporter can rate the work' }, 403)
+        return err(c, 'FORBIDDEN', 'Only the reporter can rate the work', 403)
       }
 
       // Check if already rated
@@ -918,7 +918,7 @@ reports.post(
       })
 
       if (existingRating) {
-        return c.json({ error: 'Already rated this report' }, 400)
+        return err(c, 'INVALID_REQUEST', 'Sudah rated this report', 400)
       }
 
       // Create rating
@@ -931,10 +931,10 @@ reports.post(
         },
       })
 
-      return c.json({ data: satisfactionRating }, 201)
+      return ok(c, satisfactionRating, 201)
     } catch (error) {
       console.error('Create rating error:', error)
-      return c.json({ error: 'Failed to create rating' }, 500)
+      return err(c, 'INTERNAL_ERROR', 'Gagal create rating', 500)
     }
   }
 )
@@ -967,16 +967,16 @@ reports.post(
       })
 
       if (!report) {
-        return c.json({ error: 'Report not found' }, 404)
+        return err(c, 'NOT_FOUND', 'Laporan tidak ditemukan', 404)
       }
 
       if (report.status !== 'completed') {
-        return c.json({ error: 'Report is not marked as completed' }, 400)
+        return err(c, 'INVALID_REQUEST', 'Report is not marked as completed', 400)
       }
 
       // Check if user is the reporter
       if (report.reporterId !== user.sub) {
-        return c.json({ error: 'Only the reporter can verify completion' }, 403)
+        return err(c, 'FORBIDDEN', 'Only the reporter can verify completion', 403)
       }
 
       // Check if within 7-day window
@@ -985,7 +985,7 @@ reports.post(
           (Date.now() - report.completedAt.getTime()) / (1000 * 60 * 60 * 24)
         )
         if (daysSinceCompletion > 7) {
-          return c.json({ error: 'Verification window has expired (7 days)' }, 400)
+          return err(c, 'INVALID_REQUEST', 'Verification window has expired (7 days)', 400)
         }
       }
 
@@ -1032,10 +1032,10 @@ reports.post(
         await invalidatePattern(`analytics:anomalies:${reportWithAgency.agencyId}`)
       }
 
-      return c.json({ data: updatedReport })
+      return ok(c, updatedReport)
     } catch (error) {
       console.error('Verify complete error:', error)
-      return c.json({ error: 'Failed to verify completion' }, 500)
+      return err(c, 'INTERNAL_ERROR', 'Gagal verify completion', 500)
     }
   }
 )

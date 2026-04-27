@@ -11,6 +11,8 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') })
 
 import { PrismaClient, Priority } from '@prisma/client'
 import bcrypt from 'bcryptjs'
+import { SEED_REPORTS } from './seed-reports.js'
+import { uploadSeedPhoto } from './seed-upload.js'
 
 const prisma = new PrismaClient()
 
@@ -77,6 +79,25 @@ async function main() {
     },
   })
   console.log(`✅ Created citizen user: ${citizenUser.email}`)
+
+  // Additional citizen users for diverse reports
+  const citizen2 = await prisma.user.upsert({
+    where: { email: 'ahmad.fauzan@gmail.com' },
+    update: { name: 'Ahmad Fauzan', passwordHash, role: 'citizen', isActive: true, isVerified: true },
+    create: { email: 'ahmad.fauzan@gmail.com', name: 'Ahmad Fauzan', passwordHash, role: 'citizen', isActive: true, isVerified: true },
+  })
+  const citizen3 = await prisma.user.upsert({
+    where: { email: 'dewi.lestari@yahoo.com' },
+    update: { name: 'Dewi Lestari', passwordHash, role: 'citizen', isActive: true, isVerified: true },
+    create: { email: 'dewi.lestari@yahoo.com', name: 'Dewi Lestari', passwordHash, role: 'citizen', isActive: true, isVerified: true },
+  })
+  const citizen4 = await prisma.user.upsert({
+    where: { email: 'rini.susanti@outlook.com' },
+    update: { name: 'Rini Susanti', passwordHash, role: 'citizen', isActive: true, isVerified: true },
+    create: { email: 'rini.susanti@outlook.com', name: 'Rini Susanti', passwordHash, role: 'citizen', isActive: true, isVerified: true },
+  })
+  const citizenUsers = [citizenUser, citizen2, citizen3, citizen4]
+  console.log(`✅ Created ${citizenUsers.length} citizen users`)
 
   // Create a test agency first for government users
   const testAgency = await prisma.agency.upsert({
@@ -345,26 +366,22 @@ async function main() {
   console.log(`✅ Seeded ${BADGES.length} badges\n`)
 
   // ─────────────────────────────────────────────────────────
-  // Seed reports with status history, comments, votes
+  // Seed reports with photos, comments, AI cache, ratings
   // ─────────────────────────────────────────────────────────
-  console.log('📝 Seeding reports...')
+  console.log('📝 Seeding photo-based reports...')
 
-  const SEED_REPORTS = [
-    { title: 'Jalan Berlubang Besar di Depan Kampus', desc: 'Lubang berdiameter ~60cm dan kedalaman ~15cm di tengah jalan. Sudah menyebabkan 2 motor tergelincir minggu lalu.', catId: 1, lat: -6.9732, lng: 107.6308, addr: 'Jl. Telekomunikasi No. 1, Bandung', status: 'verified_complete' as const, priority: 'urgent' as Priority, daysAgo: 14 },
-    { title: 'Lampu Jalan Mati 3 Tiang Berturut', desc: '3 tiang lampu jalan mati sepanjang 200m. Area gelap total malam hari, rawan kriminalitas.', catId: 3, lat: -6.9768, lng: 107.6345, addr: 'Jl. Bojongsoang No. 45, Dayeuh Kolot', status: 'in_progress' as const, priority: 'high' as Priority, daysAgo: 7 },
-    { title: 'Saluran Drainase Tersumbat Sampah', desc: 'Drainase tersumbat — air meluap ke jalan saat hujan. Genangan mencapai 30cm.', catId: 11, lat: -6.9755, lng: 107.6270, addr: 'Jl. Sukabirus No. 35, Sukapura', status: 'verified' as const, priority: 'high' as Priority, daysAgo: 5 },
-    { title: 'Trotoar Ambles dan Guiding Block Hilang', desc: 'Trotoar ambles di depan kampus. Guiding block untuk tunanetra sudah hilang separuh.', catId: 5, lat: -6.9710, lng: 107.6325, addr: 'Jl. Terusan Buah Batu, Bandung', status: 'completed' as const, priority: 'medium' as Priority, daysAgo: 10 },
-    { title: 'Sampah Menumpuk di Lahan Kosong', desc: 'Lahan kosong dijadikan TPS liar. Bau menyengat dan menjadi sarang nyamuk.', catId: 14, lat: -6.9790, lng: 107.6360, addr: 'Jl. PGA No. 88, Bojongsoang', status: 'in_progress' as const, priority: 'medium' as Priority, daysAgo: 8 },
-    { title: 'Kabel Listrik Menjuntai Rendah', desc: 'Tiang listrik penuh kabel menjuntai. Beberapa kabel terkelupas, bahaya saat hujan.', catId: 9, lat: -6.9745, lng: 107.6250, addr: 'Jl. Sukapura No. 20, Bandung', status: 'new' as const, priority: 'low' as Priority, daysAgo: 1 },
-    { title: 'Halte Bus Atap Bocor dan Bangku Patah', desc: 'Atap halte bocor, bangku patah, papan informasi rute tidak terbaca.', catId: 2, lat: -6.9695, lng: 107.6335, addr: 'Halte Jl. Terusan Buah Batu', status: 'verified' as const, priority: 'medium' as Priority, daysAgo: 4 },
-    { title: 'Genangan Air Permanen di Pasar', desc: 'Genangan air tidak pernah surut bahkan saat tidak hujan. Diduga pipa PDAM bocor.', catId: 19, lat: -6.9810, lng: 107.6290, addr: 'Jl. Dayeuh Kolot No. 12', status: 'new' as const, priority: 'urgent' as Priority, daysAgo: 0 },
-    { title: 'Taman Kota Peralatan Karatan', desc: 'Taman mini penuh rumput liar. Ayunan dan seluncuran anak karatan dan berbahaya.', catId: 15, lat: -6.9718, lng: 107.6283, addr: 'Taman Jl. Telekomunikasi, Sukapura', status: 'completed' as const, priority: 'low' as Priority, daysAgo: 20 },
-    { title: 'Rambu Lalu Lintas Tertutup Pohon', desc: 'Rambu larangan belok kiri tertutup cabang pohon. Banyak pengendara salah belok.', catId: 4, lat: -6.9775, lng: 107.6315, addr: 'Persimpangan Jl. Terusan Buah Batu', status: 'verified_complete' as const, priority: 'medium' as Priority, daysAgo: 12 },
-    { title: 'WiFi Publik Tidak Berfungsi', desc: 'WiFi gratis pemkot di area kampus tidak berfungsi sejak 2 bulan. Router tampak rusak.', catId: 22, lat: -6.9725, lng: 107.6340, addr: 'Area publik Jl. Telekomunikasi', status: 'new' as const, priority: 'low' as Priority, daysAgo: 0 },
-    { title: 'JPO Lantai Retak dan Pagar Goyang', desc: 'Lantai JPO retak-retak dan terkelupas. Pagar pengaman juga goyang.', catId: 8, lat: -6.9700, lng: 107.6300, addr: 'JPO Jl. Terusan Buah Batu', status: 'in_progress' as const, priority: 'urgent' as Priority, daysAgo: 3 },
-  ]
+  // Delete old seed reports for a clean slate
+  const oldReports = await prisma.report.findMany({
+    where: { trackingCode: { startsWith: 'LP-2026-3273-' } },
+    select: { id: true },
+  })
+  if (oldReports.length > 0) {
+    await prisma.report.deleteMany({
+      where: { id: { in: oldReports.map(r => r.id) } },
+    })
+    console.log(`  🗑️  Deleted ${oldReports.length} old seed reports`)
+  }
 
-  // Status lifecycle transitions
   const STATUS_FLOWS: Record<string, string[]> = {
     new: ['new'],
     verified: ['new', 'verified'],
@@ -372,11 +389,10 @@ async function main() {
     completed: ['new', 'verified', 'in_progress', 'completed'],
     verified_complete: ['new', 'verified', 'in_progress', 'completed', 'verified_complete'],
   }
-
   const NOTES: Record<string, string> = {
-    new: 'Laporan dibuat',
+    new: 'Laporan dibuat oleh warga',
     verified: 'Laporan valid, diteruskan ke dinas terkait',
-    in_progress: 'Perbaikan sedang dilakukan',
+    in_progress: 'Perbaikan sedang dilakukan oleh tim lapangan',
     completed: 'Perbaikan selesai, menunggu verifikasi warga',
     verified_complete: 'Warga mengkonfirmasi perbaikan selesai',
   }
@@ -387,30 +403,15 @@ async function main() {
     const trackingCode = `LP-2026-3273-${String(seq).padStart(5, '0')}`
     const createdAt = new Date()
     createdAt.setDate(createdAt.getDate() - r.daysAgo)
-
-    // Check if report with this tracking code already exists
-    const existing = await prisma.report.findUnique({ where: { trackingCode } })
-    if (existing) {
-      console.log(`  ⏭️  Report ${trackingCode} already exists, skipping`)
-      continue
-    }
+    const reporter = citizenUsers[r.reporterIdx % citizenUsers.length]
 
     const report = await prisma.report.create({
       data: {
-        trackingCode,
-        title: r.title,
-        description: r.desc,
-        categoryId: r.catId,
-        locationLat: r.lat,
-        locationLng: r.lng,
-        locationAddress: r.addr,
-        regionCode: '3273',
-        regionName: 'Kota Bandung',
-        reporterId: citizenUser.id,
-        status: r.status,
-        priority: r.priority,
-        dangerLevel: r.priority === 'urgent' ? 5 : r.priority === 'high' ? 4 : r.priority === 'medium' ? 3 : 2,
-        priorityScore: r.priority === 'urgent' ? 85 : r.priority === 'high' ? 65 : r.priority === 'medium' ? 45 : 25,
+        trackingCode, title: r.title, description: r.desc, categoryId: r.catId,
+        locationLat: r.lat, locationLng: r.lng, locationAddress: r.addr,
+        regionCode: '3273', regionName: 'Kota Bandung', reporterId: reporter.id,
+        status: r.status, priority: r.priority,
+        dangerLevel: r.aiDanger, priorityScore: r.aiPriority,
         upvoteCount: Math.floor(Math.random() * 80) + 5,
         agencyId: r.status !== 'new' ? testAgency.id : null,
         assignedOfficerId: ['in_progress', 'completed', 'verified_complete'].includes(r.status) ? officerUser.id : null,
@@ -421,61 +422,93 @@ async function main() {
       },
     })
 
-    // Create status history
+    // Status history
     const flow = STATUS_FLOWS[r.status] || ['new']
     for (let j = 0; j < flow.length; j++) {
-      const prevStatus = j === 0 ? 'new' : flow[j - 1]
-      const histDate = new Date(createdAt)
-      histDate.setDate(histDate.getDate() + j)
+      const histDate = new Date(createdAt); histDate.setDate(histDate.getDate() + j)
       await prisma.statusHistory.create({
         data: {
           reportId: report.id,
-          oldStatus: prevStatus as any,
+          oldStatus: (j === 0 ? 'new' : flow[j - 1]) as any,
           newStatus: flow[j] as any,
           note: NOTES[flow[j]] || 'Status diperbarui',
-          changedById: j === 0 ? citizenUser.id : officerUser.id,
+          changedById: j === 0 ? reporter.id : officerUser.id,
           officerNip: j > 0 ? officerUser.nip : null,
           createdAt: histDate,
         },
       })
     }
 
-    // Add 1-2 comments on non-new reports
-    if (r.status !== 'new') {
-      await prisma.comment.create({
-        data: {
-          reportId: report.id,
-          authorId: citizenUser.id,
-          content: 'Tolong segera ditangani, sudah banyak warga yang terdampak.',
-          isGovernment: false,
-          createdAt: new Date(createdAt.getTime() + 3600000),
-        },
-      })
-      if (['in_progress', 'completed', 'verified_complete'].includes(r.status)) {
-        await prisma.comment.create({
+    // Upload photos & create media records
+    for (let p = 0; p < r.photos.length; p++) {
+      try {
+        const uploaded = await uploadSeedPhoto(r.photoDir, r.photos[p], report.id, p)
+        await prisma.media.create({
           data: {
-            reportId: report.id,
-            authorId: officerUser.id,
-            content: 'Terima kasih atas laporannya. Tim kami sedang menangani.',
-            isGovernment: true,
-            createdAt: new Date(createdAt.getTime() + 7200000),
+            reportId: report.id, uploaderId: reporter.id, mediaType: 'photo',
+            fileUrl: uploaded.fileUrl, fileKey: uploaded.fileKey,
+            fileSizeKb: uploaded.fileSizeKb, mimeType: uploaded.mimeType,
+            sortOrder: p, createdAt,
           },
         })
-        await prisma.report.update({
-          where: { id: report.id },
-          data: { commentCount: 2 },
-        })
-      } else {
-        await prisma.report.update({
-          where: { id: report.id },
-          data: { commentCount: 1 },
-        })
+      } catch (err) {
+        console.warn(`  ⚠️  Photo upload failed ${r.photos[p]}: ${(err as Error).message}`)
       }
     }
 
-    console.log(`  ✅ ${trackingCode} — ${r.title} [${r.status}]`)
+    // Citizen comments
+    let commentCount = 0
+    for (let c = 0; c < r.citizenComments.length; c++) {
+      await prisma.comment.create({
+        data: {
+          reportId: report.id,
+          authorId: citizenUsers[(r.reporterIdx + c + 1) % citizenUsers.length].id,
+          content: r.citizenComments[c], isGovernment: false,
+          createdAt: new Date(createdAt.getTime() + (c + 1) * 3600000),
+        },
+      })
+      commentCount++
+    }
+    // Government comments
+    for (let g = 0; g < r.govComments.length; g++) {
+      await prisma.comment.create({
+        data: {
+          reportId: report.id, authorId: officerUser.id,
+          content: r.govComments[g], isGovernment: true,
+          createdAt: new Date(createdAt.getTime() + (r.citizenComments.length + g + 1) * 7200000),
+        },
+      })
+      commentCount++
+    }
+    if (commentCount > 0) {
+      await prisma.report.update({ where: { id: report.id }, data: { commentCount } })
+    }
+
+    // AI Analysis Cache
+    await prisma.aiAnalysisCache.create({
+      data: {
+        reportId: report.id, suggestedCategory: r.catId,
+        dangerLevel: r.aiDanger, priorityScore: r.aiPriority,
+        isHoax: false, hoaxConfidence: r.aiHoax, isDuplicate: false,
+        budgetEstimate: BigInt(r.aiBudget), impactSummary: r.aiImpact,
+      },
+    })
+
+    // Satisfaction rating for completed reports
+    if (['completed', 'verified_complete'].includes(r.status)) {
+      const rating = 3 + Math.floor(Math.random() * 3)
+      await prisma.satisfactionRating.create({
+        data: {
+          reportId: report.id, userId: reporter.id, rating,
+          review: rating >= 4 ? 'Penanganan cukup cepat dan hasilnya memuaskan.' : 'Sudah ditangani tetapi masih perlu perbaikan di beberapa bagian.',
+        },
+      })
+    }
+
+    console.log(`  ✅ ${trackingCode} — ${r.title} [${r.status}] (${r.photos.length} photos)`)
   }
-  console.log(`✅ Seeded ${SEED_REPORTS.length} reports with status history & comments\n`)
+  console.log(`✅ Seeded ${SEED_REPORTS.length} reports with photos, AI cache & ratings\n`)
+
 
   // ─────────────────────────────────────────────────────────
   // Seed gamification for citizen user

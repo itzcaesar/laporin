@@ -2,6 +2,12 @@
 // Main entry point for the Laporin API
 // Hono app with middleware and route mounting
 
+// BigInt cannot be serialized by JSON.stringify by default.
+// Prisma fields like budgetEstimate (BigInt) need this polyfill.
+;(BigInt.prototype as any).toJSON = function () {
+  return Number(this)
+}
+
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
