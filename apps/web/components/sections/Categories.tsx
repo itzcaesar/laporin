@@ -6,7 +6,7 @@ import { useScrollReveal } from "@/hooks/useScrollReveal";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { CategoryChip } from "@/components/ui/CategoryChip";
 import { Button } from "@/components/ui/Button";
-import type { Category } from "@/types";
+import type { Category } from '@/types/ui';
 
 const CATEGORIES_DATA: Category[] = [
   { id: "roads", emoji: "🛣️", name: "Jalan Rusak", agency: "Dinas PU" },

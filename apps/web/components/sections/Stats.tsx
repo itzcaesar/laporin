@@ -3,7 +3,7 @@
 
 import { useScrollReveal } from "@/hooks/useScrollReveal";
 import { StatCounter } from "@/components/ui/StatCounter";
-import type { Stat } from "@/types";
+import type { Stat } from '@/types/ui';
 
 const STATS_DATA: Stat[] = [
   { value: 47392, label: "Laporan Diterima", suffix: "+" },

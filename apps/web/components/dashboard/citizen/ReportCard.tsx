@@ -7,7 +7,7 @@ import { ArrowBigUp, MessageCircle, CheckCircle2, Star } from "lucide-react";
 import Link from "next/link";
 import { useRef } from "react";
 import { useConfetti } from "@/hooks/useConfetti";
-import type { Report } from "@/types";
+import type { Report } from '@laporin/types';
 import { useRouter } from "next/navigation";
 
 interface ReportCardProps {

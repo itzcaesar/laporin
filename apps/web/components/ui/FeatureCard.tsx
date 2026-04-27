@@ -1,7 +1,7 @@
 // ── components/ui/FeatureCard.tsx ──
 import { memo } from "react";
 import { cn } from "@/lib/utils";
-import type { FeatureCardProps } from "@/types";
+import type { FeatureCardProps } from '@/types/ui';
 
 export const FeatureCard = memo(function FeatureCard({ feature, className }: FeatureCardProps) {
   return (

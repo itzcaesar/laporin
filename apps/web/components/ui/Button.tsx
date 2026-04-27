@@ -1,7 +1,7 @@
 // ── components/ui/Button.tsx ──
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import type { ButtonProps, ButtonVariant, ButtonSize } from "@/types";
+import type { ButtonProps, ButtonVariant, ButtonSize } from '@/types/ui';
 
 const VARIANT_STYLES: Record<ButtonVariant, string> = {
   primary:

@@ -8,7 +8,7 @@ import { Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useScrolled } from "@/hooks/useScrolled";
 import { Button } from "@/components/ui/Button";
-import type { NavLink } from "@/types";
+import type { NavLink } from '@/types/ui';
 
 const NAV_LINKS: NavLink[] = [
   { label: "Cara Kerja", href: "/#cara-kerja" },

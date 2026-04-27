@@ -16,7 +16,8 @@ import { STATUS_CONFIG, getStatusConfig } from "@/lib/status-config";
 import { useReports } from "@/hooks/useReports";
 import { ReportDetailModal } from "@/components/map/ReportDetailModal";
 import { ThumbsUp, MessageCircle } from "lucide-react";
-import type { Report, ReportStatus } from "@/types";
+import type { ReportStatus } from '@laporin/types'
+import type { Report } from '@laporin/types';
 
 // ── Marker icon cache for performance ──
 const markerIconCache = new Map<ReportStatus, L.DivIcon>();

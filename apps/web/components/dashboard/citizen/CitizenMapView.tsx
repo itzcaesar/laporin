@@ -13,7 +13,7 @@ import { BottomSheet } from "@/components/dashboard/shared/BottomSheet";
 import { Button } from "@/components/ui/Button";
 import { Search, Plus, MapPin as MapPinIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import type { ReportStatus } from "@/types";
+import type { ReportStatus } from '@laporin/types';
 
 // ── Marker icon cache ──
 const markerIconCache = new Map<ReportStatus, L.DivIcon>();

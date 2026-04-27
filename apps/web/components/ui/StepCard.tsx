@@ -1,6 +1,6 @@
 // ── components/ui/StepCard.tsx ──
 import { cn } from "@/lib/utils";
-import type { StepCardProps } from "@/types";
+import type { StepCardProps } from '@/types/ui';
 
 export function StepCard({ step, isLast = false, className }: StepCardProps) {
   return (

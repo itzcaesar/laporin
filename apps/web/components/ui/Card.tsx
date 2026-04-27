@@ -1,6 +1,6 @@
 // ── components/ui/Card.tsx ──
 import { cn } from "@/lib/utils";
-import type { CardProps } from "@/types";
+import type { CardProps } from '@/types/ui';
 
 const PADDING_STYLES: Record<string, string> = {
   sm: "p-3 sm:p-4",

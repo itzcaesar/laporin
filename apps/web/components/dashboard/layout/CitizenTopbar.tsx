@@ -22,6 +22,7 @@ const NAV_ITEMS = [
 ];
 
 import { useNotifications } from "@/hooks/useNotifications";
+import { SearchSuggestions } from "@/components/dashboard/shared/SearchSuggestions";
 
 
 export function CitizenTopbar() {

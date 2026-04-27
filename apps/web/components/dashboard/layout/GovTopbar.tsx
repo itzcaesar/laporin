@@ -3,10 +3,11 @@
 
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, Bell, ChevronDown } from "lucide-react";
+import { Menu, Bell, ChevronDown, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useNotifications } from "@/hooks/useNotifications";
+import { SearchSuggestions } from "@/components/dashboard/shared/SearchSuggestions";
 
 type GovTopbarProps = {
   onMenuClick: () => void;
@@ -28,9 +29,17 @@ export function GovTopbar({ onMenuClick }: GovTopbarProps) {
   const { user, logout } = useAuth();
   const { unreadCount } = useNotifications();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Get breadcrumb from pathname
   const breadcrumb = BREADCRUMB_LABELS[pathname] || "Dasbor";
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      router.push(`/gov/reports?search=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
 
 
 
@@ -54,6 +63,28 @@ export function GovTopbar({ onMenuClick }: GovTopbarProps) {
             {breadcrumb}
           </h1>
         </div>
+
+        {/* Center: Search (desktop only) */}
+        <form onSubmit={handleSearch} className="hidden lg:block flex-1 max-w-md mx-4">
+          <div className="relative">
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted"
+              size={18}
+            />
+            <input
+              type="search"
+              placeholder="Cari laporan..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full rounded-xl border border-border bg-surface pl-10 pr-4 py-2 text-sm text-ink placeholder:text-muted focus:border-blue focus:outline-none focus:ring-2 focus:ring-blue/20 transition-all"
+            />
+            <SearchSuggestions
+              query={searchQuery}
+              onSelect={setSearchQuery}
+              onSubmit={() => handleSearch({ preventDefault: () => {} } as React.FormEvent)}
+            />
+          </div>
+        </form>
 
         {/* Right: Notification + Avatar */}
         <div className="flex items-center gap-3">

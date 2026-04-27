@@ -4,7 +4,7 @@
 import { useScrollReveal } from "@/hooks/useScrollReveal";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import type { StatusStage } from "@/types";
+import type { StatusStage } from '@/types/ui';
 
 const STATUS_STAGES: StatusStage[] = [
   {

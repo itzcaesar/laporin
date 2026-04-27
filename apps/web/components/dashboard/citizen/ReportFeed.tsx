@@ -14,7 +14,7 @@ import {
   MoreVertical,
   MapPin,
 } from "lucide-react";
-import type { Report } from "@/types";
+import type { Report } from '@laporin/types';
 import { api } from "@/lib/api-client";
 import { CommentModal } from "./CommentModal";
 

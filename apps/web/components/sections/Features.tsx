@@ -4,7 +4,7 @@
 import { useScrollReveal } from "@/hooks/useScrollReveal";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { FeatureCard } from "@/components/ui/FeatureCard";
-import type { Feature } from "@/types";
+import type { Feature } from '@/types/ui';
 
 const FEATURES_DATA: Feature[] = [
   {

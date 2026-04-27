@@ -4,7 +4,7 @@
 import { useScrollReveal } from "@/hooks/useScrollReveal";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { TestimonialCard } from "@/components/ui/TestimonialCard";
-import type { Testimonial } from "@/types";
+import type { Testimonial } from '@/types/ui';
 
 const TESTIMONIALS_DATA: Testimonial[] = [
   {

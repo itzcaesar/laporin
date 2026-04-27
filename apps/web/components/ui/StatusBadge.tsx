@@ -1,6 +1,6 @@
 // ── components/ui/StatusBadge.tsx ──
 import { cn } from "@/lib/utils";
-import type { StatusBadgeProps } from "@/types";
+import type { StatusBadgeProps } from '@/types/ui';
 
 export function StatusBadge({ stage, className }: StatusBadgeProps) {
   return (

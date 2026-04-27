@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { getStatusConfig } from "@/lib/status-config";
 import { useReport } from "@/hooks/useReport";
 import { api } from "@/lib/api-client";
-import type { ReportDetail, Comment } from "@/types";
+import type { ReportDetail, Comment } from '@laporin/types';
 import {
   X,
   ArrowBigUp,

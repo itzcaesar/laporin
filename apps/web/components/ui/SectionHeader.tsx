@@ -1,6 +1,6 @@
 // ── components/ui/SectionHeader.tsx ──
 import { cn } from "@/lib/utils";
-import type { SectionHeaderProps } from "@/types";
+import type { SectionHeaderProps } from '@/types/ui';
 
 export function SectionHeader({
   eyebrow,

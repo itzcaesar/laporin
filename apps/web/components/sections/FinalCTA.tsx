@@ -3,7 +3,7 @@
 
 import { useScrollReveal } from "@/hooks/useScrollReveal";
 import { Button } from "@/components/ui/Button";
-import type { EmergencyNumber } from "@/types";
+import type { EmergencyNumber } from '@/types/ui';
 
 const EMERGENCY_NUMBERS: EmergencyNumber[] = [
   { emoji: "🚒", service: "Damkar", number: "113" },

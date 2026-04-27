@@ -1,7 +1,7 @@
 // ── components/ui/CategoryChip.tsx ──
 import { memo } from "react";
 import { cn } from "@/lib/utils";
-import type { CategoryChipProps } from "@/types";
+import type { CategoryChipProps } from '@/types/ui';
 
 export const CategoryChip = memo(function CategoryChip({ category, className }: CategoryChipProps) {
   return (

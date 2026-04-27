@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { useScrollReveal } from "@/hooks/useScrollReveal";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StepCard } from "@/components/ui/StepCard";
-import type { Step } from "@/types";
+import type { Step } from '@/types/ui';
 
 const CITIZEN_STEPS: Step[] = [
   {

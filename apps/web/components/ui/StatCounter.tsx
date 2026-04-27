@@ -3,7 +3,7 @@
 
 import { cn } from "@/lib/utils";
 import { useCounterAnimation } from "@/hooks/useCounterAnimation";
-import type { StatCounterProps } from "@/types";
+import type { StatCounterProps } from '@/types/ui';
 
 export function StatCounter({ stat, className }: StatCounterProps) {
   const { value, ref } = useCounterAnimation(

@@ -2,7 +2,7 @@
 import { memo } from "react";
 import { cn } from "@/lib/utils";
 import { Star } from "lucide-react";
-import type { TestimonialCardProps } from "@/types";
+import type { TestimonialCardProps } from '@/types/ui';
 
 export const TestimonialCard = memo(function TestimonialCard({
   testimonial,

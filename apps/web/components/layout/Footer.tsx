@@ -2,7 +2,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Globe, ExternalLink, GitFork } from "lucide-react";
-import type { FooterColumn } from "@/types";
+import type { FooterColumn } from '@/types/ui';
 
 const FOOTER_COLUMNS: FooterColumn[] = [
   {

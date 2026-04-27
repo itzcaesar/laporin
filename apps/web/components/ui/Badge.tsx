@@ -1,6 +1,6 @@
 // ── components/ui/Badge.tsx ──
 import { cn } from "@/lib/utils";
-import type { BadgeProps } from "@/types";
+import type { BadgeProps } from '@/types/ui';
 
 const VARIANT_STYLES: Record<string, string> = {
   default: "bg-gray-100 text-gray-700",
