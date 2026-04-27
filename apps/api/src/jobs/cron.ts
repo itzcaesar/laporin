@@ -19,10 +19,12 @@ export function scheduleDailyInsightJob() {
 
     try {
       // Get all active agencies
-      const agencies = await db.agency.findMany({
+      const dbAgencies = await db.agency.findMany({
         where: { isActive: true },
         select: { id: true, name: true },
       })
+      
+      const agencies = [...dbAgencies, { id: 'all', name: 'Seluruh Indonesia' }]
 
       for (const agency of agencies) {
         try {
@@ -30,11 +32,13 @@ export function scheduleDailyInsightJob() {
           const last30Days = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
           const last60Days = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000)
 
+          const agencyWhere = agency.id === 'all' ? {} : { agencyId: agency.id }
+
           // Get current period category counts
           const currentCategoryCounts = await db.report.groupBy({
             by: ['categoryId'],
             where: {
-              agencyId: agency.id,
+              ...agencyWhere,
               createdAt: { gte: last30Days },
             },
             _count: true,
@@ -46,7 +50,7 @@ export function scheduleDailyInsightJob() {
           const previousCategoryCounts = await db.report.groupBy({
             by: ['categoryId'],
             where: {
-              agencyId: agency.id,
+              ...agencyWhere,
               createdAt: { gte: last60Days, lt: last30Days },
             },
             _count: true,
@@ -76,7 +80,7 @@ export function scheduleDailyInsightJob() {
           // Get open reports and SLA breached
           const totalOpen = await db.report.count({
             where: {
-              agencyId: agency.id,
+              ...agencyWhere,
               status: { in: ['new', 'verified', 'in_progress'] },
             },
           })
@@ -84,7 +88,7 @@ export function scheduleDailyInsightJob() {
           const now = new Date()
           const slaBreached = await db.report.count({
             where: {
-              agencyId: agency.id,
+              ...agencyWhere,
               status: { in: ['new', 'verified', 'in_progress'] },
               estimatedEnd: { lt: now },
             },

@@ -106,8 +106,7 @@ export function AiAnalysisCard({
     return (
       <div className="rounded-2xl bg-teal-light border-l-4 border-teal p-6">
         <div className="flex items-center gap-2 text-sm text-teal-900">
-          <Loader2 size={16} className="animate-spin" />
-          <span>🤖 Analisis AI sedang diproses...</span>
+          <span>🤖 Belum ada analisis AI untuk laporan ini.</span>
         </div>
       </div>
     );

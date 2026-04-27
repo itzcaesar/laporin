@@ -50,7 +50,7 @@ export function SatisfactionGauge({
         Kepuasan Warga
       </h3>
       <div className="relative">
-        <ResponsiveContainer width="100%" height={200}>
+        <ResponsiveContainer width="100%" height={200} minWidth={0} minHeight={0}>
           <RadialBarChart
             cx="50%"
             cy="50%"

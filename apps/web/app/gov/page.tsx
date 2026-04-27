@@ -112,7 +112,7 @@ export default function GovDashboardPage() {
         <KpiCard 
           title="Total Laporan"
           value={stats?.totalReports || 0}
-          trend={12}
+          trend={stats?.trendPercent ?? undefined}
           icon={ClipboardList}
           color="bg-blue"
           href="/gov/reports"
@@ -121,7 +121,6 @@ export default function GovDashboardPage() {
         <KpiCard 
           title="SLA Breach"
           value={stats?.slaBreachedCount || 0}
-          trend={-5}
           icon={AlertTriangle}
           color="bg-red-500"
           href="/gov/reports?filter=sla_breached"
@@ -138,7 +137,6 @@ export default function GovDashboardPage() {
         <KpiCard 
           title="Kepatuhan SLA"
           value={stats?.slaCompliance ? `${stats.slaCompliance}%` : "0%"}
-          trend={8}
           icon={CheckCircle2}
           color="bg-emerald-500"
           href="/gov/analytics"
@@ -170,7 +168,7 @@ export default function GovDashboardPage() {
               {isLoading ? (
                 <div className="w-full h-full bg-surface animate-pulse rounded-xl" />
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <AreaChart data={stats?.trendData || []}>
                     <defs>
                       <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
@@ -261,7 +259,7 @@ export default function GovDashboardPage() {
                 {isLoading ? (
                   <div className="w-full h-full bg-surface animate-pulse rounded-xl" />
                 ) : (
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                     <BarChart data={stats?.categoryDistribution || []} layout="vertical">
                       <XAxis type="number" hide />
                       <YAxis 
@@ -305,17 +303,29 @@ export default function GovDashboardPage() {
                     <span className="text-[11px] font-bold uppercase tracking-wider">Insight Utama</span>
                   </div>
                   <p className="text-xs leading-relaxed text-blue-50">
-                    {stats?.aiInsight || "Menganalisis pola laporan... Menemukan anomali di wilayah Bandung Selatan pada kategori Drainase. Rekomendasi: Alokasikan tim darurat ke area tersebut."}
+                    {isLoading ? (
+                      <span className="inline-block w-full h-4 bg-white/20 animate-pulse rounded" />
+                    ) : stats?.aiInsight ? (
+                      stats.aiInsight
+                    ) : (
+                      "Insight AI sedang diproses. Muat ulang halaman dalam beberapa detik untuk melihat hasilnya."
+                    )}
                   </p>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-white/5 p-3 rounded-xl">
                     <p className="text-[10px] text-blue-200 mb-1">Prediksi Beban</p>
-                    <p className="text-sm font-bold">+15% Minggu Depan</p>
+                    <p className="text-sm font-bold">
+                      {stats?.workloadForecast != null
+                        ? `${stats.workloadForecast >= 0 ? '+' : ''}${stats.workloadForecast}% Minggu Depan`
+                        : "— Data belum cukup"}
+                    </p>
                   </div>
                   <div className="bg-white/5 p-3 rounded-xl">
                     <p className="text-[10px] text-blue-200 mb-1">Skor Efisiensi</p>
-                    <p className="text-sm font-bold">8.4 / 10</p>
+                    <p className="text-sm font-bold">
+                      {stats?.efficiencyScore != null ? `${stats.efficiencyScore} / 10` : "—"}
+                    </p>
                   </div>
                 </div>
               </div>

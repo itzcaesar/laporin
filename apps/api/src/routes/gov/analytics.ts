@@ -793,7 +793,7 @@ govAnalytics.get('/insights', async (c) => {
 
   try {
     // Check Redis for cached insights with role-based key
-    const cacheKey = `analytics:insights:${user.agencyId || 'all'}`
+    const cacheKey = `laporin:insights:gov:${user.agencyId || 'all'}`
     const cached = await redis.get(cacheKey)
 
     if (cached) {

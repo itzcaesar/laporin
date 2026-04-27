@@ -15,6 +15,12 @@ import { useGovReport, useGovReportActions } from "@/hooks/useGovReport";
 import LoadingSkeleton from "@/components/dashboard/shared/LoadingSkeleton";
 import EmptyState from "@/components/dashboard/shared/EmptyState";
 import type { Comment } from "@/types";
+import dynamic from "next/dynamic";
+
+const StaticMap = dynamic(
+  () => import("@/components/map/StaticMap"),
+  { ssr: false }
+);
 
 const STATUS_LABELS: Record<string, string> = {
   new: "Baru",
@@ -90,25 +96,29 @@ export default function GovReportDetailPage() {
     picNip: reportData.picNip,
     createdAt: reportData.createdAt,
     media: reportData.media,
-    aiAnalysis: {
+    aiAnalysis: reportData.aiAnalysis ? {
       categoryDetected: {
         emoji: reportData.category.emoji,
         name: reportData.category.name,
-        confidence: 95, // Not in API response
+        confidence: reportData.aiAnalysis.suggestedCategory === reportData.categoryId
+          ? 95  // AI matched the assigned category — high confidence
+          : reportData.aiAnalysis.suggestedCategory
+            ? 60  // AI suggested a different category
+            : 80, // AI didn't suggest a category — moderate confidence
       },
-      dangerLevel: reportData.aiAnalysis?.dangerLevel || reportData.dangerLevel,
-      dangerLabel: getDangerLabel(reportData.aiAnalysis?.dangerLevel || reportData.dangerLevel),
-      priorityScore: reportData.aiAnalysis?.priorityScore || reportData.priorityScore,
+      dangerLevel: reportData.aiAnalysis.dangerLevel ?? reportData.dangerLevel,
+      dangerLabel: getDangerLabel(reportData.aiAnalysis.dangerLevel ?? reportData.dangerLevel),
+      priorityScore: reportData.aiAnalysis.priorityScore ?? reportData.priorityScore,
       priorityLabel: getPriorityLabel(reportData.priority),
-      hoaxConfidence: reportData.aiAnalysis?.hoaxConfidence || 0,
-      budgetEstimate: reportData.aiAnalysis?.budgetEstimate ? {
-        minIdr: Math.floor(reportData.aiAnalysis.budgetEstimate * 0.8),
-        maxIdr: Math.ceil(reportData.aiAnalysis.budgetEstimate * 1.2),
-        basis: "Estimasi AI berdasarkan kategori dan lokasi",
+      hoaxConfidence: reportData.aiAnalysis.hoaxConfidence ?? 0,
+      budgetEstimate: reportData.aiAnalysis.budgetEstimate ? {
+        minIdr: Math.floor(Number(reportData.aiAnalysis.budgetEstimate) * 0.8),
+        maxIdr: Math.ceil(Number(reportData.aiAnalysis.budgetEstimate) * 1.2),
+        basis: "Estimasi AI berdasarkan kategori, lokasi, dan tingkat kerusakan",
       } : null,
-      impactSummary: reportData.aiAnalysis?.impactSummary || null,
+      impactSummary: reportData.aiAnalysis.impactSummary || null,
       beforeAfterVerification: null,
-    },
+    } : null,
     comments: reportData.comments.map(c => ({
       id: c.id,
       content: c.content,
@@ -341,8 +351,14 @@ export default function GovReportDetailPage() {
               <h2 className="text-base font-semibold font-display text-navy mb-4">
                 Lokasi
               </h2>
-              <div className="rounded-xl bg-gray-200 h-48 mb-3 flex items-center justify-center text-muted">
-                <MapPin size={32} />
+              <div className="mb-3">
+                {report.locationLat && report.locationLng ? (
+                  <StaticMap lat={report.locationLat} lng={report.locationLng} />
+                ) : (
+                  <div className="rounded-xl bg-gray-200 h-48 flex items-center justify-center text-muted">
+                    <MapPin size={32} />
+                  </div>
+                )}
               </div>
               <p className="text-sm text-ink mb-1">{report.locationAddress}</p>
               <p className="text-xs text-muted">
@@ -400,7 +416,7 @@ export default function GovReportDetailPage() {
                 reportId={report.id}
                 status={report.status as any}
                 hasPic={!!report.picName}
-                hoaxConfidence={report.aiAnalysis.hoaxConfidence}
+                hoaxConfidence={report.aiAnalysis?.hoaxConfidence ?? 0}
                 slaStatus={calculateSlaStatus()}
                 recentAuditActions={getRecentAuditActions()}
                 actions={actions}
@@ -453,7 +469,7 @@ export default function GovReportDetailPage() {
                 reportId={report.id}
                 status={report.status as any}
                 hasPic={!!report.picName}
-                hoaxConfidence={report.aiAnalysis.hoaxConfidence}
+                hoaxConfidence={report.aiAnalysis?.hoaxConfidence ?? 0}
                 slaStatus={calculateSlaStatus()}
                 recentAuditActions={getRecentAuditActions()}
                 actions={actions}

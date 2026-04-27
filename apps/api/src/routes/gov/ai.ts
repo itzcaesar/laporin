@@ -21,11 +21,11 @@ const API_KEY = env.OPENROUTER_API_KEY || env.ANTHROPIC_API_KEY;
 // Ordered from most to least capable; each comes from a different provider pool so
 // rate-limit buckets are independent from one another.
 const FALLBACK_MODELS = [
-  "meta-llama/llama-3.3-70b-instruct:free", // primary   — 70B Llama 3.3, confirmed working
-  "nousresearch/hermes-3-llama-3.1-405b:free", // fallback 1 — 405B Hermes, different provider
-  "qwen/qwen3-next-80b-a3b-instruct:free", // fallback 2 — 80B Qwen3, strong multilingual
-  "deepseek/deepseek-chat-v3-0324:free", // fallback 3 — DeepSeek V3, supports system prompts
-  "meta-llama/llama-3.1-8b-instruct", // fallback 4 — confirmed working (ai.service.ts), no :free
+  "openai/gpt-oss-120b:free",
+  "google/gemma-4-26b-a4b-it:free",
+  "meta-llama/llama-3.3-70b-instruct:free",
+  "qwen/qwen3-next-80b-a3b-instruct:free",
+  "meta-llama/llama-3.3-8b-instruct",
 ] as const;
 
 // Hard cap to prevent the model from rambling past a coherent answer.

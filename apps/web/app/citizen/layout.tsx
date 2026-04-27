@@ -15,7 +15,7 @@ export default function CitizenLayout({
       <CitizenTopbar />
 
       {/* Main content */}
-      <main className="pt-16 pb-20 lg:pb-8">
+      <main className="pb-20 lg:pb-8">
         {children}
       </main>
 

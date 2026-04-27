@@ -56,8 +56,8 @@ export function CitizenTopbar() {
   return (
     <header
       className={cn(
-        "fixed left-0 right-0 top-0 z-40 h-16 transition-all duration-200",
-        isScrolled ? "bg-white shadow-sm" : "bg-white"
+        "sticky top-0 z-40 h-16 transition-all duration-200",
+        isScrolled ? "bg-white shadow-sm border-b border-border" : "bg-white border-b border-transparent"
       )}
     >
       <div className="flex h-full items-center justify-between px-4 sm:px-6">

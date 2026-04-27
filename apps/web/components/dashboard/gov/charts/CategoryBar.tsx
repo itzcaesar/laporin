@@ -46,7 +46,7 @@ export function CategoryBar({ data, isLoading = false }: CategoryBarProps) {
       <h3 className="text-base font-semibold font-display text-navy mb-4">
         Top Kategori
       </h3>
-      <ResponsiveContainer width="100%" height={280}>
+      <ResponsiveContainer width="100%" height={280} minWidth={0} minHeight={0}>
         <BarChart data={formattedData} layout="vertical">
           <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
           <XAxis type="number" tick={{ fontSize: 12, fill: "#6B7280" }} />

@@ -12,6 +12,12 @@ import { CategoryTrendBars } from "@/components/dashboard/gov/CategoryTrendBars"
 import { cn } from "@/lib/utils";
 import { useGovAnalytics } from "@/hooks/useGovAnalytics";
 import type { TimePeriod } from "@/types/analytics";
+import dynamic from "next/dynamic";
+
+const RiskZoneMap = dynamic(
+  () => import("@/components/dashboard/gov/RiskZoneMap"),
+  { ssr: false }
+);
 
 export default function GovAnalyticsPage() {
   const [period, setPeriod] = useState<TimePeriod>("30");
@@ -176,33 +182,14 @@ export default function GovAnalyticsPage() {
         {/* Category Trend Bars */}
         <CategoryTrendBars trends={categoryTrendsFormatted} isLoading={isLoading} />
 
-        {/* Risk Zone Map Placeholder */}
+        {/* Risk Zone Map */}
         <div className="rounded-2xl bg-white p-6 shadow-sm border border-border">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-base font-semibold font-display text-navy">
               Peta Zona Risiko
             </h3>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="rounded-lg bg-navy px-3 py-1.5 text-xs font-medium text-white"
-              >
-                Aktual
-              </button>
-              <button
-                type="button"
-                className="rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-medium text-ink hover:bg-surface transition-colors"
-              >
-                Prediksi AI
-              </button>
-            </div>
           </div>
-          <div className="rounded-xl bg-surface h-[400px] flex flex-col items-center justify-center text-muted border border-border">
-            <svg className="w-16 h-16 mb-3 text-muted/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-            </svg>
-            <p className="text-sm">Peta heatmap sedang dalam pengembangan</p>
-          </div>
+          <RiskZoneMap />
         </div>
       </div>
 

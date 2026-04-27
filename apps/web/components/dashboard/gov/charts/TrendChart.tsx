@@ -36,7 +36,7 @@ export function TrendChart({ data, isLoading = false }: TrendChartProps) {
       <h3 className="text-base font-semibold font-display text-navy mb-4">
         Tren Laporan
       </h3>
-      <ResponsiveContainer width="100%" height={280}>
+      <ResponsiveContainer width="100%" height={280} minWidth={0} minHeight={0}>
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
           <XAxis

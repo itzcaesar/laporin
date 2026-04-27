@@ -373,6 +373,9 @@ export interface GovDashboardStats {
     count: number;
   }>;
   aiInsight: string | null;
+  workloadForecast: number | null;  // % change prediction for next week
+  efficiencyScore: number | null;   // 0-10 score
+  trendPercent: number | null;      // % change in total reports vs previous period
 }
 
 // ── Analytics Types ─────────────────────────────────────────────────────

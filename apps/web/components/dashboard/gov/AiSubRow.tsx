@@ -26,13 +26,25 @@ const HOAX_THRESHOLD = {
 };
 
 export function AiSubRow({ reportId, analysis, isLoading = false }: AiSubRowProps) {
-  if (isLoading || !analysis) {
+  if (isLoading) {
     return (
       <tr>
         <td colSpan={100} className="bg-gray-50 border-t border-border">
           <div className="flex items-center gap-2 px-6 py-4 text-sm text-muted">
             <Loader2 size={16} className="animate-spin" />
             <span>🤖 Analisis AI sedang diproses...</span>
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
+  if (!analysis) {
+    return (
+      <tr>
+        <td colSpan={100} className="bg-gray-50 border-t border-border">
+          <div className="flex items-center gap-2 px-6 py-4 text-sm text-muted">
+            <span>🤖 Belum ada analisis AI untuk laporan ini.</span>
           </div>
         </td>
       </tr>
