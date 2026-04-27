@@ -4,7 +4,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { api, ApiClientError } from '@/lib/api-client'
-import type { ReportDetail, ApiResponse } from '@/types'
+import type { ReportDetail, ApiResponse } from '@laporin/types'
 
 interface UseReportReturn {
   report:    ReportDetail | null

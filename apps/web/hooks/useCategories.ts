@@ -4,7 +4,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { api } from '@/lib/api-client'
-import type { ApiResponse } from '@/types'
+import type { ApiResponse } from '@laporin/types'
 
 export interface Category {
   id: number

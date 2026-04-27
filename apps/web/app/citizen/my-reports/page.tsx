@@ -14,7 +14,8 @@ import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { useEffect, useCallback } from "react";
-import type { Report, ReportStatus, ApiResponse, PaginationMeta } from "@/types";
+import type { ReportStatus } from '@laporin/types'
+import type { Report, ApiResponse, PaginationMeta } from '@laporin/types';
 
 const FILTER_OPTIONS = [
   { label: "Semua", value: "" },

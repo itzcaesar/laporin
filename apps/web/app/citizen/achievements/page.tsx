@@ -59,7 +59,7 @@ const LEVELS: Level[] = [
     minPoints: 500,
     maxPoints: 1499,
     color: "from-yellow-400 to-yellow-600",
-    icon: "�",
+    icon: "🥇",
     benefits: ["Semua Silver", "Akses forum VIP", "Laporan prioritas"],
   },
   {

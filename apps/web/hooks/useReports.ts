@@ -4,7 +4,8 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { api, ApiClientError } from '@/lib/api-client'
-import type { Report, ReportStatus, Priority, PaginationMeta, ApiResponse } from '@/types'
+import type { ReportStatus } from '@laporin/types'
+import type { Report, Priority, PaginationMeta, ApiResponse } from '@laporin/types'
 
 export interface UseReportsParams {
   status?:     ReportStatus

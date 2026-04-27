@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { api } from '@/lib/api-client'
-import type { ApiResponse } from '@/types'
+import type { ApiResponse } from '@laporin/types'
 
 export interface FAQ {
   id: string

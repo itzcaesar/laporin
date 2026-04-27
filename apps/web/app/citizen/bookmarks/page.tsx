@@ -10,7 +10,7 @@ import EmptyState from "@/components/dashboard/shared/EmptyState";
 import LoadingSkeleton from "@/components/dashboard/shared/LoadingSkeleton";
 import { ReportCard } from "@/components/dashboard/citizen/ReportCard";
 import { useRouter } from "next/navigation";
-import type { Report, ApiResponse, PaginationMeta } from "@/types";
+import type { Report, ApiResponse, PaginationMeta } from '@laporin/types';
 
 export default function BookmarksPage() {
   const router = useRouter();

@@ -13,7 +13,8 @@ import {
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import LoadingSkeleton from "@/components/dashboard/shared/LoadingSkeleton";
-import type { Report, ReportStatus } from "@/types";
+import type { ReportStatus } from '@laporin/types'
+import type { Report } from '@laporin/types';
 
 // Dynamic imports for Leaflet (SSR-safe)
 const MapContainer = dynamic(() => import("react-leaflet").then((m) => m.MapContainer), { ssr: false });

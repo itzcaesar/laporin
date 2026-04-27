@@ -4,13 +4,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { useReports } from "@/hooks/useReports";
 import { FilterChips } from "@/components/dashboard/shared/FilterChips";
 import EmptyState from "@/components/dashboard/shared/EmptyState";
 import LoadingSkeleton from "@/components/dashboard/shared/LoadingSkeleton";
 import { ReportCard } from "@/components/dashboard/citizen/ReportCard";
 import { ReportFeed } from "@/components/dashboard/citizen/ReportFeed";
-import type { ReportStatus } from "@/types";
+import type { ReportStatus } from '@laporin/types';
 
 const FILTER_OPTIONS = [
   { label: "Semua", value: "" },
@@ -22,8 +23,9 @@ const FILTER_OPTIONS = [
 ];
 
 export default function CitizenHomePage() {
+  const searchParams = useSearchParams();
   const [activeFilter, setActiveFilter] = useState<ReportStatus | "">("");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "");
 
   // Fetch reports with current filter
   const { reports, isLoading, error, refetch } = useReports({

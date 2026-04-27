@@ -4,7 +4,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { api, ApiClientError } from '@/lib/api-client'
-import type { ApiResponse } from '@/types'
+import type { ApiResponse } from '@laporin/types'
 
 interface Agency {
   id: string

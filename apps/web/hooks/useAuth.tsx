@@ -12,7 +12,7 @@ import {
   refreshAccessToken,
   ApiClientError,
 } from '@/lib/api-client'
-import type { ApiResponse, Role } from '@/types'
+import type { ApiResponse, Role } from '@laporin/types'
 
 interface User {
   id: string

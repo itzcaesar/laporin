@@ -8,13 +8,14 @@ import { ArrowLeft, MapPin } from "lucide-react";
 import { AiAnalysisCard } from "@/components/dashboard/gov/AiAnalysisCard";
 import { ActionPanel } from "@/components/dashboard/gov/ActionPanel";
 import { GovCommentThread } from "@/components/dashboard/gov/GovCommentThread";
+import { ImageLightbox } from "@/components/dashboard/gov/ImageLightbox";
 import { formatRelativeTime } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useGovReport, useGovReportActions } from "@/hooks/useGovReport";
 import LoadingSkeleton from "@/components/dashboard/shared/LoadingSkeleton";
 import EmptyState from "@/components/dashboard/shared/EmptyState";
-import type { Comment } from "@/types";
+import type { Comment } from '@laporin/types';
 import dynamic from "next/dynamic";
 
 const StaticMap = dynamic(
@@ -60,6 +61,7 @@ export default function GovReportDetailPage() {
   
   const [isActionPanelOpen, setIsActionPanelOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   // Helper functions
   const getDangerLabel = (level: number): string => {
@@ -311,17 +313,26 @@ export default function GovReportDetailPage() {
                 Foto Laporan
               </h2>
               <div className="flex gap-3 overflow-x-auto pb-2">
-                {report.media.map((media) => (
-                  <div key={media.id} className="flex-shrink-0">
-                    <img
-                      src={media.fileUrl}
-                      alt={media.mediaType}
-                      className="h-32 w-48 rounded-lg object-cover border border-border"
-                    />
+                {report.media.map((media, index) => (
+                  <button
+                    key={media.id}
+                    onClick={() => setLightboxIndex(index)}
+                    className="flex-shrink-0 group cursor-pointer"
+                  >
+                    <div className="relative">
+                      <img
+                        src={media.fileUrl}
+                        alt={media.mediaType}
+                        className="h-32 w-48 rounded-lg object-cover border border-border group-hover:opacity-90 transition-opacity"
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 rounded-lg">
+                        <span className="text-white text-sm font-medium">Klik untuk perbesar</span>
+                      </div>
+                    </div>
                     <p className="mt-1 text-xs text-muted text-center">
                       {media.mediaType}
                     </p>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -491,6 +502,17 @@ export default function GovReportDetailPage() {
             {toast.message}
           </div>
         </div>
+      )}
+
+      {/* Image Lightbox */}
+      {lightboxIndex !== null && (
+        <ImageLightbox
+          images={report.media}
+          currentIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          onNext={() => setLightboxIndex((lightboxIndex + 1) % report.media.length)}
+          onPrev={() => setLightboxIndex((lightboxIndex - 1 + report.media.length) % report.media.length)}
+        />
       )}
     </div>
   );

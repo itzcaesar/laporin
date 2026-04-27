@@ -4,7 +4,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { api, ApiClientError } from '@/lib/api-client'
-import type { Notification, ApiResponse, PaginationMeta } from '@/types'
+import type { Notification, ApiResponse, PaginationMeta } from '@laporin/types'
 
 export function useNotifications(page = 1) {
   const [notifications, setNotifications] = useState<Notification[]>([])

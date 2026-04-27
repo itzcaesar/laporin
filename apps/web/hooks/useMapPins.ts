@@ -4,7 +4,8 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { api } from '@/lib/api-client'
-import type { MapPin, ReportStatus, ApiResponse } from '@/types'
+import type { ReportStatus } from '@laporin/types'
+import type { MapPin, ApiResponse } from '@laporin/types'
 
 interface UseMapPinsParams {
   status?:     ReportStatus

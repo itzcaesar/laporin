@@ -4,7 +4,8 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { api, ApiClientError } from '@/lib/api-client'
-import type { GovDashboardStats, ApiResponse } from '@/types'
+import type { GovDashboardStats } from '@laporin/types'
+import type { ApiResponse } from '@laporin/types'
 
 /**
  * Fetches gov dashboard stats and workload forecast in parallel.

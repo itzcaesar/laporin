@@ -1,7 +1,7 @@
 // ── lib/status-config.ts ──
 // Status configuration for badges and display
 
-import type { ReportStatus } from "@/types";
+import type { ReportStatus } from '@laporin/types';
 
 export interface StatusConfig {
   label: string;
