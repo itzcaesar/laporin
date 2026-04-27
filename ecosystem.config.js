@@ -29,8 +29,8 @@ module.exports = {
 
       // Logging
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-      error_file: '/var/www/laporin/logs/web-error.log',
-      out_file: '/var/www/laporin/logs/web-out.log',
+      error_file: '/var/www/laporin/.deployment/logs/web-error.log',
+      out_file: '/var/www/laporin/.deployment/logs/web-out.log',
       merge_logs: true,
       log_type: 'json',
     },
@@ -62,8 +62,8 @@ module.exports = {
 
       // Logging
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-      error_file: '/var/www/laporin/logs/api-error.log',
-      out_file: '/var/www/laporin/logs/api-out.log',
+      error_file: '/var/www/laporin/.deployment/logs/api-error.log',
+      out_file: '/var/www/laporin/.deployment/logs/api-out.log',
       merge_logs: true,
       log_type: 'json',
     },
