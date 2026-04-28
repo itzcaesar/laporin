@@ -1,14 +1,14 @@
 // ── hooks/useAuth.tsx ──
 // Authentication state management hook
+// Tokens are now managed via HttpOnly cookies — the client never touches them directly.
 
 'use client'
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   api,
-  setAuthCookies,
-  clearAuthCookies,
-  getRefreshToken,
+  clearClientCookies,
+  hasSession,
   refreshAccessToken,
   ApiClientError,
 } from '@/lib/api-client'
@@ -48,32 +48,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter()
 
   const fetchUser = async () => {
-    const hasAccessToken =
-      typeof document !== 'undefined' && document.cookie.includes('laporin_token=')
-    const hasRefreshToken = !!getRefreshToken()
-
-    if (!hasAccessToken && !hasRefreshToken) {
+    // Check if we appear to have a session (role cookie exists)
+    if (!hasSession()) {
       setUser(null)
       setIsLoading(false)
       return
     }
 
     try {
-      if (!hasAccessToken && hasRefreshToken) {
-        const refreshed = await refreshAccessToken()
-        if (!refreshed) {
-          setUser(null)
-          clearAuthCookies()
-          setIsLoading(false)
-          return
-        }
-      }
-
       const res = await api.get<ApiResponse<User>>('/auth/me')
       setUser(res.data)
     } catch {
+      // If /auth/me fails, the auto-refresh in apiFetch will try to refresh.
+      // If that also fails, the token is gone — clear client state.
       setUser(null)
-      clearAuthCookies()
+      clearClientCookies()
     } finally {
       setIsLoading(false)
     }
@@ -90,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         { email, password },
         { skipAuth: true }
       )
-      setAuthCookies(res.data.accessToken, res.data.user.role, res.data.refreshToken)
+      // Server sets HttpOnly cookies in the response — no client-side cookie management needed
       setUser(res.data.user)
       
       // Redirect based on role
@@ -111,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         data,
         { skipAuth: true }
       )
-      setAuthCookies(res.data.accessToken, res.data.user.role, res.data.refreshToken)
+      // Server sets HttpOnly cookies in the response
       setUser(res.data.user)
       router.push('/citizen')
     } catch (err) {
@@ -120,16 +109,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = async () => {
-    const refreshToken = getRefreshToken()
-
     try {
-      if (refreshToken) {
-        await api.post('/auth/logout', { refreshToken }, { skipAuth: true })
-      }
+      // Server reads the refresh token from HttpOnly cookie and revokes it
+      await api.post('/auth/logout', {}, { skipAuth: true })
     } catch {
       // Ignore errors, clear local state anyway
     } finally {
-      clearAuthCookies()
+      clearClientCookies()
       setUser(null)
       router.push('/login')
     }

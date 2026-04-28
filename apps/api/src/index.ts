@@ -15,6 +15,7 @@ import { logger } from 'hono/logger'
 import { secureHeaders } from 'hono/secure-headers'
 import { env } from './env.js'
 import routes from './routes/index.js'
+import { csrfMiddleware } from './middleware/csrf.js'
 import { startNotificationWorker } from './jobs/workers/notification.worker.js'
 import { createAIWorker } from './jobs/workers/ai.worker.js'
 import { startAllCronJobs } from './jobs/cron.js'
@@ -46,12 +47,15 @@ app.use(
       return allowed.includes(origin) ? origin : allowed[0]
     },
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'X-CSRF-Token'],
     exposeHeaders: ['Content-Length', 'X-Request-Id', 'Content-Disposition'],
     credentials: true,
     maxAge: 86400, // 24 hours
   })
 )
+
+// CSRF protection (double-submit cookie)
+app.use('*', csrfMiddleware)
 
 /**
  * Root health check

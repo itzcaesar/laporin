@@ -3,6 +3,7 @@
 
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
+import { setCookie, getCookie, deleteCookie } from 'hono/cookie'
 import { db } from '../db.js'
 import { hashPassword, comparePassword } from '../lib/password.js'
 import { signToken, signRefreshToken, verifyRefreshToken } from '../lib/jwt.js'
@@ -22,6 +23,55 @@ import {
 } from '../validators/auth.validator.js'
 import { redis } from '../lib/redis.js'
 import { env } from '../env.js'
+import type { Context } from 'hono'
+
+// ── Cookie helpers ────────────────────────────────────────────────────────
+
+const COOKIE_SECURE = env.NODE_ENV === 'production'
+
+/**
+ * Set HttpOnly auth cookies after successful authentication.
+ * - laporin_token: HttpOnly, short-lived access token
+ * - laporin_refresh: HttpOnly, long-lived refresh token
+ * - laporin_role: Non-HttpOnly, for client-side routing decisions
+ */
+function setAuthCookies(
+  c: Context,
+  accessToken: string,
+  refreshToken: string,
+  role: string
+) {
+  setCookie(c, 'laporin_token', accessToken, {
+    httpOnly: true,
+    secure: COOKIE_SECURE,
+    sameSite: 'Lax',
+    path: '/',
+    maxAge: 15 * 60, // 15 minutes
+  })
+  setCookie(c, 'laporin_refresh', refreshToken, {
+    httpOnly: true,
+    secure: COOKIE_SECURE,
+    sameSite: 'Lax',
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60, // 7 days
+  })
+  setCookie(c, 'laporin_role', role, {
+    httpOnly: false,
+    secure: COOKIE_SECURE,
+    sameSite: 'Lax',
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60, // 7 days
+  })
+}
+
+/**
+ * Clear all auth cookies on logout.
+ */
+function clearAuthCookies(c: Context) {
+  deleteCookie(c, 'laporin_token', { path: '/' })
+  deleteCookie(c, 'laporin_refresh', { path: '/' })
+  deleteCookie(c, 'laporin_role', { path: '/' })
+}
 
 const auth = new Hono<{ Variables: AuthVariables }>()
 
@@ -92,6 +142,9 @@ auth.post('/register', zValidator('json', registerSchema), async (c) => {
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
       },
     })
+
+    // Set HttpOnly auth cookies
+    setAuthCookies(c, accessToken, refreshToken, user.role)
 
     return ok(c, {
       user,
@@ -174,6 +227,9 @@ auth.post('/login', zValidator('json', loginSchema), async (c) => {
       data: { lastLoginAt: new Date() },
     })
 
+    // Set HttpOnly auth cookies
+    setAuthCookies(c, accessToken, refreshToken, user.role)
+
     return ok(c, {
       user: {
         id: user.id,
@@ -196,7 +252,16 @@ auth.post('/login', zValidator('json', loginSchema), async (c) => {
  * Refresh access token using refresh token
  */
 auth.post('/refresh', zValidator('json', refreshSchema), async (c) => {
-  const { refreshToken } = c.req.valid('json')
+  let { refreshToken } = c.req.valid('json')
+
+  // If client sent a placeholder (HttpOnly cookie flow), read from cookie instead
+  if (refreshToken === '_cookie_') {
+    const cookieToken = getCookie(c, 'laporin_refresh')
+    if (!cookieToken) {
+      return err(c, 'INVALID_TOKEN', 'No refresh token found', 401)
+    }
+    refreshToken = cookieToken
+  }
 
   try {
     // Verify refresh token
@@ -240,6 +305,15 @@ auth.post('/refresh', zValidator('json', refreshSchema), async (c) => {
       agencyId: storedToken.user.agencyId || undefined,
     })
 
+    // Update the access token HttpOnly cookie
+    setCookie(c, 'laporin_token', accessToken, {
+      httpOnly: true,
+      secure: COOKIE_SECURE,
+      sameSite: 'Lax',
+      path: '/',
+      maxAge: 15 * 60,
+    })
+
     return ok(c, {
       accessToken,
       role: storedToken.user.role,
@@ -254,22 +328,36 @@ auth.post('/refresh', zValidator('json', refreshSchema), async (c) => {
  * POST /auth/logout
  * Logout and invalidate refresh token
  */
-auth.post('/logout', zValidator('json', logoutSchema), async (c) => {
-  const { refreshToken } = c.req.valid('json')
-
+auth.post('/logout', zValidator('json', logoutSchema.partial()), async (c) => {
+  let refreshToken: string | undefined
   try {
-    // Verify and decode refresh token
-    const payload = await verifyRefreshToken(refreshToken)
+    const body = c.req.valid('json')
+    refreshToken = body.refreshToken
+  } catch {
+    // Body might be empty in cookie-based flow
+  }
 
-    // Revoke the refresh token
-    await db.refreshToken.update({
-      where: { id: payload.tokenId },
-      data: { isRevoked: true },
-    })
+  // Fall back to HttpOnly cookie
+  if (!refreshToken) {
+    refreshToken = getCookie(c, 'laporin_refresh')
+  }
+  try {
+    if (refreshToken) {
+      // Verify and decode refresh token
+      const payload = await verifyRefreshToken(refreshToken)
 
+      // Revoke the refresh token
+      await db.refreshToken.update({
+        where: { id: payload.tokenId },
+        data: { isRevoked: true },
+      })
+    }
+
+    clearAuthCookies(c)
     return ok(c, { message: 'Berhasil logout' })
   } catch (error) {
     // Even if token is invalid, return success (idempotent logout)
+    clearAuthCookies(c)
     return ok(c, { message: 'Berhasil logout' })
   }
 })
@@ -385,6 +473,9 @@ auth.post('/otp/verify', zValidator('json', verifyOtpSchema), async (c) => {
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       },
     })
+
+    // Set HttpOnly auth cookies
+    setAuthCookies(c, accessToken, refreshToken, user.role)
 
     return c.json({
       data: {

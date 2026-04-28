@@ -115,12 +115,7 @@ export default function RegisterPage() {
         { skipAuth: true }
       );
 
-      // Store tokens from registration
-      api.setTokens(
-        registerRes.data.accessToken,
-        registerRes.data.user.role,
-        registerRes.data.refreshToken
-      );
+      // Auth cookies are set server-side (HttpOnly) in the response
       
       success("Akun berhasil dibuat! Selamat datang di Laporin.");
       router.push("/citizen");

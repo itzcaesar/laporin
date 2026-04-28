@@ -1,5 +1,7 @@
 // ── lib/api-client.ts ──
 // Core API client with automatic token refresh and error handling
+// Tokens are stored in HttpOnly cookies (set by the API server).
+// The client cannot read them — they are sent automatically via credentials: 'include'.
 
 const getBaseUrl = () => {
   if (typeof window !== 'undefined') {
@@ -16,50 +18,54 @@ const getBaseUrl = () => {
 
 const BASE_URL = getBaseUrl()
 
-// ── Token helpers ─────────────────────────────────────────────────────────
+// ── Cookie helpers (only for non-HttpOnly cookies) ──────────────────────
 
-function getToken(): string | null {
+/**
+ * Read CSRF token from non-HttpOnly cookie.
+ * This cookie is set by the API server and readable by JS for CSRF protection.
+ */
+function getCsrfToken(): string | null {
   if (typeof document === 'undefined') return null
   return (
     document.cookie
       .split('; ')
-      .find(row => row.startsWith('laporin_token='))
+      .find(row => row.startsWith('laporin_csrf='))
       ?.split('=')[1] ?? null
   )
 }
 
-export function getRefreshToken(): string | null {
+/**
+ * Read role from non-HttpOnly cookie (used for client-side routing decisions).
+ */
+export function getRole(): string | null {
   if (typeof document === 'undefined') return null
   return (
     document.cookie
       .split('; ')
-      .find(row => row.startsWith('laporin_refresh='))
+      .find(row => row.startsWith('laporin_role='))
       ?.split('=')[1] ?? null
   )
 }
 
-function setRefreshToken(token: string): void {
-  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : ''
-  document.cookie = `laporin_refresh=${token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Strict${secure}`
+/**
+ * Check if the user appears to have an active session.
+ * Since the access token is HttpOnly, we check for the role cookie as a proxy.
+ * The role cookie has the same lifetime as the refresh token (7 days).
+ */
+export function hasSession(): boolean {
+  if (typeof document === 'undefined') return false
+  return document.cookie.includes('laporin_role=')
 }
 
-function clearRefreshToken(): void {
-  document.cookie = 'laporin_refresh=; path=/; max-age=0'
-}
-
-export function setAuthCookies(accessToken: string, role: string, refreshToken?: string): void {
-  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : ''
-  document.cookie = `laporin_token=${accessToken}; path=/; max-age=${15 * 60}; SameSite=Strict${secure}`
-  document.cookie = `laporin_role=${role}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Strict${secure}`
-  if (refreshToken) {
-    setRefreshToken(refreshToken)
-  }
-}
-
-export function clearAuthCookies(): void {
-  document.cookie = 'laporin_token=; path=/; max-age=0'
+/**
+ * Clear non-HttpOnly cookies on the client side.
+ * HttpOnly cookies (laporin_token, laporin_refresh) are cleared by the server on logout.
+ * This clears the role and CSRF cookies which are client-readable.
+ */
+export function clearClientCookies(): void {
+  if (typeof document === 'undefined') return
   document.cookie = 'laporin_role=; path=/; max-age=0'
-  clearRefreshToken()
+  document.cookie = 'laporin_csrf=; path=/; max-age=0'
 }
 
 // ── Refresh ───────────────────────────────────────────────────────────────
@@ -68,22 +74,22 @@ let refreshPromise: Promise<boolean> | null = null
 
 async function doRefreshToken(): Promise<boolean> {
   try {
-    const refreshToken = getRefreshToken()
-    if (!refreshToken) {
-      return false
-    }
-
+    // The refresh token is in an HttpOnly cookie — sent automatically
     const res = await fetch(`${BASE_URL}/api/v1/auth/refresh`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ refreshToken }),
+      credentials: 'include',
+      // Refresh token is read from the HttpOnly cookie by the server.
+      // We still send an empty body (or minimal body) to satisfy the validator.
+      body: JSON.stringify({ refreshToken: '_cookie_' }),
     })
     if (!res.ok) return false
     const json = await res.json()
     if (json.success) {
-      setAuthCookies(json.data.accessToken, json.data.role)
+      // The server sets the new access token as an HttpOnly cookie in the response.
+      // No need to do anything client-side.
       return true
     }
     return false
@@ -119,16 +125,26 @@ export async function apiFetch<T>(
   options: RequestOptions = {}
 ): Promise<T> {
   const { skipAuth = false, isRetry = false, ...fetchOptions } = options
-  const token = skipAuth ? null : getToken()
+
+  // Build headers
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...fetchOptions.headers as Record<string, string>,
+  }
+
+  // Add CSRF token for state-changing requests
+  const method = (fetchOptions.method || 'GET').toUpperCase()
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    const csrf = getCsrfToken()
+    if (csrf) {
+      headers['X-CSRF-Token'] = csrf
+    }
+  }
 
   const response = await fetch(`${BASE_URL}/api/v1${path}`, {
     ...fetchOptions,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...fetchOptions.headers,
-    },
-    credentials: 'include',
+    headers,
+    credentials: 'include', // Send HttpOnly cookies automatically
   })
 
   if (response.status === 401 && !isRetry && !skipAuth) {
@@ -136,7 +152,7 @@ export async function apiFetch<T>(
     if (refreshed) {
       return apiFetch<T>(path, { ...options, isRetry: true })
     }
-    clearAuthCookies()
+    clearClientCookies()
     // Only redirect if not already on login/register pages
     if (typeof window !== 'undefined') {
       const currentPath = window.location.pathname
@@ -196,7 +212,7 @@ export const api = {
   delete: <T>(path: string, opts?: RequestOptions) =>
     apiFetch<T>(path, { method: 'DELETE', ...opts }),
 
-  // Auth helpers (for backward compatibility)
-  setTokens: setAuthCookies,
-  clearTokens: clearAuthCookies,
+  // Legacy compat stubs (cookies are now server-managed)
+  setTokens: () => {},
+  clearTokens: clearClientCookies,
 }

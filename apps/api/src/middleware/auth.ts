@@ -1,8 +1,10 @@
 // ── apps/api/src/middleware/auth.ts ──
 // JWT authentication middleware
-// Verifies JWT token and attaches user info to context
+// Verifies JWT token from Authorization header OR HttpOnly cookie
+// and attaches user info to context
 
 import { Context, Next } from 'hono'
+import { getCookie } from 'hono/cookie'
 import { verifyToken, JwtPayload } from '../lib/jwt.js'
 
 /**
@@ -13,8 +15,29 @@ export interface AuthVariables {
 }
 
 /**
+ * Extract JWT token from request.
+ * Priority: Authorization header > laporin_token cookie
+ */
+function extractToken(c: Context): string | undefined {
+  // 1. Try Authorization: Bearer header
+  const authHeader = c.req.header('Authorization')
+  if (authHeader?.startsWith('Bearer ')) {
+    return authHeader.substring(7)
+  }
+
+  // 2. Fall back to HttpOnly cookie
+  const tokenCookie = getCookie(c, 'laporin_token')
+  if (tokenCookie) {
+    return tokenCookie
+  }
+
+  return undefined
+}
+
+/**
  * Authentication middleware.
- * Verifies JWT token from Authorization header and attaches user to context.
+ * Verifies JWT token from Authorization header or HttpOnly cookie
+ * and attaches user to context.
  * 
  * Usage:
  * ```typescript
@@ -25,13 +48,11 @@ export interface AuthVariables {
  * ```
  */
 export async function authMiddleware(c: Context, next: Next) {
-  const authHeader = c.req.header('Authorization')
+  const token = extractToken(c)
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return c.json({ error: 'Missing or invalid Authorization header' }, 401)
+  if (!token) {
+    return c.json({ error: 'Missing or invalid authentication' }, 401)
   }
-
-  const token = authHeader.substring(7) // Remove 'Bearer ' prefix
 
   try {
     const payload = await verifyToken(token)
@@ -48,11 +69,9 @@ export async function authMiddleware(c: Context, next: Next) {
  * Useful for endpoints that work for both authenticated and anonymous users.
  */
 export async function optionalAuthMiddleware(c: Context, next: Next) {
-  const authHeader = c.req.header('Authorization')
+  const token = extractToken(c)
 
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.substring(7)
-
+  if (token) {
     try {
       const payload = await verifyToken(token)
       c.set('user', payload)
