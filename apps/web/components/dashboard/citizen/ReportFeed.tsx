@@ -1,7 +1,7 @@
 // ── components/dashboard/citizen/ReportFeed.tsx ──
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { cn, formatRelativeTime } from "@/lib/utils";
@@ -17,6 +17,7 @@ import {
 import type { Report } from '@laporin/types';
 import { api } from "@/lib/api-client";
 import { CommentModal } from "./CommentModal";
+import { useConfetti } from "@/hooks/useConfetti";
 
 interface ReportFeedProps {
   reports: Report[];
@@ -66,6 +67,8 @@ function ReportFeedItem({ report }: { report: Report }) {
   const [isVoting, setIsVoting] = useState(false);
   const [isBookmarkLoading, setIsBookmarkLoading] = useState(false);
   const statusConfig = getStatusConfig(report.status);
+  const { burst } = useConfetti();
+  const upvoteBtnRef = useRef<HTMLButtonElement>(null);
 
   // Use actual report thumbnail or a fallback placeholder
   const reportImage = report.thumbnailUrl || null;
@@ -76,18 +79,30 @@ function ReportFeedItem({ report }: { report: Report }) {
     if (isVoting) return;
 
     setIsVoting(true);
+    const prevUpvoted = isUpvoted;
+    const prevCount = upvoteCount;
+
+    // Optimistic UI
+    setIsUpvoted(!prevUpvoted);
+    setUpvoteCount(prevUpvoted ? Math.max(0, prevCount - 1) : prevCount + 1);
+
+    // Confetti
+    if (!prevUpvoted && upvoteBtnRef.current) {
+      const rect = upvoteBtnRef.current.getBoundingClientRect();
+      burst(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    }
+
     try {
-      if (isUpvoted) {
+      if (prevUpvoted) {
         await api.delete(`/reports/${report.id}/vote`);
-        setIsUpvoted(false);
-        setUpvoteCount((prev) => Math.max(0, prev - 1));
       } else {
         await api.post(`/reports/${report.id}/vote`, {});
-        setIsUpvoted(true);
-        setUpvoteCount((prev) => prev + 1);
       }
     } catch (err) {
       console.error("Vote error:", err);
+      // Revert on failure
+      setIsUpvoted(prevUpvoted);
+      setUpvoteCount(prevCount);
     } finally {
       setIsVoting(false);
     }
@@ -99,16 +114,21 @@ function ReportFeedItem({ report }: { report: Report }) {
     if (isBookmarkLoading) return;
 
     setIsBookmarkLoading(true);
+    const prevBookmarked = isBookmarked;
+
+    // Optimistic UI
+    setIsBookmarked(!prevBookmarked);
+
     try {
-      if (isBookmarked) {
+      if (prevBookmarked) {
         await api.delete(`/user/bookmarks/${report.id}`);
-        setIsBookmarked(false);
       } else {
         await api.post(`/user/bookmarks/${report.id}`, {});
-        setIsBookmarked(true);
       }
     } catch (err) {
       console.error("Bookmark error:", err);
+      // Revert on failure
+      setIsBookmarked(prevBookmarked);
     } finally {
       setIsBookmarkLoading(false);
     }
@@ -222,6 +242,7 @@ function ReportFeedItem({ report }: { report: Report }) {
         <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
           <div className="flex items-center gap-4">
             <button
+              ref={upvoteBtnRef}
               onClick={handleUpvote}
               disabled={isVoting}
               className={cn(

@@ -28,9 +28,13 @@ export function CommentModal({
 }: CommentModalProps) {
   const { report, isLoading, refetch } = useReport(reportId);
   const { user } = useAuth();
-  const comments = report?.comments || [];
+  const [localComments, setLocalComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const serverIds = new Set((report?.comments || []).map(c => c.id));
+  const activeLocalComments = localComments.filter(c => !serverIds.has(c.id));
+  const allComments = [...(report?.comments || []), ...activeLocalComments];
 
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -48,14 +52,30 @@ export function CommentModal({
     e.preventDefault();
     if (!newComment.trim() || isSubmitting) return;
 
+    const optimisticComment = {
+      id: `optimistic-${Date.now()}`,
+      content: newComment,
+      authorName: user?.name || "Kamu",
+      isGovernment: false,
+      isOfficial: false,
+      createdAt: new Date().toISOString(),
+      isOptimistic: true,
+      replies: [],
+    };
+
+    setLocalComments((prev) => [...prev, optimisticComment]);
+    setNewComment("");
     setIsSubmitting(true);
 
     try {
-      await api.post(`/reports/${reportId}/comments`, { content: newComment });
-      setNewComment("");
+      const res = await api.post<any>(`/reports/${reportId}/comments`, { content: optimisticComment.content });
+      setLocalComments((prev) =>
+        prev.map((c) => (c.id === optimisticComment.id ? { ...res.data, isOptimistic: false } : c))
+      );
       refetch();
     } catch (err) {
       console.error("Failed to post comment", err);
+      setLocalComments((prev) => prev.filter((c) => c.id !== optimisticComment.id));
     } finally {
       setIsSubmitting(false);
     }
@@ -63,11 +83,12 @@ export function CommentModal({
 
   if (!isOpen) return null;
 
-  const renderComment = (comment: Comment, isReply = false) => (
+  const renderComment = (comment: Comment | any, isReply = false) => (
     <div
       key={comment.id}
       className={cn(
-        isReply && "ml-10 mt-2"
+        isReply && "ml-10 mt-2",
+        comment.isOptimistic && "opacity-70"
       )}
     >
       <div className="flex items-start gap-3">
@@ -94,6 +115,9 @@ export function CommentModal({
                 Resmi Dinas
               </span>
             )}
+            {comment.isOptimistic && (
+              <span className="text-[10px] text-muted animate-pulse">Mengirim...</span>
+            )}
           </div>
 
           {/* Content */}
@@ -119,7 +143,7 @@ export function CommentModal({
       {/* Render Replies */}
       {comment.replies && comment.replies.length > 0 && (
         <div className="mt-3 space-y-3">
-          {comment.replies.map((reply) => renderComment(reply, true))}
+          {comment.replies.map((reply: any) => renderComment(reply, true))}
         </div>
       )}
     </div>
@@ -150,11 +174,11 @@ export function CommentModal({
 
         {/* Comments List */}
         <div className="flex-1 overflow-y-auto p-4">
-          {isLoading ? (
+          {isLoading && !report ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="animate-spin text-navy" size={24} />
             </div>
-          ) : comments.length === 0 ? (
+          ) : allComments.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-sm text-muted">Belum ada komentar</p>
               <p className="text-xs text-muted mt-1">
@@ -163,7 +187,7 @@ export function CommentModal({
             </div>
           ) : (
             <div className="space-y-4 divide-y divide-border">
-              {comments.map((comment) => (
+              {allComments.map((comment) => (
                 <div key={comment.id} className="pt-4 first:pt-0">
                   {renderComment(comment)}
                 </div>
