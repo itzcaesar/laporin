@@ -10,6 +10,7 @@ import { requireRole } from '../../middleware/requireRole.js'
 import { analyticsQuerySchema as legacyAnalyticsQuerySchema } from '../../validators/gov.validator.js'
 import { analyticsQuerySchema } from '../../validators/analytics.validator.js'
 import { err } from '../../lib/response.js'
+import { generateDailyInsight } from '../../services/ai.service.js'
 
 const govAnalytics = new Hono<{ Variables: AuthVariables }>()
 
@@ -1357,6 +1358,103 @@ govAnalytics.get('/predicted-heatmap', async (c) => {
   } catch (error) {
     console.error('Analytics predicted heatmap error:', error)
     return err(c, 'INTERNAL_ERROR', 'Gagal fetch predicted heatmap', 500)
+  }
+})
+
+/**
+ * POST /gov/analytics/insights/generate
+ * Manually trigger AI insight generation
+ */
+govAnalytics.post('/insights/generate', async (c) => {
+  const user = c.get('user')
+
+  try {
+    const agencyId = user.agencyId || 'all'
+    const agencyName = agencyId === 'all' ? 'Seluruh Indonesia' : (
+      await db.agency.findUnique({ where: { id: agencyId }, select: { name: true } })
+    )?.name || 'Wilayah Anda'
+
+    const last30Days = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    const last60Days = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000)
+    const agencyWhere = agencyId === 'all' ? {} : { agencyId }
+
+    // Get current period category counts
+    const currentCategoryCounts = await db.report.groupBy({
+      by: ['categoryId'],
+      where: { ...agencyWhere, createdAt: { gte: last30Days } },
+      _count: true,
+      orderBy: { _count: { categoryId: 'desc' } },
+      take: 1,
+    })
+
+    // Get previous period category counts
+    const previousCategoryCounts = await db.report.groupBy({
+      by: ['categoryId'],
+      where: { ...agencyWhere, createdAt: { gte: last60Days, lt: last30Days } },
+      _count: true,
+    })
+
+    let topRisingCategory = 'Lainnya'
+    let risePercent = 0
+
+    if (currentCategoryCounts.length > 0) {
+      const topCategoryId = currentCategoryCounts[0].categoryId
+      const currentCount = currentCategoryCounts[0]._count
+      const previousCount =
+        previousCategoryCounts.find((c) => c.categoryId === topCategoryId)?._count || 0
+
+      if (previousCount > 0) {
+        risePercent = Math.round(((currentCount - previousCount) / previousCount) * 100)
+      }
+
+      const category = await db.category.findUnique({
+        where: { id: topCategoryId },
+        select: { name: true },
+      })
+      topRisingCategory = category?.name || 'Unknown'
+    }
+
+    const totalOpen = await db.report.count({
+      where: {
+        ...agencyWhere,
+        status: { in: ['new', 'verified', 'in_progress'] },
+      },
+    })
+
+    const now = new Date()
+    const slaBreached = await db.report.count({
+      where: {
+        ...agencyWhere,
+        status: { in: ['new', 'verified', 'in_progress'] },
+        estimatedEnd: { lt: now },
+      },
+    })
+
+    const month = new Date().getMonth()
+    const seasonContext = month >= 10 || month <= 3 ? 'musim hujan' : 'musim kemarau'
+
+    const insight = await generateDailyInsight({
+      agencyName,
+      topRisingCategory,
+      risePercent,
+      totalOpen,
+      slaBreached,
+      seasonContext,
+    })
+
+    const cacheKey = `laporin:insights:gov:${agencyId}`
+    await redis.setex(cacheKey, 25 * 60 * 60, insight)
+
+    return c.json({
+      success: true,
+      data: {
+        insight,
+        generatedAt: new Date().toISOString(),
+      },
+    })
+  } catch (error) {
+    console.error('Analytics manual insight generation error:', error)
+    return err(c, 'INTERNAL_ERROR', 'Gagal menghasilkan insight AI', 500)
   }
 })
 

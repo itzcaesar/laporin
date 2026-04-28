@@ -2,7 +2,10 @@
 "use client";
 
 import Link from "next/link";
-import { Loader2 } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
+import { api } from "@/lib/api-client";
+import { useToast } from "@/hooks/useToast";
+import { useState } from "react";
 
 type AiAnalysisData = {
   priorityScore: number;
@@ -26,6 +29,20 @@ const HOAX_THRESHOLD = {
 };
 
 export function AiSubRow({ reportId, analysis, isLoading = false }: AiSubRowProps) {
+  const toast = useToast();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    try {
+      setIsRefreshing(true);
+      await api.post(`/gov/reports/${reportId}/reanalyze`, {});
+      toast.success("Analisis AI berhasil diproses ulang. Mohon tunggu beberapa saat.");
+    } catch (error: any) {
+      toast.error(error.message || "Gagal memproses ulang analisis AI");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
   if (isLoading) {
     return (
       <tr>
@@ -115,14 +132,23 @@ export function AiSubRow({ reportId, analysis, isLoading = false }: AiSubRowProp
             </div>
           </div>
 
-          {/* View Full Analysis Link */}
-          <div className="mt-3">
+          {/* Actions */}
+          <div className="mt-4 flex items-center justify-between">
             <Link
               href={`/gov/reports/${reportId}`}
               className="text-sm font-medium text-blue hover:text-blue/80 transition-colors"
             >
               Lihat Analisis Lengkap →
             </Link>
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="flex items-center gap-2 text-sm font-medium text-navy hover:text-navy/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <RefreshCw size={14} className={isRefreshing ? "animate-spin" : ""} />
+              {isRefreshing ? "Memproses..." : "Analisis Ulang AI"}
+            </button>
           </div>
         </div>
       </td>

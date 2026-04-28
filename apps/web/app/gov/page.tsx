@@ -1,14 +1,16 @@
 // ── app/gov/page.tsx ──
 "use client";
+import { useState } from "react";
 
 import { 
   ClipboardList, Plus, AlertTriangle, Star, 
   BarChart3, TrendingUp, Clock, CheckCircle2, ArrowUpRight, 
   ArrowDownRight, MoreHorizontal, MapPin, 
-  Brain, Zap, LayoutDashboard
+  Brain, Zap, LayoutDashboard, RefreshCw
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useGovDashboard } from "@/hooks/useGovDashboard";
+import { useToast } from "@/hooks/useToast";
 import { formatRelativeTime } from "@/lib/utils";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -61,7 +63,9 @@ function KpiCard({
 
 export default function GovDashboardPage() {
   const { user } = useAuth();
-  const { stats, isLoading, error } = useGovDashboard();
+  const toast = useToast();
+  const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
+  const { stats, isLoading, error, generateInsights } = useGovDashboard();
 
   if (error) {
     return (
@@ -290,11 +294,32 @@ export default function GovDashboardPage() {
           {/* AI Insights Card */}
           <div className="rounded-2xl bg-gradient-to-br from-navy to-blue p-6 text-white shadow-lg relative overflow-hidden">
             <div className="relative z-10">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="p-2 rounded-lg bg-white/20">
-                  <Brain size={18} className="text-white" />
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-lg bg-white/20">
+                    <Brain size={18} className="text-white" />
+                  </div>
+                  <h2 className="text-base font-bold">Ringkasan AI Intelijen</h2>
                 </div>
-                <h2 className="text-base font-bold">Ringkasan AI Intelijen</h2>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      setIsGeneratingInsights(true);
+                      await generateInsights();
+                      toast.success("Insight AI berhasil diperbarui");
+                    } catch (err: any) {
+                      toast.error(err.message || "Gagal memperbarui insight AI");
+                    } finally {
+                      setIsGeneratingInsights(false);
+                    }
+                  }}
+                  disabled={isGeneratingInsights || isLoading}
+                  className="p-2 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-50 transition-colors"
+                  title="Perbarui Insight"
+                >
+                  <RefreshCw size={14} className={isGeneratingInsights ? "animate-spin" : ""} />
+                </button>
               </div>
               <div className="space-y-4">
                 <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10">
@@ -303,12 +328,12 @@ export default function GovDashboardPage() {
                     <span className="text-[11px] font-bold uppercase tracking-wider">Insight Utama</span>
                   </div>
                   <p className="text-xs leading-relaxed text-blue-50">
-                    {isLoading ? (
+                    {isLoading || isGeneratingInsights ? (
                       <span className="inline-block w-full h-4 bg-white/20 animate-pulse rounded" />
                     ) : stats?.aiInsight ? (
                       stats.aiInsight
                     ) : (
-                      "Insight AI sedang diproses. Muat ulang halaman dalam beberapa detik untuk melihat hasilnya."
+                      "Insight AI sedang diproses. Klik tombol perbarui di atas untuk memproses ulang."
                     )}
                   </p>
                 </div>

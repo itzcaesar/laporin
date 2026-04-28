@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Download } from "lucide-react";
+import { Download, RefreshCw } from "lucide-react";
 import { TrendChart } from "@/components/dashboard/gov/charts/TrendChart";
 import { CategoryBar } from "@/components/dashboard/gov/charts/CategoryBar";
 import { SlaRing } from "@/components/dashboard/gov/charts/SlaRing";
@@ -11,6 +11,7 @@ import { AnomalyAlerts } from "@/components/dashboard/gov/AnomalyAlerts";
 import { CategoryTrendBars } from "@/components/dashboard/gov/CategoryTrendBars";
 import { cn } from "@/lib/utils";
 import { useGovAnalytics } from "@/hooks/useGovAnalytics";
+import { useToast } from "@/hooks/useToast";
 import type { TimePeriod } from "@/types/analytics";
 import dynamic from "next/dynamic";
 
@@ -20,8 +21,10 @@ const RiskZoneMap = dynamic(
 );
 
 export default function GovAnalyticsPage() {
+  const toast = useToast();
   const [period, setPeriod] = useState<TimePeriod>("30");
-  const { data, isLoading, error, refetch } = useGovAnalytics(period);
+  const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
+  const { data, isLoading, error, refetch, generateInsights } = useGovAnalytics(period);
 
   // Memoize category trends transformation to avoid recalculation on every render
   // **Validates: Requirements 16.3**
@@ -144,10 +147,31 @@ export default function GovAnalyticsPage() {
           isLoading={isLoading} 
         />
         <div className="rounded-2xl bg-white p-6 shadow-sm border border-border">
-          <h3 className="text-base font-semibold font-display text-navy mb-4">
-            🤖 Insight AI
-          </h3>
-          {isLoading ? (
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-base font-semibold font-display text-navy">
+              🤖 Insight AI
+            </h3>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  setIsGeneratingInsights(true);
+                  await generateInsights();
+                  toast.success("Insight AI berhasil diperbarui");
+                } catch (err: any) {
+                  toast.error(err.message || "Gagal memperbarui insight AI");
+                } finally {
+                  setIsGeneratingInsights(false);
+                }
+              }}
+              disabled={isGeneratingInsights || isLoading}
+              className="flex items-center gap-2 text-xs font-medium text-blue hover:text-blue/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <RefreshCw size={14} className={isGeneratingInsights ? "animate-spin" : ""} />
+              {isGeneratingInsights ? "Memperbarui..." : "Perbarui"}
+            </button>
+          </div>
+          {isLoading || isGeneratingInsights ? (
             <div className="space-y-3">
               {[1, 2, 3, 4].map((i) => (
                 <div key={i} className="h-12 bg-surface rounded-lg animate-pulse" />

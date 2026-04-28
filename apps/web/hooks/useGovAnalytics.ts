@@ -115,5 +115,14 @@ export function useGovAnalytics(period: TimePeriod) {
     fetchData()
   }, [fetchData])
 
-  return { data, isLoading, error, refetch: fetchData }
+  const generateInsights = async () => {
+    try {
+      await api.post('/gov/analytics/insights/generate', {})
+      await fetchData()
+    } catch (err: any) {
+      throw new Error(err.message || 'Gagal membuat ulang insight')
+    }
+  }
+
+  return { data, isLoading, error, refetch: fetchData, generateInsights }
 }

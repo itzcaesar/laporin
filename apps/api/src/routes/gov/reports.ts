@@ -44,7 +44,7 @@ const formatAiAnalysis = (analysis: any) => {
 import { getPublicUrl } from '../../services/storage.service.js'
 import { awardPoints, updateBadgeProgress } from '../gamification.js'
 import { invalidatePattern } from '../../lib/cache.js'
-import { addNotificationJob } from '../../jobs/queue.js'
+import { addNotificationJob, addAIAnalysisJob } from '../../jobs/queue.js'
 import {
   verifyReportSchema,
   assignReportSchema,
@@ -839,9 +839,18 @@ govReports.post(
         where: { reportId: id },
       })
 
-      // TODO: Re-queue AI analysis job
-      // For now, just return success
-      // In production, this would call: await aiQueue.add('analyze', { reportId: id })
+      // Check if report has media for AI analysis
+      const media = await db.media.findFirst({
+        where: { reportId: id, mediaType: 'photo' },
+        orderBy: { sortOrder: 'asc' },
+      })
+
+      // Queue AI analysis job
+      await addAIAnalysisJob({
+        reportId: id,
+        hasPhoto: !!media,
+        photoUrl: media ? media.fileUrl : undefined,
+      })
 
       // Create audit log
       await db.auditLog.create({

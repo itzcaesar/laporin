@@ -276,12 +276,27 @@ export function useGovReportActions(reportId: string, onSuccess?: () => void) {
     }
   }
 
+  const reanalyze = async () => {
+    try {
+      setIsSubmitting(true)
+      setError(null)
+      await api.post(`/gov/reports/${reportId}/reanalyze`, {})
+      onSuccess?.()
+    } catch (err: any) {
+      setError(err.message || 'Gagal memulai analisis ulang')
+      throw err
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return {
     verify,
     assign,
     updateStatus,
     updateTimeline,
     updatePriority,
+    reanalyze,
     isSubmitting,
     error,
   }

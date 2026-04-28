@@ -15,20 +15,32 @@ export function useGovDashboard() {
   const [isLoading, setIsLoading] = useState(true)
   const [error,     setError]     = useState<string | null>(null)
 
-  useEffect(() => {
-    Promise.all([
-      api.get<ApiResponse<GovDashboardStats>>('/gov/dashboard/stats'),
-    ])
-      .then(([statsRes]) => {
-        setStats(statsRes.data)
-      })
-      .catch(err => {
-        setError(
-          err instanceof ApiClientError ? err.userMessage : 'Gagal memuat dasbor.'
-        )
-      })
-      .finally(() => setIsLoading(false))
-  }, [])
+  const fetchData = async () => {
+    try {
+      setIsLoading(true);
+      const statsRes = await api.get<ApiResponse<GovDashboardStats>>('/gov/dashboard/stats');
+      setStats(statsRes.data);
+    } catch (err: any) {
+      setError(
+        err instanceof ApiClientError ? err.userMessage : 'Gagal memuat dasbor.'
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  return { stats, isLoading, error }
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const generateInsights = async () => {
+    try {
+      await api.post('/gov/analytics/insights/generate', {});
+      await fetchData();
+    } catch (err: any) {
+      throw new Error(err.message || 'Gagal membuat ulang insight');
+    }
+  };
+
+  return { stats, isLoading, error, refetch: fetchData, generateInsights };
 }

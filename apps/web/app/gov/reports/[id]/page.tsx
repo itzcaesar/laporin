@@ -352,8 +352,12 @@ export default function GovReportDetailPage() {
               reportId={report.id}
               analysis={report.aiAnalysis}
               onRefresh={async () => {
-                console.log("Refreshing AI analysis...");
-                await new Promise((resolve) => setTimeout(resolve, 1000));
+                try {
+                  await actions.reanalyze()
+                  showToast("Analisis AI berhasil diproses ulang. Mohon tunggu beberapa saat untuk hasilnya.", "success")
+                } catch (err: any) {
+                  showToast(err.message || "Gagal memproses ulang analisis AI", "error")
+                }
               }}
             />
 
