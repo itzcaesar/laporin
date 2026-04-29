@@ -7,13 +7,10 @@ import { env } from '../env.js'
 
 /**
  * Queue configuration
+ * Reuses the existing Redis connection for efficiency
  */
 const queueConfig: QueueOptions = {
-  connection: {
-    host: redis.options.host,
-    port: redis.options.port,
-    password: redis.options.password,
-  },
+  connection: redis, // Reuse existing Redis connection
   defaultJobOptions: {
     attempts: 3,
     backoff: {

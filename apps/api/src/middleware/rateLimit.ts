@@ -1,7 +1,7 @@
 // Redis-backed sliding window rate limiter
 
 import { Context, Next } from 'hono'
-import { redis } from '../lib/redis.js'
+import { redis, isRedisAvailable } from '../lib/redis.js'
 
 /**
  * Rate limit configuration
@@ -15,6 +15,8 @@ export interface RateLimitConfig {
   keyPrefix: string
   /** Custom key generator (defaults to IP address) */
   keyGenerator?: (c: Context) => string
+  /** Skip rate limiting if Redis is unavailable (default: true) */
+  skipOnRedisError?: boolean
 }
 
 /**
@@ -42,7 +44,29 @@ export interface RateLimitConfig {
  * ```
  */
 export function rateLimit(config: RateLimitConfig) {
+  const skipOnError = config.skipOnRedisError ?? true
+
   return async (c: Context, next: Next) => {
+    // Check if Redis is available
+    if (!isRedisAvailable()) {
+      if (skipOnError) {
+        console.warn(`Rate limit skipped (Redis unavailable): ${config.keyPrefix}`)
+        await next()
+        return
+      } else {
+        return c.json(
+          {
+            success: false,
+            error: {
+              code: 'SERVICE_UNAVAILABLE',
+              message: 'Rate limiting service temporarily unavailable',
+            },
+          },
+          503
+        )
+      }
+    }
+
     // Generate rate limit key
     const identifier = config.keyGenerator
       ? config.keyGenerator(c)
@@ -71,10 +95,23 @@ export function rateLimit(config: RateLimitConfig) {
       const results = await multi.exec()
 
       if (!results) {
-        // Redis error - allow request but log error
-        console.error('Rate limit check failed - allowing request')
-        await next()
-        return
+        // Redis error - handle based on config
+        if (skipOnError) {
+          console.error('Rate limit check failed - allowing request')
+          await next()
+          return
+        } else {
+          return c.json(
+            {
+              success: false,
+              error: {
+                code: 'SERVICE_UNAVAILABLE',
+                message: 'Rate limiting service error',
+              },
+            },
+            503
+          )
+        }
       }
 
       const count = results[2][1] as number
@@ -90,7 +127,11 @@ export function rateLimit(config: RateLimitConfig) {
 
         return c.json(
           {
-            error: 'Too many requests',
+            success: false,
+            error: {
+              code: 'RATE_LIMIT_EXCEEDED',
+              message: 'Terlalu banyak permintaan, silakan coba lagi nanti',
+            },
             retryAfter,
           },
           429
@@ -99,9 +140,24 @@ export function rateLimit(config: RateLimitConfig) {
 
       await next()
     } catch (error) {
-      // Redis error - allow request but log error
+      // Redis error - handle based on config
       console.error('Rate limit error:', error)
-      await next()
+      
+      if (skipOnError) {
+        console.warn('Rate limit error - allowing request')
+        await next()
+      } else {
+        return c.json(
+          {
+            success: false,
+            error: {
+              code: 'SERVICE_UNAVAILABLE',
+              message: 'Rate limiting service error',
+            },
+          },
+          503
+        )
+      }
     }
   }
 }
@@ -113,8 +169,17 @@ export function rateLimit(config: RateLimitConfig) {
  * @param identifier - User/IP identifier
  */
 export async function clearRateLimit(keyPrefix: string, identifier: string): Promise<void> {
-  const key = `${keyPrefix}:${identifier}`
-  await redis.del(key)
+  if (!isRedisAvailable()) {
+    console.warn('Cannot clear rate limit: Redis unavailable')
+    return
+  }
+  
+  try {
+    const key = `${keyPrefix}:${identifier}`
+    await redis.del(key)
+  } catch (error) {
+    console.error('Error clearing rate limit:', error)
+  }
 }
 
 /**
@@ -123,19 +188,29 @@ export async function clearRateLimit(keyPrefix: string, identifier: string): Pro
  * @param keyPrefix - Rate limit key prefix
  * @param identifier - User/IP identifier
  * @param windowSeconds - Time window in seconds
- * @returns Current request count in window
+ * @returns Current request count in window, or -1 if Redis unavailable
  */
 export async function getRateLimitStatus(
   keyPrefix: string,
   identifier: string,
   windowSeconds: number
 ): Promise<number> {
-  const key = `${keyPrefix}:${identifier}`
-  const now = Date.now()
-  const windowStart = now - windowSeconds * 1000
+  if (!isRedisAvailable()) {
+    console.warn('Cannot get rate limit status: Redis unavailable')
+    return -1
+  }
 
-  await redis.zremrangebyscore(key, 0, windowStart)
-  const count = await redis.zcard(key)
+  try {
+    const key = `${keyPrefix}:${identifier}`
+    const now = Date.now()
+    const windowStart = now - windowSeconds * 1000
 
-  return count
+    await redis.zremrangebyscore(key, 0, windowStart)
+    const count = await redis.zcard(key)
+
+    return count
+  } catch (error) {
+    console.error('Error getting rate limit status:', error)
+    return -1
+  }
 }

@@ -1,5 +1,5 @@
 {
-  "name": "@laporin/utils",
+  "name": "@laporin/constants",
   "version": "0.0.1",
   "private": true,
   "sideEffects": false,
@@ -16,10 +16,6 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch"
-  },
-  "dependencies": {
-    "clsx": "^2.1.1",
-    "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
     "tsup": "^8.0.0",

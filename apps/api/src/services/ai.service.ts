@@ -143,10 +143,64 @@ Berikan respons dalam format JSON:
 
 Hanya berikan JSON, tanpa teks tambahan.`
 
-    // Note: Vision models with images require special handling
-    // For now, we'll skip actual image classification
-    // TODO: Implement proper image classification with vision model
-    throw new Error('Image classification not yet implemented')
+    // Call vision model with image
+    const response = await fetch(OPENROUTER_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${API_KEY}`,
+        'HTTP-Referer': 'https://laporin.site',
+        'X-Title': 'Laporin',
+      },
+      body: JSON.stringify({
+        model: MODELS.vision,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: prompt,
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:${mimeType};base64,${base64Image}`,
+                },
+              },
+            ],
+          },
+        ],
+        max_tokens: 300,
+      }),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`Vision model error (${response.status}):`, errorText)
+      throw new Error(`Vision model returned ${response.status}`)
+    }
+
+    const data = (await response.json()) as OpenRouterResponse
+    const content = data.choices[0].message.content
+
+    // Parse JSON response
+    const result = JSON.parse(content)
+
+    // Validate categoryId exists
+    const validCategory = categories.find((cat) => cat.id === result.categoryId)
+    if (!validCategory) {
+      console.warn(`Invalid categoryId ${result.categoryId} returned by AI, using default`)
+      return {
+        categoryId: 23,
+        reasoning: 'Kategori tidak valid dari AI, menggunakan default',
+      }
+    }
+
+    return {
+      categoryId: result.categoryId,
+      reasoning: result.reasoning,
+    }
   } catch (error) {
     console.error('AI classify photo error:', error)
     // Fallback to default category (Other)
@@ -425,28 +479,80 @@ export async function detectDuplicate(
 
 /**
  * Generate text embedding for duplicate detection
+ * Uses OpenRouter's text embedding model or falls back to OpenAI-compatible endpoint
  * @param text - Text to embed
- * @returns Embedding vector
+ * @returns Embedding vector (1536 dimensions for compatibility with pgvector)
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
   try {
-    // For now, return a simple hash-based embedding
-    // In production, use a proper embedding model
-    // This is a placeholder implementation
-    const hash = text.split('').reduce((acc, char) => {
-      return ((acc << 5) - acc + char.charCodeAt(0)) | 0
-    }, 0)
-
-    // Generate a 384-dimensional vector (common embedding size)
-    const embedding = new Array(384).fill(0).map((_, i) => {
-      return Math.sin(hash * (i + 1)) * 0.5 + 0.5
+    // Use OpenRouter's embedding endpoint (compatible with OpenAI format)
+    // Model: text-embedding-3-small (1536 dimensions)
+    const response = await fetch('https://openrouter.ai/api/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${API_KEY}`,
+        'HTTP-Referer': 'https://laporin.site',
+        'X-Title': 'Laporin',
+      },
+      body: JSON.stringify({
+        model: 'openai/text-embedding-3-small',
+        input: text,
+      }),
     })
 
-    return embedding
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`Embedding API error (${response.status}):`, errorText)
+      throw new Error(`Embedding API returned ${response.status}`)
+    }
+
+    const data = await response.json()
+    
+    // OpenAI-compatible response format
+    if (data.data && data.data[0] && data.data[0].embedding) {
+      return data.data[0].embedding
+    }
+
+    throw new Error('Invalid embedding response format')
   } catch (error) {
     console.error('Generate embedding error:', error)
-    return new Array(384).fill(0)
+    
+    // Fallback: Use a simple TF-IDF-like hash-based embedding
+    // This is better than the previous implementation but still not ideal
+    console.warn('Using fallback hash-based embedding (not recommended for production)')
+    
+    // Tokenize and create a more sophisticated hash
+    const tokens = text.toLowerCase().match(/\b\w+\b/g) || []
+    const embedding = new Array(1536).fill(0)
+    
+    // Use multiple hash functions for better distribution
+    tokens.forEach((token, idx) => {
+      const hash1 = hashString(token, 1)
+      const hash2 = hashString(token, 2)
+      const hash3 = hashString(token, 3)
+      
+      // Distribute across embedding dimensions
+      embedding[hash1 % 1536] += 1 / Math.sqrt(tokens.length)
+      embedding[hash2 % 1536] += 0.5 / Math.sqrt(tokens.length)
+      embedding[hash3 % 1536] += 0.25 / Math.sqrt(tokens.length)
+    })
+    
+    // Normalize to unit vector
+    const magnitude = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0))
+    return embedding.map(val => magnitude > 0 ? val / magnitude : 0)
   }
+}
+
+/**
+ * Hash function for fallback embedding
+ */
+function hashString(str: string, seed: number): number {
+  let hash = seed
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0
+  }
+  return Math.abs(hash)
 }
 
 /**
@@ -516,17 +622,104 @@ export async function verifyBeforeAfterPhoto(params: {
   categoryId: number
 }): Promise<PhotoVerificationResult> {
   try {
-    // Note: Vision model comparison requires special handling
-    // For now, return a placeholder response
-    // TODO: Implement proper image comparison with vision model
-    console.log('Before/after photo verification not yet fully implemented')
+    const category = await db.category.findUnique({
+      where: { id: params.categoryId },
+      select: { name: true },
+    })
+
+    const prompt = `Anda adalah AI verifikator untuk perbaikan infrastruktur publik di Indonesia.
+
+Kategori: ${category?.name || 'Unknown'}
+
+Tugas Anda:
+1. Bandingkan foto SEBELUM dan SESUDAH perbaikan
+2. Tentukan apakah ada kemajuan/perbaikan yang terlihat
+3. Identifikasi masalah atau kekhawatiran jika ada
+
+Berikan respons dalam format JSON:
+{
+  "progressDetected": true/false,
+  "confidence": <0-100>,
+  "description": "<deskripsi perbandingan dalam Bahasa Indonesia, 2-3 kalimat>",
+  "concerns": "<kekhawatiran jika ada, atau null>"
+}
+
+Kriteria perbaikan yang valid:
+- Kerusakan terlihat diperbaiki atau berkurang
+- Area terlihat lebih rapi/bersih
+- Infrastruktur terlihat lebih baik dari sebelumnya
+
+Red flags (concerns):
+- Foto tidak menunjukkan lokasi yang sama
+- Tidak ada perubahan signifikan
+- Kondisi malah terlihat lebih buruk
+- Foto terlalu blur atau tidak jelas
+
+Hanya berikan JSON, tanpa teks tambahan.`
+
+    // Call vision model with both images
+    const response = await fetch(OPENROUTER_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${API_KEY}`,
+        'HTTP-Referer': 'https://laporin.site',
+        'X-Title': 'Laporin',
+      },
+      body: JSON.stringify({
+        model: MODELS.vision,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: 'Foto SEBELUM perbaikan:',
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:${params.mimeType};base64,${params.beforeBase64}`,
+                },
+              },
+              {
+                type: 'text',
+                text: 'Foto SESUDAH perbaikan:',
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:${params.mimeType};base64,${params.afterBase64}`,
+                },
+              },
+              {
+                type: 'text',
+                text: prompt,
+              },
+            ],
+          },
+        ],
+        max_tokens: 400,
+      }),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`Vision model error (${response.status}):`, errorText)
+      throw new Error(`Vision model returned ${response.status}`)
+    }
+
+    const data = (await response.json()) as OpenRouterResponse
+    const content = data.choices[0].message.content
+
+    // Parse JSON response
+    const result = JSON.parse(content)
 
     return {
-      progressDetected: true,
-      confidence: 0.75,
-      description:
-        'Verifikasi foto otomatis sedang dalam pengembangan. Mohon verifikasi manual.',
-      concerns: null,
+      progressDetected: result.progressDetected,
+      confidence: result.confidence / 100, // Convert to 0-1 range
+      description: result.description,
+      concerns: result.concerns,
     }
   } catch (error) {
     console.error('AI verify before/after photo error:', error)

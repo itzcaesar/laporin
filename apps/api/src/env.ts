@@ -48,6 +48,11 @@ const envSchema = z.object({
   // WhatsApp (Fonnte)
   FONNTE_TOKEN: z.string().optional(),
 
+  // Web Push (VAPID)
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().email().optional(),
+
   // App
   PORT: z.coerce.number().int().positive().default(4000),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -57,16 +62,85 @@ const envSchema = z.object({
 /**
  * Validates and exports environment variables.
  * Throws an error if validation fails.
+ * 
+ * This function is called immediately when this module is imported,
+ * ensuring the server cannot start with invalid configuration.
  */
 function validateEnv() {
+  console.log('🔍 Validating environment variables...')
+  
   const result = envSchema.safeParse(process.env)
 
   if (!result.success) {
     console.error('❌ Invalid environment variables:')
-    console.error(result.error.flatten().fieldErrors)
-    throw new Error('Environment validation failed')
+    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+    
+    const errors = result.error.flatten().fieldErrors
+    
+    // Group errors by category
+    const authErrors: string[] = []
+    const dbErrors: string[] = []
+    const storageErrors: string[] = []
+    const aiErrors: string[] = []
+    const emailErrors: string[] = []
+    const otherErrors: string[] = []
+    
+    for (const [field, messages] of Object.entries(errors)) {
+      const errorMsg = `  • ${field}: ${messages?.join(', ')}`
+      
+      if (field.startsWith('JWT') || field === 'VAPID_PUBLIC_KEY' || field === 'VAPID_PRIVATE_KEY') {
+        authErrors.push(errorMsg)
+      } else if (field.includes('DATABASE') || field.includes('REDIS')) {
+        dbErrors.push(errorMsg)
+      } else if (field.startsWith('S3_')) {
+        storageErrors.push(errorMsg)
+      } else if (field.includes('API_KEY')) {
+        aiErrors.push(errorMsg)
+      } else if (field.startsWith('SMTP_')) {
+        emailErrors.push(errorMsg)
+      } else {
+        otherErrors.push(errorMsg)
+      }
+    }
+    
+    if (dbErrors.length > 0) {
+      console.error('\n📊 Database & Cache:')
+      dbErrors.forEach(err => console.error(err))
+    }
+    
+    if (authErrors.length > 0) {
+      console.error('\n🔐 Authentication:')
+      authErrors.forEach(err => console.error(err))
+    }
+    
+    if (storageErrors.length > 0) {
+      console.error('\n💾 Storage:')
+      storageErrors.forEach(err => console.error(err))
+    }
+    
+    if (aiErrors.length > 0) {
+      console.error('\n🤖 AI Services:')
+      aiErrors.forEach(err => console.error(err))
+    }
+    
+    if (emailErrors.length > 0) {
+      console.error('\n📧 Email:')
+      emailErrors.forEach(err => console.error(err))
+    }
+    
+    if (otherErrors.length > 0) {
+      console.error('\n⚙️  Other:')
+      otherErrors.forEach(err => console.error(err))
+    }
+    
+    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+    console.error('\n💡 Tip: Copy .env.example to .env and fill in the values')
+    console.error('   See: apps/api/.env.example\n')
+    
+    throw new Error('Environment validation failed - server cannot start')
   }
 
+  console.log('✓ Environment variables validated successfully')
   return result.data
 }
 

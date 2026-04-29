@@ -250,6 +250,7 @@ const suggestionsSchema = z.object({
 ai.get(
   '/suggestions',
   authMiddleware,
+  rateLimit({ max: 50, windowSeconds: 3600, keyPrefix: 'ratelimit:ai:suggestions' }),
   zValidator('query', suggestionsSchema),
   async (c) => {
     const { reportId } = c.req.valid('query')

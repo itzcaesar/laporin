@@ -93,7 +93,7 @@ govDashboard.use('*', authMiddleware, requireRole('officer'))
 
 /**
  * GET /gov/dashboard/stats
- * Overview statistics for dashboard
+ * Overview statistics for dashboard (OPTIMIZED with aggressive caching)
  */
 govDashboard.get('/stats', async (c) => {
   const user = c.get('user')
@@ -101,6 +101,17 @@ govDashboard.get('/stats', async (c) => {
   const isSuperAdmin = user.role === 'super_admin'
 
   try {
+    // Build cache key
+    const cacheKey = `dashboard:stats:${agencyId || 'all'}`
+    
+    // Try cache first (5-minute TTL for dashboard stats)
+    const cached = await redis.get(cacheKey).catch(() => null)
+    if (cached) {
+      const cachedData = JSON.parse(cached)
+      c.header('X-Cache', 'HIT')
+      return ok(c, cachedData)
+    }
+
     // Build where clause
     const where: any = {}
     if (!isSuperAdmin && agencyId) {
@@ -289,7 +300,8 @@ govDashboard.get('/stats', async (c) => {
       console.error('[AI Insight] Cache read failed:', e)
     }
 
-    return ok(c, {
+    // Build result object
+    const result = {
       totalReports,
       newToday,
       slaBreachedCount: slaBreached,
@@ -316,7 +328,15 @@ govDashboard.get('/stats', async (c) => {
       workloadForecast,
       efficiencyScore,
       trendPercent,
+    }
+
+    // Cache the result for 5 minutes (300 seconds)
+    await redis.setex(cacheKey, 300, JSON.stringify(result)).catch(() => {
+      console.warn('Failed to cache dashboard stats')
     })
+
+    c.header('X-Cache', 'MISS')
+    return ok(c, result)
   } catch (error) {
     console.error('Dashboard stats error:', error)
     return err(c, 'INTERNAL_ERROR', 'Gagal memuat statistik dashboard', 500)

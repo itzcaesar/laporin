@@ -4,6 +4,7 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { db } from '../db.js'
+import { redis } from '../lib/redis.js'
 import { authMiddleware, optionalAuthMiddleware, type AuthVariables } from '../middleware/auth.js'
 import { ok, paginated, err } from '../lib/response.js'
 import { getPagination, getSkip, buildMeta } from '../lib/pagination.js'
@@ -35,7 +36,7 @@ const reports = new Hono<{ Variables: AuthVariables }>()
 
 /**
  * GET /reports
- * List reports with filters and pagination (optimized)
+ * List reports with filters and pagination (OPTIMIZED with caching)
  */
 reports.get('/', optionalAuthMiddleware, zValidator('query', listReportsSchema), async (c) => {
   const query = c.req.query()
@@ -46,6 +47,17 @@ reports.get('/', optionalAuthMiddleware, zValidator('query', listReportsSchema),
   const skip = getSkip({ page, limit })
 
   try {
+    // Build cache key from query parameters
+    const cacheKey = `reports:list:${page}:${limit}:${query.status || 'all'}:${query.categoryId || 'all'}:${query.priority || 'all'}:${query.regionCode || 'all'}:${query.search || 'none'}:${query.sortBy || 'createdAt'}:${query.sortOrder || 'desc'}:${userId || 'anon'}`
+    
+    // Try cache first (2-minute TTL for list views)
+    const cached = await redis.get(cacheKey).catch(() => null)
+    if (cached) {
+      const cachedData = JSON.parse(cached)
+      c.header('X-Cache', 'HIT')
+      return paginated(c, cachedData.data, cachedData.meta)
+    }
+
     // Build where clause
     const where: any = {
       status: { not: 'closed' },
@@ -70,29 +82,47 @@ reports.get('/', optionalAuthMiddleware, zValidator('query', listReportsSchema),
       : 'createdAt') as string
     const sortDir = query.sortOrder === 'asc' ? 'asc' : 'desc'
 
-    // Execute count and query in parallel
+    // Execute count and query in parallel with OPTIMIZED field selection
     const [items, total] = await Promise.all([
       db.report.findMany({
         where,
         skip,
         take: limit,
         orderBy: { [sortBy]: sortDir },
-        include: {
+        select: {
+          id: true,
+          trackingCode: true,
+          title: true,
+          description: true,
+          locationAddress: true,
+          locationLat: true,
+          locationLng: true,
+          status: true,
+          priority: true,
+          dangerLevel: true,
+          priorityScore: true,
+          upvoteCount: true,
+          commentCount: true,
+          isAnonymous: true,
+          reporterId: true,
+          agencyId: true,
+          picNip: true,
+          estimatedEnd: true,
+          budgetIdr: true,
+          aiSummary: true,
+          createdAt: true,
+          updatedAt: true,
           category: { select: { id: true, name: true, emoji: true } },
           reporter: { select: { id: true, name: true } },
           assignedOfficer: { select: { id: true, name: true, nip: true } },
           agency: { select: { id: true, name: true } },
-          media: { where: { sortOrder: 0 }, take: 1 },
-          aiAnalysis: true,
-          votes: userId ? { where: { userId } } : false,
-          bookmarks: userId ? { where: { userId } } : false,
-          _count: { select: { comments: true } },
-          comments: {
-            where: { parentId: null },
-            take: 2,
-            orderBy: { createdAt: 'desc' },
-            include: { author: { select: { name: true } } }
+          media: { 
+            where: { sortOrder: 0 }, 
+            take: 1,
+            select: { fileUrl: true }
           },
+          votes: userId ? { where: { userId }, select: { id: true } } : false,
+          bookmarks: userId ? { where: { userId }, select: { id: true } } : false,
         },
       }),
       db.report.count({ where }),
@@ -111,21 +141,16 @@ reports.get('/', optionalAuthMiddleware, zValidator('query', listReportsSchema),
       dangerLevel: r.dangerLevel,
       priorityScore: r.priorityScore,
       upvoteCount: r.upvoteCount,
-      commentCount: r._count.comments,
-      topComments: r.comments.map(c => ({
-        id: c.id,
-        authorName: c.author?.name || 'Anonim',
-        content: c.content
-      })),
+      commentCount: r.commentCount,
       categoryId: r.category.id,
       categoryName: r.category.name,
       categoryEmoji: r.category.emoji,
       isAnonymous: r.isAnonymous,
-      reporterName: r.isAnonymous ? null : (r as any).reporter?.name ?? null,
+      reporterName: r.isAnonymous ? null : r.reporter?.name ?? null,
       reporterId: r.isAnonymous ? null : r.reporterId,
       agencyId: r.agencyId,
       agencyName: r.agency?.name ?? null,
-      picName: (r as any).assignedOfficer?.name ?? null,
+      picName: r.assignedOfficer?.name ?? null,
       picNip: r.picNip,
       estimatedEnd: r.estimatedEnd?.toISOString() ?? null,
       budgetIdr: r.budgetIdr ? Number(r.budgetIdr) : null,
@@ -133,12 +158,20 @@ reports.get('/', optionalAuthMiddleware, zValidator('query', listReportsSchema),
       hasVoted: userId ? (r.votes as any[]).length > 0 : false,
       hasBookmarked: userId ? (r.bookmarks as any[]).length > 0 : false,
       aiSummary: r.aiSummary ?? null,
-      aiAnalysis: null,
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
     }))
 
-    return paginated(c, data, buildMeta(total, { page, limit }))
+    const meta = buildMeta(total, { page, limit })
+
+    // Cache for 2 minutes (120 seconds)
+    await redis.setex(cacheKey, 120, JSON.stringify({ data, meta })).catch(() => {
+      // Graceful degradation if Redis fails
+      console.warn('Failed to cache reports list')
+    })
+
+    c.header('X-Cache', 'MISS')
+    return paginated(c, data, meta)
   } catch (error) {
     console.error('List reports error:', error)
     return err(c, 'INTERNAL_ERROR', 'Gagal memuat laporan', 500)

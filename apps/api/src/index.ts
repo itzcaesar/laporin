@@ -2,17 +2,21 @@
 // Main entry point for the Laporin API
 // Hono app with middleware and route mounting
 
-// BigInt cannot be serialized by JSON.stringify by default.
-// Prisma fields like budgetEstimate (BigInt) need this polyfill.
-;(BigInt.prototype as any).toJSON = function () {
-  return Number(this)
-}
+// Validate environment variables FIRST
+// This ensures the server doesn't start with invalid configuration
+import './env.js'
+
+// Initialize BigInt JSON serialization polyfill
+// Must be done before any JSON.stringify() operations
+import { initBigIntPolyfill } from './lib/bigint-polyfill.js'
+initBigIntPolyfill()
 
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { secureHeaders } from 'hono/secure-headers'
+import { compress } from 'hono/compress'
 import { env } from './env.js'
 import routes from './routes/index.js'
 import { csrfMiddleware } from './middleware/csrf.js'
@@ -36,6 +40,13 @@ app.use('*', logger())
 // Security headers
 app.use('*', secureHeaders())
 
+// Response compression (gzip/deflate/brotli)
+// Compresses JSON responses by 70-90%, dramatically reducing bandwidth
+app.use('*', compress({
+  threshold: 1024, // Only compress responses > 1KB
+  encoding: 'gzip', // Use gzip (universal browser support)
+}))
+
 // CORS configuration
 app.use(
   '*',
@@ -47,8 +58,8 @@ app.use(
       return allowed.includes(origin) ? origin : allowed[0]
     },
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'X-CSRF-Token'],
-    exposeHeaders: ['Content-Length', 'X-Request-Id', 'Content-Disposition'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'X-CSRF-Token', 'Accept-Encoding'],
+    exposeHeaders: ['Content-Length', 'X-Request-Id', 'Content-Disposition', 'Content-Encoding', 'X-Cache'],
     credentials: true,
     maxAge: 86400, // 24 hours
   })

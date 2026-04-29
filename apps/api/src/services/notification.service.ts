@@ -144,16 +144,95 @@ async function sendWhatsApp(
 
 /**
  * Send push notification (Web Push VAPID)
- * TODO: Implement when push subscription table is added
  */
 async function sendPush(
   userId: string,
   title: string,
   body: string
 ): Promise<{ success: boolean; error?: string }> {
-  // Placeholder for future implementation
-  console.log(`[Push] Would send to user ${userId}: ${title}`)
-  return { success: false, error: 'Push notifications not yet implemented' }
+  try {
+    // Check if VAPID is configured
+    if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY || !env.VAPID_SUBJECT) {
+      console.warn('VAPID keys not configured, skipping push notification')
+      return { success: false, error: 'VAPID not configured' }
+    }
+
+    // Get all active push subscriptions for this user
+    const subscriptions = await db.pushSubscription.findMany({
+      where: {
+        userId,
+        isActive: true,
+      },
+    })
+
+    if (subscriptions.length === 0) {
+      return { success: false, error: 'No active push subscriptions' }
+    }
+
+    // Import web-push dynamically (will be installed as dependency)
+    const webpush = await import('web-push')
+
+    // Set VAPID details
+    webpush.setVapidDetails(
+      `mailto:${env.VAPID_SUBJECT}`,
+      env.VAPID_PUBLIC_KEY,
+      env.VAPID_PRIVATE_KEY
+    )
+
+    // Prepare notification payload
+    const payload = JSON.stringify({
+      title,
+      body,
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      timestamp: Date.now(),
+    })
+
+    // Send to all subscriptions
+    let successCount = 0
+    let failCount = 0
+
+    for (const subscription of subscriptions) {
+      try {
+        await webpush.sendNotification(
+          {
+            endpoint: subscription.endpoint,
+            keys: {
+              p256dh: subscription.p256dh,
+              auth: subscription.auth,
+            },
+          },
+          payload
+        )
+        successCount++
+      } catch (error: any) {
+        failCount++
+        
+        // If subscription is invalid (410 Gone), mark as inactive
+        if (error.statusCode === 410) {
+          await db.pushSubscription.update({
+            where: { id: subscription.id },
+            data: { isActive: false },
+          })
+          console.log(`Marked push subscription ${subscription.id} as inactive (410 Gone)`)
+        } else {
+          console.error(`Failed to send push to subscription ${subscription.id}:`, error)
+        }
+      }
+    }
+
+    if (successCount > 0) {
+      return { success: true }
+    } else {
+      return { success: false, error: `All ${failCount} push attempts failed` }
+    }
+  } catch (error) {
+    console.error('Push notification error:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }
+  }
 }
 
 /**

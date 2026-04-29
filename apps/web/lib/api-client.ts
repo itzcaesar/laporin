@@ -3,17 +3,28 @@
 // Tokens are stored in HttpOnly cookies (set by the API server).
 // The client cannot read them — they are sent automatically via credentials: 'include'.
 
+// ── lib/api-client.ts ──
+// Core API client with automatic token refresh and error handling
+// Tokens are stored in HttpOnly cookies (set by the API server).
+// The client cannot read them — they are sent automatically via credentials: 'include'.
+
+/**
+ * Get API base URL
+ * Priority: NEXT_PUBLIC_API_URL > dynamic construction (dev) > localhost fallback
+ */
 const getBaseUrl = () => {
+  // Always use environment variable if explicitly set
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL
+  }
+  
+  // Client-side: construct from window location (for local network testing)
   if (typeof window !== 'undefined') {
-    // If NEXT_PUBLIC_API_URL is explicitly set to a non-localhost remote URL, use it
-    if (process.env.NEXT_PUBLIC_API_URL && !process.env.NEXT_PUBLIC_API_URL.includes('localhost')) {
-      return process.env.NEXT_PUBLIC_API_URL
-    }
-    // Otherwise, dynamically construct it based on the window's hostname
-    // This allows local network testing (e.g., accessing via 192.168.x.x or 10.x.x.x)
     return `${window.location.protocol}//${window.location.hostname}:4000`
   }
-  return process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
+  
+  // Server-side fallback
+  return 'http://localhost:4000'
 }
 
 const BASE_URL = getBaseUrl()

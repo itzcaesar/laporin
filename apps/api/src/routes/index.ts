@@ -18,6 +18,7 @@ import surveyRoutes from './survey.js'
 import gamificationRoutes from './gamification.js'
 import notificationsRoutes from './notifications.js'
 import faqRoutes from './faq.js'
+import pushRoutes from './push.js'
 
 const app = new Hono()
 
@@ -46,6 +47,7 @@ app.route('/survey', surveyRoutes)
 app.route('/gamification', gamificationRoutes)
 app.route('/notifications', notificationsRoutes)
 app.route('/faq', faqRoutes)
+app.route('/push', pushRoutes)
 
 // Placeholder routes for testing
 app.get('/', (c) => {

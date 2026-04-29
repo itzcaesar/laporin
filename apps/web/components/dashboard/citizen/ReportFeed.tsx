@@ -66,9 +66,17 @@ function ReportFeedItem({ report }: { report: Report }) {
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
   const [isVoting, setIsVoting] = useState(false);
   const [isBookmarkLoading, setIsBookmarkLoading] = useState(false);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const statusConfig = getStatusConfig(report.status);
   const { burst } = useConfetti();
   const upvoteBtnRef = useRef<HTMLButtonElement>(null);
+
+  // Truncate description to 100 characters for better fit
+  const DESCRIPTION_LIMIT = 100;
+  const shouldTruncate = report.description && report.description.length > DESCRIPTION_LIMIT;
+  const displayDescription = shouldTruncate && !isDescriptionExpanded
+    ? (report.description?.slice(0, DESCRIPTION_LIMIT) || "") + "..."
+    : report.description;
 
   // Use actual report thumbnail or a fallback placeholder
   const reportImage = report.thumbnailUrl || null;
@@ -159,18 +167,18 @@ function ReportFeedItem({ report }: { report: Report }) {
   return (
     <>
       <div className="bg-white rounded-2xl border border-border overflow-hidden">
-        {/* Header */}
+        {/* Header - Reporter Info */}
         <div className="flex items-center justify-between p-4 pb-3">
           <Link
             href={`/citizen/reports/${report.id}`}
             className="flex items-center gap-3 flex-1 min-w-0"
           >
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-navy text-white font-semibold text-sm">
-              {report.categoryEmoji}
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-navy text-white font-semibold text-xs border-2 border-navy">
+              {report.reporterName?.charAt(0)?.toUpperCase() || "W"}
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-semibold text-navy truncate">
-                {report.categoryName}
+              <h3 className="text-sm font-semibold text-navy">
+                {report.reporterName || "Warga"}
               </h3>
               <p className="text-xs text-muted">
                 {formatRelativeTime(report.createdAt)}
@@ -205,7 +213,7 @@ function ReportFeedItem({ report }: { report: Report }) {
                 <span className="text-xs text-muted font-medium">Foto Laporan</span>
               </div>
             )}
-            {/* Status Badge Overlay */}
+            {/* Status Badge Overlay - Top Right */}
             <div className="absolute top-3 right-3">
               <div
                 className={cn(
@@ -221,18 +229,11 @@ function ReportFeedItem({ report }: { report: Report }) {
               </div>
             </div>
 
-            {/* Reporter info overlay - Bottom */}
-            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 via-black/40 to-transparent p-4 pt-16">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm text-white font-semibold text-xs border-2 border-white/50">
-                  {report.reporterName?.charAt(0)?.toUpperCase() || "W"}
-                </div>
-                <div>
-                  <p className="text-xs text-white/80">Dilaporkan oleh</p>
-                  <p className="text-sm font-semibold text-white">
-                    {report.reporterName || "Warga"}
-                  </p>
-                </div>
+            {/* Infrastructure Category - Top Left */}
+            <div className="absolute top-3 left-3">
+              <div className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 bg-white/90 backdrop-blur-sm border border-white/50 shadow-sm">
+                <span className="text-base" aria-hidden="true">{report.categoryEmoji}</span>
+                <span className="text-xs font-semibold text-navy">{report.categoryName}</span>
               </div>
             </div>
           </div>
@@ -289,36 +290,55 @@ function ReportFeedItem({ report }: { report: Report }) {
           
           {/* Description from reporter - IG style (without username) */}
           {report.description && (
-            <p className="text-sm text-ink leading-relaxed mb-3">
-              {report.description}
-            </p>
+            <div className="text-sm text-ink leading-relaxed mb-3">
+              <p>{displayDescription}</p>
+              {shouldTruncate && (
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDescriptionExpanded(!isDescriptionExpanded);
+                  }}
+                  className="text-muted hover:text-ink font-medium mt-1 transition-colors"
+                >
+                  {isDescriptionExpanded ? "Tampilkan lebih sedikit" : "Selengkapnya"}
+                </button>
+              )}
+            </div>
           )}
 
           {/* Comment previews - Show top 2-3 comments */}
           {report.commentCount > 0 && (
             <>
-              <div className="space-y-1.5 pb-2 border-b border-border/30">
-                {report.topComments && report.topComments.length > 0 ? (
-                  report.topComments.map((comment) => (
-                    <CommentPreview
-                      key={comment.id}
-                      author={comment.authorName}
-                      text={comment.content}
-                      onClick={handleComment}
-                    />
-                  ))
-                ) : (
-                  <p className="text-xs text-muted">Belum ada komentar</p>
-                )}
-              </div>
+              {report.topComments && report.topComments.length > 0 ? (
+                <>
+                  <div className="space-y-1.5 pb-2 border-b border-border/30">
+                    {report.topComments.map((comment) => (
+                      <CommentPreview
+                        key={comment.id}
+                        author={comment.authorName}
+                        text={comment.content}
+                        onClick={handleComment}
+                      />
+                    ))}
+                  </div>
 
-              {/* View all comments button */}
-              {report.commentCount > 2 && (
+                  {/* View all comments button */}
+                  {report.commentCount > 2 && (
+                    <button
+                      onClick={handleComment}
+                      className="text-sm text-muted hover:text-ink transition-colors block mt-2 mb-3"
+                    >
+                      Lihat semua {report.commentCount} komentar
+                    </button>
+                  )}
+                </>
+              ) : (
                 <button
                   onClick={handleComment}
-                  className="text-sm text-muted hover:text-ink transition-colors block mt-2 mb-3"
+                  className="text-sm text-muted hover:text-ink transition-colors block mb-3"
                 >
-                  Lihat semua {report.commentCount} komentar
+                  Lihat {report.commentCount} komentar
                 </button>
               )}
             </>
