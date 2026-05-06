@@ -17,7 +17,7 @@ const TEAM_MEMBERS = [
   },
   {
     name: "Alessandro Fathi Zulkarnain",
-    role: "gapernah kerja, cuman gooning aja",
+    role: "Researcher",
     university: "Telkom University",
     initials: "AZ"
   },
