@@ -2,15 +2,25 @@
 // BullMQ queue setup for background jobs
 
 import { Queue, QueueOptions } from 'bullmq'
-import { redis } from '../lib/redis.js'
+import { Redis } from 'ioredis'
 import { env } from '../env.js'
+
+/**
+ * BullMQ requires maxRetriesPerRequest: null — cannot share the ioredis cache client
+ */
+export function createBullMQConnection() {
+  return new Redis(env.REDIS_URL, {
+    maxRetriesPerRequest: null,
+    enableReadyCheck: false,
+  })
+}
 
 /**
  * Queue configuration
  * Reuses the existing Redis connection for efficiency
  */
 const queueConfig: QueueOptions = {
-  connection: redis, // Reuse existing Redis connection
+  connection: createBullMQConnection(),
   defaultJobOptions: {
     attempts: 3,
     backoff: {

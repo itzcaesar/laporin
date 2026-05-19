@@ -3,7 +3,7 @@
 
 import { Worker, Job } from 'bullmq'
 import { db } from '../../db.js'
-import { queueConfig, type AIAnalysisJob } from '../queue.js'
+import { queueConfig, createBullMQConnection, type AIAnalysisJob } from '../queue.js'
 import {
   classifyReportPhoto,
   predictDangerLevel,
@@ -244,8 +244,8 @@ async function processAIAnalysis(job: Job<AIAnalysisJob>) {
  */
 export function createAIWorker() {
   const worker = new Worker('ai-analysis', processAIAnalysis, {
-    connection: queueConfig.connection,
-    concurrency: 2, // Process 2 jobs concurrently
+    connection: createBullMQConnection(),
+    concurrency: 2,
   })
 
   worker.on('completed', (job) => {

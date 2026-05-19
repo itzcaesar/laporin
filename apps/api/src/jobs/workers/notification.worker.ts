@@ -2,7 +2,7 @@
 // Background worker for processing notification jobs
 
 import { Worker, Job } from 'bullmq'
-import { queueConfig, type NotificationJob } from '../queue.js'
+import { queueConfig, createBullMQConnection, type NotificationJob } from '../queue.js'
 import {
   notifyReportSubmitted,
   notifyReportVerified,
@@ -106,7 +106,8 @@ export function startNotificationWorker(): Worker<NotificationJob> {
     processNotificationJob,
     {
       ...queueConfig,
-      concurrency: 5, // Process up to 5 notifications concurrently
+      connection: createBullMQConnection(),
+      concurrency: 5,
     }
   )
 
