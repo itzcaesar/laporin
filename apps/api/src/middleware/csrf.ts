@@ -38,9 +38,10 @@ export async function csrfMiddleware(c: Context, next: Next) {
     setCookie(c, 'laporin_csrf', csrfCookie, {
       httpOnly: false, // JS needs to read this
       secure: env.NODE_ENV === 'production',
-      sameSite: 'Lax',
+      sameSite: env.NODE_ENV === 'production' ? 'None' : 'Lax',
       path: '/',
       maxAge: 7 * 24 * 60 * 60, // 7 days
+      ...(env.NODE_ENV === 'production' && { domain: '.laporin.site' }),
     })
   }
 
