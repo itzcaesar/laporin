@@ -12,19 +12,19 @@ export function Hero() {
 
   const heroStats = [
     { 
-      value: stats ? stats.resolvedReports.toLocaleString('id-ID') : "1.247", 
+      value: isLoading ? "0" : stats ? stats.resolvedReports.toLocaleString('id-ID') : "0", 
       label: "Laporan Selesai" 
     },
     { 
-      value: stats ? stats.activeDinas.toString() : "23", 
+      value: isLoading ? "0" : stats ? stats.activeDinas.toString() : "0", 
       label: "Kategori" 
     },
     { 
-      value: "<48 Jam", // Still hardcoded as it's a target/average goal
+      value: "<48 Jam",
       label: "Respons" 
     },
     { 
-      value: stats && stats.satisfactionAvg ? `${stats.satisfactionAvg.toFixed(1)}★` : "4.8★", 
+      value: isLoading ? "0★" : stats && stats.satisfactionAvg ? `${stats.satisfactionAvg.toFixed(1)}★` : "0★", 
       label: "Kepuasan" 
     },
   ];
