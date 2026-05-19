@@ -5,10 +5,17 @@ import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Eye, EyeOff, X, Mail, CheckCircle } from "lucide-react";
+import { Eye, EyeOff, X, Mail, CheckCircle, FlaskConical } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/useToast";
 import { api, ApiClientError } from "@/lib/api-client";
+
+const DEMO_ACCOUNTS = [
+  { label: "Warga", email: "citizen@laporin.com", role: "citizen" },
+  { label: "Petugas", email: "officer@laporin.com", role: "gov" },
+  { label: "Admin", email: "admin@laporin.com", role: "gov" },
+  { label: "Super Admin", email: "superadmin@laporin.com", role: "gov" },
+];
 
 type Role = "citizen" | "government";
 
@@ -27,6 +34,8 @@ export default function LoginPage() {
 
   // Forgot password modal
   const [forgotOpen, setForgotOpen] = useState(false);
+  // Demo credentials modal
+  const [demoOpen, setDemoOpen] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotSending, setForgotSending] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
@@ -251,8 +260,64 @@ export default function LoginPage() {
               "Masuk"
             )}
           </button>
+
+          {/* Demo credentials */}
+          <button
+            type="button"
+            onClick={() => setDemoOpen(true)}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-700 transition-colors hover:bg-amber-100"
+          >
+            <FlaskConical size={15} />
+            Lihat Akun Demo
+          </button>
         </form>
       </div>
+
+      {/* Demo Credentials Modal */}
+      {demoOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm"
+          onClick={(e) => { if (e.target === e.currentTarget) setDemoOpen(false); }}
+        >
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <FlaskConical size={18} className="text-amber-500" />
+                <h2 className="text-base font-bold font-display text-navy">Akun Demo</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDemoOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-surface"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <p className="text-xs text-muted mb-4">Password semua akun: <code className="rounded bg-surface px-1.5 py-0.5 font-mono text-ink">password123</code></p>
+            <div className="space-y-2">
+              {DEMO_ACCOUNTS.map((acc) => (
+                <button
+                  key={acc.email}
+                  type="button"
+                  onClick={() => {
+                    setEmail(acc.email);
+                    setPassword("password123");
+                    setRole(acc.role === "citizen" ? "citizen" : "government");
+                    setDemoOpen(false);
+                  }}
+                  className="flex w-full items-center justify-between rounded-xl border border-surface bg-surface/50 px-4 py-3 text-left transition-colors hover:bg-surface"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-ink">{acc.label}</p>
+                    <p className="text-xs text-muted">{acc.email}</p>
+                  </div>
+                  <span className="text-xs font-medium text-blue">Gunakan →</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Forgot Password Modal */}
       {forgotOpen && (
