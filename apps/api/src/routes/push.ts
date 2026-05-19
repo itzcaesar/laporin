@@ -17,7 +17,7 @@ const push = new Hono<{ Variables: AuthVariables }>()
  */
 push.get('/vapid-public-key', (c) => {
   if (!env.VAPID_PUBLIC_KEY) {
-    return err(c, 'SERVICE_UNAVAILABLE', 'Push notifications not configured', 503)
+    return err(c, 'SERVICE_UNAVAILABLE', 'Push notifications not configured', 500)
   }
 
   return ok(c, { publicKey: env.VAPID_PUBLIC_KEY })

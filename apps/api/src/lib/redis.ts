@@ -118,7 +118,7 @@ export async function safeSet(
   
   try {
     if (expiryMode && time) {
-      await redis.set(key, value, expiryMode, time)
+      await redis.set(key, value, expiryMode as 'EX', time)
     } else {
       await redis.set(key, value)
     }
