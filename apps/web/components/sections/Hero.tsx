@@ -83,9 +83,13 @@ export function Hero() {
                   key={stat.label}
                   className="rounded-xl bg-white/10 px-3 py-2.5 text-center backdrop-blur-sm sm:px-4 sm:py-3"
                 >
-                  <div className="font-display text-base font-bold text-white sm:text-xl">
-                    {stat.value}
-                  </div>
+                  {isLoading ? (
+                    <div className="mx-auto mb-1 h-6 w-12 animate-pulse rounded bg-white/20" />
+                  ) : (
+                    <div className="font-display text-base font-bold text-white sm:text-xl">
+                      {stat.value}
+                    </div>
+                  )}
                   <div className="text-[10px] text-white/70 sm:text-xs">{stat.label}</div>
                 </div>
               ))}

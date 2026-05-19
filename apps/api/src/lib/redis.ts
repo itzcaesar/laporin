@@ -25,11 +25,10 @@ export const redis = new Redis(env.REDIS_URL, {
   retryStrategy(times: number) {
     reconnectAttempts = times
     
-    // Stop retrying after MAX_RECONNECT_ATTEMPTS
     if (times > MAX_RECONNECT_ATTEMPTS) {
       console.error(`Redis: Max reconnection attempts (${MAX_RECONNECT_ATTEMPTS}) reached. Giving up.`)
       redisAvailable = false
-      return null // Stop retrying
+      return null
     }
     
     const delay = Math.min(times * 50, 2000)
@@ -39,14 +38,13 @@ export const redis = new Redis(env.REDIS_URL, {
   reconnectOnError(err: Error) {
     const targetError = 'READONLY'
     if (err.message.includes(targetError)) {
-      // Only reconnect when the error contains "READONLY"
       console.log('Redis: Reconnecting due to READONLY error')
       return true
     }
     return false
   },
-  enableOfflineQueue: false, // Don't queue commands when disconnected
-  lazyConnect: false, // Connect immediately
+  enableOfflineQueue: false,
+  lazyConnect: true, // Don't connect at module load time — prevents blocking server startup
 })
 
 redis.on('error', (err: Error) => {
