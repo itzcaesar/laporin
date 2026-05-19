@@ -172,28 +172,6 @@ app.onError((error, c) => {
  */
 const port = env.PORT
 
-// Start background workers
-let notificationWorker: Worker | null = null
-let aiWorker: Worker | null = null
-
-try {
-  notificationWorker = startNotificationWorker()
-  aiWorker = createAIWorker()
-  console.log('✓ Background workers initialized')
-} catch (error) {
-  console.error('Failed to start background workers:', error)
-  console.warn('⚠️  API will run without background job processing')
-}
-
-// Start CRON jobs
-try {
-  startAllCronJobs()
-  console.log('✓ CRON jobs initialized')
-} catch (error) {
-  console.error('Failed to start CRON jobs:', error)
-  console.warn('⚠️  API will run without scheduled jobs')
-}
-
 serve(
   {
     fetch: app.fetch,
@@ -206,6 +184,29 @@ serve(
     console.log(`🔗 API v1: http://localhost:${info.port}/api/v1`)
   }
 )
+
+// Start background workers AFTER server is bound
+let notificationWorker: Worker | null = null
+let aiWorker: Worker | null = null
+
+setImmediate(() => {
+  try {
+    notificationWorker = startNotificationWorker()
+    aiWorker = createAIWorker()
+    console.log('✓ Background workers initialized')
+  } catch (error) {
+    console.error('Failed to start background workers:', error)
+    console.warn('⚠️  API will run without background job processing')
+  }
+
+  try {
+    startAllCronJobs()
+    console.log('✓ CRON jobs initialized')
+  } catch (error) {
+    console.error('Failed to start CRON jobs:', error)
+    console.warn('⚠️  API will run without scheduled jobs')
+  }
+})
 
 /**
  * Graceful shutdown
