@@ -1,1 +1,3 @@
-{}
+{
+  "buildCommand": "cd ../../packages/types && npx tsup && cd ../../apps/web && pnpm build"
+}

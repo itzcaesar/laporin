@@ -3,7 +3,7 @@
 
 import { Worker, Job } from 'bullmq'
 import { db } from '../../db.js'
-import { queueConfig, createBullMQConnection, type AIAnalysisJob } from '../queue.js'
+import { createBullMQConnection, type AIAnalysisJob } from '../queue.js'
 import {
   classifyReportPhoto,
   predictDangerLevel,

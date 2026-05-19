@@ -16,38 +16,50 @@ export function createBullMQConnection() {
 }
 
 /**
- * Queue configuration
- * Reuses the existing Redis connection for efficiency
+ * Queue configuration — built lazily so no Redis connection is opened at
+ * module-load time (prevents startup crash when Redis is temporarily unavailable).
  */
-const queueConfig: QueueOptions = {
-  connection: createBullMQConnection(),
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: {
-      type: 'exponential',
-      delay: 2000,
+function getQueueConfig(): QueueOptions {
+  return {
+    connection: createBullMQConnection(),
+    defaultJobOptions: {
+      attempts: 3,
+      backoff: {
+        type: 'exponential',
+        delay: 2000,
+      },
+      removeOnComplete: {
+        age: 24 * 3600,
+        count: 1000,
+      },
+      removeOnFail: {
+        age: 7 * 24 * 3600,
+      },
     },
-    removeOnComplete: {
-      age: 24 * 3600, // Keep completed jobs for 24 hours
-      count: 1000,
-    },
-    removeOnFail: {
-      age: 7 * 24 * 3600, // Keep failed jobs for 7 days
-    },
-  },
+  }
 }
 
 /**
- * AI Analysis Queue
- * Processes AI analysis for new reports
+ * Lazy queue singletons — created on first use so a Redis failure at
+ * module-load time does not crash the process before the HTTP server starts.
  */
-export const aiQueue = new Queue('ai-analysis', queueConfig)
+let _aiQueue: Queue | null = null
+let _notificationQueue: Queue | null = null
 
-/**
- * Notification Queue
- * Sends notifications via email, WhatsApp, and push
- */
-export const notificationQueue = new Queue('notifications', queueConfig)
+export function getAIQueue(): Queue {
+  if (!_aiQueue) _aiQueue = new Queue('ai-analysis', getQueueConfig())
+  return _aiQueue
+}
+
+export function getNotificationQueue(): Queue {
+  if (!_notificationQueue) _notificationQueue = new Queue('notifications', getQueueConfig())
+  return _notificationQueue
+}
+
+/** @deprecated use getAIQueue() */
+export const aiQueue = { add: (...args: Parameters<Queue['add']>) => getAIQueue().add(...args), close: () => _aiQueue?.close() }
+/** @deprecated use getNotificationQueue() */
+export const notificationQueue = { add: (...args: Parameters<Queue['add']>) => getNotificationQueue().add(...args), close: () => _notificationQueue?.close() }
 
 /**
  * Job types for AI queue
@@ -80,8 +92,8 @@ export interface NotificationJob {
  */
 export async function addAIAnalysisJob(data: AIAnalysisJob) {
   try {
-    const job = await aiQueue.add('analyze-report', data, {
-      priority: 1, // High priority
+    const job = await getAIQueue().add('analyze-report', data, {
+      priority: 1,
     })
     console.log(`✓ AI analysis job added: ${job.id}`)
     return job
@@ -91,13 +103,10 @@ export async function addAIAnalysisJob(data: AIAnalysisJob) {
   }
 }
 
-/**
- * Add notification job
- */
 export async function addNotificationJob(data: NotificationJob) {
   try {
-    const job = await notificationQueue.add('send-notification', data, {
-      priority: data.type === 'sla_breached' ? 1 : 5, // SLA breach is high priority
+    const job = await getNotificationQueue().add('send-notification', data, {
+      priority: data.type === 'sla_breached' ? 1 : 5,
     })
     console.log(`✓ Notification job added: ${job.id}`)
     return job
@@ -111,10 +120,9 @@ export async function addNotificationJob(data: NotificationJob) {
  * Graceful shutdown
  */
 export async function closeQueues() {
-  await aiQueue.close()
-  await notificationQueue.close()
+  await _aiQueue?.close()
+  await _notificationQueue?.close()
   console.log('✓ Queues closed')
 }
 
-// Export queues for worker access
-export { queueConfig }
+
