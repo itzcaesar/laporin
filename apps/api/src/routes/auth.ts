@@ -28,6 +28,8 @@ import type { Context } from 'hono'
 // ── Cookie helpers ────────────────────────────────────────────────────────
 
 const COOKIE_SECURE = env.NODE_ENV === 'production'
+const COOKIE_SAME_SITE = env.NODE_ENV === 'production' ? 'None' : 'Lax'
+const COOKIE_DOMAIN = env.NODE_ENV === 'production' ? '.laporin.site' : undefined
 
 /**
  * Set HttpOnly auth cookies after successful authentication.
@@ -44,23 +46,26 @@ function setAuthCookies(
   setCookie(c, 'laporin_token', accessToken, {
     httpOnly: true,
     secure: COOKIE_SECURE,
-    sameSite: 'Lax',
+    sameSite: COOKIE_SAME_SITE,
     path: '/',
-    maxAge: 15 * 60, // 15 minutes
+    maxAge: 15 * 60,
+    ...(COOKIE_DOMAIN && { domain: COOKIE_DOMAIN }),
   })
   setCookie(c, 'laporin_refresh', refreshToken, {
     httpOnly: true,
     secure: COOKIE_SECURE,
-    sameSite: 'Lax',
+    sameSite: COOKIE_SAME_SITE,
     path: '/',
-    maxAge: 7 * 24 * 60 * 60, // 7 days
+    maxAge: 7 * 24 * 60 * 60,
+    ...(COOKIE_DOMAIN && { domain: COOKIE_DOMAIN }),
   })
   setCookie(c, 'laporin_role', role, {
     httpOnly: false,
     secure: COOKIE_SECURE,
-    sameSite: 'Lax',
+    sameSite: COOKIE_SAME_SITE,
     path: '/',
-    maxAge: 7 * 24 * 60 * 60, // 7 days
+    maxAge: 7 * 24 * 60 * 60,
+    ...(COOKIE_DOMAIN && { domain: COOKIE_DOMAIN }),
   })
 }
 
@@ -309,9 +314,10 @@ auth.post('/refresh', zValidator('json', refreshSchema), async (c) => {
     setCookie(c, 'laporin_token', accessToken, {
       httpOnly: true,
       secure: COOKIE_SECURE,
-      sameSite: 'Lax',
+      sameSite: COOKIE_SAME_SITE,
       path: '/',
       maxAge: 15 * 60,
+      ...(COOKIE_DOMAIN && { domain: COOKIE_DOMAIN }),
     })
 
     return ok(c, {
