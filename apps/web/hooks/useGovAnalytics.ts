@@ -26,7 +26,7 @@ import type {
  * 
  * **Validates: Requirements 12.1, 12.2, 12.3, 12.4, 12.5, 12.6**
  * 
- * @param period - Time period filter ('30' | '90' | '365' days)
+ * @param period - Time period filter ('30d' | '90d' | '365d')
  * @returns Analytics data, loading state, error state, and refetch function
  */
 export function useGovAnalytics(period: TimePeriod) {

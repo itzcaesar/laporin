@@ -22,7 +22,7 @@ const RiskZoneMap = dynamic(
 
 export default function GovAnalyticsPage() {
   const toast = useToast();
-  const [period, setPeriod] = useState<TimePeriod>("30");
+  const [period, setPeriod] = useState<TimePeriod>("30d");
   const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
   const { data, isLoading, error, refetch, generateInsights } = useGovAnalytics(period);
 
@@ -69,7 +69,7 @@ export default function GovAnalyticsPage() {
         <div className="flex items-center gap-2">
           {/* Period Selector */}
           <div className="flex items-center gap-1 rounded-xl border border-border bg-white p-1">
-            {(["30", "90", "365"] as TimePeriod[]).map((p) => (
+            {(["30d", "90d", "365d"] as TimePeriod[]).map((p) => (
               <button
                 key={p}
                 type="button"
@@ -81,8 +81,8 @@ export default function GovAnalyticsPage() {
                     : "text-ink hover:bg-surface"
                 )}
               >
-                <span className="sm:hidden">{p}d</span>
-                <span className="hidden sm:inline">{p} Hari</span>
+                <span className="sm:hidden">{p}</span>
+                <span className="hidden sm:inline">{p.replace("d", "")} Hari</span>
               </button>
             ))}
           </div>

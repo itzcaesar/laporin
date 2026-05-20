@@ -7,8 +7,40 @@ import { z } from 'zod'
 import { authMiddleware, type AuthVariables } from '../middleware/auth.js'
 import { ok, err } from '../lib/response.js'
 import { generateUploadUrl, validateFileMetadata } from '../services/storage.service.js'
+import { db } from '../db.js'
 
 const app = new Hono<{ Variables: AuthVariables }>()
+
+type StorageReport = {
+  reporterId: string | null
+  agencyId: string | null
+  assignedOfficerId: string | null
+}
+
+function canUploadToReport(user: AuthVariables['user'], report: StorageReport) {
+  if (report.reporterId === user.sub) return true
+  if (report.assignedOfficerId === user.sub) return true
+  if (user.role === 'super_admin') return true
+  return !!user.agencyId && report.agencyId === user.agencyId
+}
+
+async function getAuthorizedReport(c: any, reportId: string) {
+  const user = c.get('user') as AuthVariables['user']
+  const report = await db.report.findUnique({
+    where: { id: reportId },
+    select: { reporterId: true, agencyId: true, assignedOfficerId: true },
+  })
+
+  if (!report) {
+    return { error: err(c, 'NOT_FOUND', 'Laporan tidak ditemukan', 404) }
+  }
+
+  if (!canUploadToReport(user, report)) {
+    return { error: err(c, 'FORBIDDEN', 'Tidak diizinkan mengunggah ke laporan ini', 403) }
+  }
+
+  return { report }
+}
 
 /**
  * Request body schema for upload URL generation
@@ -56,6 +88,9 @@ app.post(
       if (!validation.valid) {
         return err(c, 'INVALID_INPUT', validation.error || 'Metadata file tidak valid', 400)
       }
+
+      const authorization = await getAuthorizedReport(c, body.reportId)
+      if (authorization.error) return authorization.error
 
       // Generate presigned upload URL
       const result = await generateUploadUrl({
@@ -119,9 +154,11 @@ app.post(
   async (c) => {
     try {
       const body = c.req.valid('json')
-      const user = c.get('user')
 
       console.log(`[Storage] Batch upload URL request for ${body.files.length} files`)
+
+      const authorization = await getAuthorizedReport(c, body.reportId)
+      if (authorization.error) return authorization.error
 
       const results = []
       const errors = []

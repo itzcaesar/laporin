@@ -85,17 +85,20 @@ export default function SurveyPage() {
     setSubmitError(null);
 
     try {
-      // Calculate overall rating as average of all question ratings
       const avgRating = Math.round(
         Object.values(ratings).reduce((a, b) => a + b, 0) /
           Object.values(ratings).length
       );
+      const overallRating = ratings.satisfaction ?? avgRating;
 
       await api.post("/survey", {
         reportId,
-        rating: avgRating,
-        comment: comment.trim() || undefined,
-        wouldRecommend: avgRating >= 4,
+        speedRating: ratings.speed,
+        qualityRating: ratings.quality,
+        communicationRating: ratings.communication,
+        overallRating,
+        feedback: comment.trim() || undefined,
+        wouldRecommend: overallRating >= 4,
       });
 
       setIsSubmitted(true);

@@ -75,15 +75,19 @@ govReports.get('/', zValidator('query', listGovReportsSchema), async (c) => {
     // Build where clause
     const where: any = {}
 
-    // Filter by agency if not super_admin
-    if (user.role !== 'super_admin' && user.agencyId) {
+    // Non-super-admin users must stay scoped to their own agency.
+    if (user.role === 'super_admin') {
+      if (query.agencyId) where.agencyId = query.agencyId
+    } else {
+      if (!user.agencyId) {
+        return err(c, 'FORBIDDEN', 'User has no agency scope', 403)
+      }
       where.agencyId = user.agencyId
     }
 
     if (query.status) where.status = query.status
     if (query.priority) where.priority = query.priority
     if (query.categoryId) where.categoryId = query.categoryId
-    if (query.agencyId) where.agencyId = query.agencyId
     if (query.assignedOfficerId) where.assignedOfficerId = query.assignedOfficerId
 
     // SLA breach filter (requires date comparison)
@@ -549,10 +553,7 @@ govReports.patch(
 
       const allowedStatuses = validTransitions[report.status] || []
       if (!allowedStatuses.includes(newStatus)) {
-        return c.json(
-          { error: `Cannot transition from ${report.status} to ${newStatus}` },
-          400
-        )
+        return err(c, 'INVALID_STATUS_TRANSITION', `Cannot transition from ${report.status} to ${newStatus}`, 400)
       }
 
       // Update report
@@ -863,7 +864,7 @@ govReports.post(
         },
       })
 
-      return c.json({
+      return ok(c, {
         message: 'AI analysis queued for re-processing',
         reportId: id,
       })

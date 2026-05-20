@@ -346,7 +346,7 @@ export default function AIAssistantPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const { data: analyticsData } = useGovAnalytics("30");
+  const { data: analyticsData } = useGovAnalytics("30d");
 
   const stats = [
     {

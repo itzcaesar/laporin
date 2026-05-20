@@ -25,6 +25,7 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET must be at least 32 characters'),
   JWT_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
+  COOKIE_DOMAIN: z.string().optional(),
 
   // Storage (Supabase S3 or Cloudflare R2)
   S3_ENDPOINT: z.string().url(),

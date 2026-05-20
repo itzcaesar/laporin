@@ -6,7 +6,8 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",
-    "type-check": "turbo type-check"
+    "type-check": "turbo type-check",
+    "postinstall": "prisma generate --schema=apps/api/prisma/schema.prisma"
   },
   "devDependencies": {
     "turbo": "latest",

@@ -12,6 +12,7 @@ const faq = new Hono<{ Variables: AuthVariables }>()
 faq.get('/', async (c) => {
   try {
     const items = await db.faq.findMany({
+      where: { isPublished: true },
       orderBy: { createdAt: 'desc' },
     })
     return ok(c, items)
@@ -35,7 +36,6 @@ faq.post('/', authMiddleware, async (c) => {
     if (!question || !answer || !category) {
       return err(c, 'INVALID_INPUT', 'Pertanyaan, jawaban, dan kategori wajib diisi', 400)
     }
-    const count = await db.faq.count()
     const item = await db.faq.create({
       data: { question, answer, category, isPublished, authorId: user.sub },
     })

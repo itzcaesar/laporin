@@ -4,7 +4,8 @@ export const runtime = 'edge'
 
 export async function GET() {
   try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/health`, {
+    const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').replace(/\/$/, '')
+    const res = await fetch(`${apiBaseUrl}/health`, {
       cache: 'no-store',
     })
     const data = await res.json()

@@ -83,6 +83,7 @@ govOfficers.get('/', async (c) => {
     const pages = Math.ceil(total / limitNum)
 
     return c.json({
+      success: true,
       data: officers,
       meta: {
         total,
@@ -386,7 +387,7 @@ govOfficers.delete('/:id', async (c) => {
       },
     })
 
-    return c.json({ data: { success: true } })
+    return ok(c, { success: true })
   } catch (error) {
     console.error('Deactivate officer error:', error)
     return err(c, 'INTERNAL_ERROR', 'Gagal deactivate officer', 500)
@@ -470,15 +471,13 @@ govOfficers.get('/:id/stats', async (c) => {
           }, 0) / resolvedReports.length
         : 0
 
-    return c.json({
-      data: {
-        period,
-        totalAssigned,
-        completed,
-        inProgress,
-        completionRate: totalAssigned > 0 ? (completed / totalAssigned) * 100 : 0,
-        avgResolutionDays: Math.round(avgResolutionDays * 10) / 10,
-      },
+    return ok(c, {
+      period,
+      totalAssigned,
+      completed,
+      inProgress,
+      completionRate: totalAssigned > 0 ? (completed / totalAssigned) * 100 : 0,
+      avgResolutionDays: Math.round(avgResolutionDays * 10) / 10,
     })
   } catch (error) {
     console.error('Officer stats error:', error)
@@ -545,11 +544,9 @@ govOfficers.post('/:id/reset-password', async (c) => {
       },
     })
 
-    return c.json({
-      data: {
-        tempPassword,
-        message: `Password petugas ${officer.name ?? officer.email} berhasil direset. Sampaikan kata sandi sementara ini kepada petugas dan minta mereka segera mengubahnya.`,
-      },
+    return ok(c, {
+      tempPassword,
+      message: `Password petugas ${officer.name ?? officer.email} berhasil direset. Sampaikan kata sandi sementara ini kepada petugas dan minta mereka segera mengubahnya.`,
     })
   } catch (error) {
     console.error('Reset officer password error:', error)

@@ -192,7 +192,7 @@ export function ReportForm() {
       const regionName = "Kota Jakarta Pusat";
 
       // 1. Create the report
-      const res = await api.post<{ data: { id: string; trackingCode: string } }>(
+      const res = await api.post<{ data: { id: string; trackingCode: string; anonymousToken?: string } }>(
         "/reports",
         {
           title: formData.title,
@@ -209,6 +209,10 @@ export function ReportForm() {
 
       const reportId = res.data.id;
       const code = res.data.trackingCode;
+      const anonymousToken = res.data.anonymousToken;
+      const mediaRequestOptions = anonymousToken
+        ? { headers: { "X-Anonymous-Token": anonymousToken } }
+        : undefined;
 
       // 2. Upload photos/videos via pre-signed URLs
       if (formData.photos.length > 0) {
@@ -251,11 +255,15 @@ export function ReportForm() {
               // Get pre-signed upload URL
               const urlRes = await api.post<{
                 data: { uploadUrl: string; fileKey: string };
-              }>(`/reports/${reportId}/media/upload-url`, {
-                mediaType: isVideo ? "video" : "photo",
-                mimeType: finalFile.type || (isVideo ? "video/mp4" : "image/jpeg"),
-                fileSizeBytes: finalFile.size,
-              });
+              }>(
+                `/reports/${reportId}/media/upload-url`,
+                {
+                  mediaType: isVideo ? "video" : "photo",
+                  mimeType: finalFile.type || (isVideo ? "video/mp4" : "image/jpeg"),
+                  fileSizeBytes: finalFile.size,
+                },
+                mediaRequestOptions
+              );
 
               const { uploadUrl, fileKey } = urlRes.data;
 
@@ -267,10 +275,14 @@ export function ReportForm() {
               });
 
               // Confirm upload to backend
-              await api.post(`/reports/${reportId}/media`, {
-                fileKey,
-                mediaType: isVideo ? "video" : "photo",
-              });
+              await api.post(
+                `/reports/${reportId}/media`,
+                {
+                  fileKey,
+                  mediaType: isVideo ? "video" : "photo",
+                },
+                mediaRequestOptions
+              );
             } catch (photoErr) {
               console.error("Media upload failed (continuing):", photoErr);
             }

@@ -4,7 +4,7 @@
 /**
  * Time period filter for analytics queries
  */
-export type TimePeriod = '30' | '90' | '365'
+export type TimePeriod = '30d' | '90d' | '365d'
 
 /**
  * Analytics overview KPI summary

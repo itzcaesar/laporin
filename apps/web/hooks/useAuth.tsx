@@ -27,7 +27,7 @@ interface AuthContextValue {
   user: User | null
   isLoading: boolean
   isAuthenticated: boolean
-  login: (email: string, password: string) => Promise<void>
+  login: (email: string, password: string) => Promise<User>
   register: (data: RegisterData) => Promise<void>
   logout: () => Promise<void>
   refetch: () => Promise<void>
@@ -81,13 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       )
       // Server sets HttpOnly cookies in the response — no client-side cookie management needed
       setUser(res.data.user)
-      
-      // Redirect based on role
-      if (res.data.user.role === 'citizen') {
-        router.push('/citizen')
-      } else {
-        router.push('/gov')
-      }
+      return res.data.user
     } catch (err) {
       throw err instanceof ApiClientError ? err : new Error('Login gagal')
     }

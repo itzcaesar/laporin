@@ -36,6 +36,7 @@ const subscribeSchema = z.object({
 
 push.post('/subscribe', authMiddleware, zValidator('json', subscribeSchema), async (c) => {
   const user = c.get('user')
+  const userId = user.sub
   const { endpoint, keys } = c.req.valid('json')
 
   try {
@@ -46,7 +47,7 @@ push.post('/subscribe', authMiddleware, zValidator('json', subscribeSchema), asy
 
     if (existing) {
       // Update if it belongs to the same user
-      if (existing.userId === user.id) {
+      if (existing.userId === userId) {
         await db.pushSubscription.update({
           where: { id: existing.id },
           data: {
@@ -66,7 +67,7 @@ push.post('/subscribe', authMiddleware, zValidator('json', subscribeSchema), asy
     // Create new subscription
     await db.pushSubscription.create({
       data: {
-        userId: user.id,
+        userId,
         endpoint,
         p256dh: keys.p256dh,
         auth: keys.auth,
@@ -77,7 +78,7 @@ push.post('/subscribe', authMiddleware, zValidator('json', subscribeSchema), asy
     return ok(c, { message: 'Subscribed to push notifications' })
   } catch (error) {
     console.error('Push subscribe error:', error)
-    return err(c, 'INTERNAL_ERROR', 'Failed to subscribe to push notifications')
+    return err(c, 'INTERNAL_ERROR', 'Failed to subscribe to push notifications', 500)
   }
 })
 
@@ -90,6 +91,7 @@ const unsubscribeSchema = z.object({
 
 push.post('/unsubscribe', authMiddleware, zValidator('json', unsubscribeSchema), async (c) => {
   const user = c.get('user')
+  const userId = user.sub
   const { endpoint } = c.req.valid('json')
 
   try {
@@ -101,7 +103,7 @@ push.post('/unsubscribe', authMiddleware, zValidator('json', unsubscribeSchema),
       return err(c, 'NOT_FOUND', 'Subscription not found', 404)
     }
 
-    if (subscription.userId !== user.id) {
+    if (subscription.userId !== userId) {
       return err(c, 'FORBIDDEN', 'Cannot unsubscribe another user', 403)
     }
 
@@ -114,7 +116,7 @@ push.post('/unsubscribe', authMiddleware, zValidator('json', unsubscribeSchema),
     return ok(c, { message: 'Unsubscribed from push notifications' })
   } catch (error) {
     console.error('Push unsubscribe error:', error)
-    return err(c, 'INTERNAL_ERROR', 'Failed to unsubscribe from push notifications')
+    return err(c, 'INTERNAL_ERROR', 'Failed to unsubscribe from push notifications', 500)
   }
 })
 
@@ -123,11 +125,12 @@ push.post('/unsubscribe', authMiddleware, zValidator('json', unsubscribeSchema),
  */
 push.get('/subscriptions', authMiddleware, async (c) => {
   const user = c.get('user')
+  const userId = user.sub
 
   try {
     const subscriptions = await db.pushSubscription.findMany({
       where: {
-        userId: user.id,
+        userId,
         isActive: true,
       },
       select: {
@@ -141,7 +144,7 @@ push.get('/subscriptions', authMiddleware, async (c) => {
     return ok(c, { subscriptions })
   } catch (error) {
     console.error('Get subscriptions error:', error)
-    return err(c, 'INTERNAL_ERROR', 'Failed to get subscriptions')
+    return err(c, 'INTERNAL_ERROR', 'Failed to get subscriptions', 500)
   }
 })
 
@@ -156,12 +159,21 @@ push.post('/test', authMiddleware, async (c) => {
   const user = c.get('user')
 
   try {
+    const dbUser = await db.user.findUnique({
+      where: { id: user.sub },
+      select: { email: true },
+    })
+
+    if (!dbUser) {
+      return err(c, 'NOT_FOUND', 'User not found', 404)
+    }
+
     // Import notification service
     const { sendEmail, generateEmailHTML } = await import('../services/notification.service.js')
 
     // This will use the new sendPush implementation
     const result = await sendEmail(
-      user.email,
+      dbUser.email,
       '🔔 Test Push Notification',
       generateEmailHTML(
         '🔔 Test Push Notification',
@@ -175,7 +187,7 @@ push.post('/test', authMiddleware, async (c) => {
     })
   } catch (error) {
     console.error('Test push error:', error)
-    return err(c, 'INTERNAL_ERROR', 'Failed to send test notification')
+    return err(c, 'INTERNAL_ERROR', 'Failed to send test notification', 500)
   }
 })
 

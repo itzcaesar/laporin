@@ -15,13 +15,6 @@ import { addAIAnalysisJob, addNotificationJob } from '../jobs/queue.js'
 import { awardPoints, updateBadgeProgress } from './gamification.js'
 import { invalidatePattern } from '../lib/cache.js'
 import {
-  reportListSelect,
-  reportDetailInclude,
-  buildReportWhereClause,
-  buildOrderByClause,
-  calculatePagination,
-} from '../lib/queryHelpers.js'
-import {
   createReportSchema,
   listReportsSchema,
   requestUploadUrlSchema,
@@ -33,6 +26,23 @@ import {
 } from '../validators/report.validator.js'
 
 const reports = new Hono<{ Variables: AuthVariables }>()
+const MAX_PHOTOS_PER_REPORT = 4
+const MAX_VIDEOS_PER_REPORT = 1
+
+function canManageReportMedia(
+  report: { reporterId: string | null; anonymousToken: string | null },
+  userId: string | undefined,
+  anonymousToken: string | undefined
+) {
+  return (
+    (report.reporterId !== null && report.reporterId === userId) ||
+    (report.anonymousToken !== null && report.anonymousToken === anonymousToken)
+  )
+}
+
+function mediaLimitFor(mediaType: 'photo' | 'video') {
+  return mediaType === 'photo' ? MAX_PHOTOS_PER_REPORT : MAX_VIDEOS_PER_REPORT
+}
 
 /**
  * GET /reports
@@ -329,6 +339,7 @@ reports.get('/:id', optionalAuthMiddleware, zValidator('param', reportIdSchema),
 reports.post('/', optionalAuthMiddleware, zValidator('json', createReportSchema), async (c) => {
   const user = c.get('user')
   const data = c.req.valid('json')
+  const userId = user?.sub
 
   try {
     // Get next sequence number for this region
@@ -357,8 +368,8 @@ reports.post('/', optionalAuthMiddleware, zValidator('json', createReportSchema)
     // Generate tracking code
     const trackingCode = generateTrackingCode(data.regionCode, sequence)
 
-    // Generate anonymous token if anonymous report
-    const anonymousToken = data.isAnonymous ? crypto.randomUUID() : null
+    const isAnonymous = !userId || data.isAnonymous
+    const anonymousToken = isAnonymous ? crypto.randomUUID() : null
 
     // Create report
     const report = await db.report.create({
@@ -372,7 +383,8 @@ reports.post('/', optionalAuthMiddleware, zValidator('json', createReportSchema)
         locationAddress: data.locationAddress,
         regionCode: data.regionCode,
         regionName: data.regionName,
-        reporterId: user?.sub || null,
+        reporterId: isAnonymous ? null : userId,
+        isAnonymous,
         anonymousToken,
         status: 'new',
         priority: 'medium', // Default, will be updated by AI
@@ -397,7 +409,7 @@ reports.post('/', optionalAuthMiddleware, zValidator('json', createReportSchema)
         oldStatus: 'new',
         newStatus: 'new',
         note: 'Laporan dibuat',
-        changedById: user?.sub || null,
+        changedById: isAnonymous ? null : userId ?? null,
       },
     })
 
@@ -408,22 +420,24 @@ reports.post('/', optionalAuthMiddleware, zValidator('json', createReportSchema)
     })
 
     // Queue notification job for citizen
-    await addNotificationJob({
-      type: 'report_submitted',
-      recipientId: user?.sub || '', // Fallback for anonymous? No, need recipientId
-      recipientType: 'citizen',
-      data: {
-        reportId: report.id,
-        trackingCode: report.trackingCode,
-        title: report.title,
-        categoryName: report.category.name,
-      },
-    }).catch(err => console.error('Failed to queue submission notification:', err))
+    if (!isAnonymous && userId) {
+      await addNotificationJob({
+        type: 'report_submitted',
+        recipientId: userId,
+        recipientType: 'citizen',
+        data: {
+          reportId: report.id,
+          trackingCode: report.trackingCode,
+          title: report.title,
+          categoryName: report.category.name,
+        },
+      }).catch(err => console.error('Failed to queue submission notification:', err))
+    }
 
     // Award points for creating report (only for authenticated users)
-    if (user?.sub) {
+    if (!isAnonymous && userId) {
       await awardPoints(
-        user.sub,
+        userId,
         50,
         'report_created',
         'Laporan baru dibuat',
@@ -431,22 +445,17 @@ reports.post('/', optionalAuthMiddleware, zValidator('json', createReportSchema)
       )
 
       // Update badge progress
-      const reportCount = await db.report.count({ where: { reporterId: user.sub } })
-      await updateBadgeProgress(user.sub, 'first-report', reportCount)
-      await updateBadgeProgress(user.sub, '10-reports', reportCount)
-      await updateBadgeProgress(user.sub, '50-reports', reportCount)
-      await updateBadgeProgress(user.sub, '100-reports', reportCount)
+      const reportCount = await db.report.count({ where: { reporterId: userId } })
+      await updateBadgeProgress(userId, 'first-report', reportCount)
+      await updateBadgeProgress(userId, '10-reports', reportCount)
+      await updateBadgeProgress(userId, '50-reports', reportCount)
+      await updateBadgeProgress(userId, '100-reports', reportCount)
     }
 
-    return c.json(
-      {
-        data: {
-          ...report,
-          anonymousToken: data.isAnonymous ? anonymousToken : undefined,
-        },
-      },
-      201
-    )
+    return ok(c, {
+      ...report,
+      anonymousToken: isAnonymous ? anonymousToken : undefined,
+    }, 201)
   } catch (error) {
     console.error('Create report error:', error)
     return err(c, 'INTERNAL_ERROR', 'Gagal create report', 500)
@@ -475,15 +484,6 @@ reports.post(
           id: true,
           reporterId: true,
           anonymousToken: true,
-          _count: {
-            select: {
-              media: {
-                where: {
-                  mediaType: { in: ['photo', 'video'] },
-                },
-              },
-            },
-          },
         },
       })
 
@@ -491,21 +491,16 @@ reports.post(
         return err(c, 'NOT_FOUND', 'Laporan tidak ditemukan', 404)
       }
 
-      // Check permission (reporter or anonymous token holder)
       const anonymousToken = c.req.header('X-Anonymous-Token')
-      if (report.reporterId && report.reporterId !== user?.sub) {
-        return err(c, 'FORBIDDEN', 'Tidak diizinkan', 403)
-      }
-      if (report.anonymousToken && report.anonymousToken !== anonymousToken) {
+      if (!canManageReportMedia(report, user?.sub, anonymousToken)) {
         return err(c, 'FORBIDDEN', 'Tidak diizinkan', 403)
       }
 
-      // Check media limits (4 photos + 1 video)
-      if (mediaType === 'photo' && report._count.media >= 4) {
-        return err(c, 'INVALID_REQUEST', 'Maximum 4 photos allowed per report', 400)
-      }
-      if (mediaType === 'video' && report._count.media >= 1) {
-        return err(c, 'INVALID_REQUEST', 'Maximum 1 video allowed per report', 400)
+      const mediaCount = await db.media.count({ where: { reportId: id, mediaType } })
+      if (mediaCount >= mediaLimitFor(mediaType)) {
+        const max = mediaLimitFor(mediaType)
+        const label = mediaType === 'photo' ? 'photos' : 'video'
+        return err(c, 'INVALID_REQUEST', `Maximum ${max} ${label} allowed per report`, 400)
       }
 
       // Generate presigned URL
@@ -557,22 +552,32 @@ reports.post(
         return err(c, 'NOT_FOUND', 'Laporan tidak ditemukan', 404)
       }
 
-      // Check permission
       const anonymousToken = c.req.header('X-Anonymous-Token')
-      if (report.reporterId && report.reporterId !== user?.sub) {
+      if (!canManageReportMedia(report, user?.sub, anonymousToken)) {
         return err(c, 'FORBIDDEN', 'Tidak diizinkan', 403)
       }
-      if (report.anonymousToken && report.anonymousToken !== anonymousToken) {
-        return err(c, 'FORBIDDEN', 'Tidak diizinkan', 403)
+
+      const expectedPrefix = `reports/${id.toLowerCase()}/${mediaType}/`
+      if (!fileKey.toLowerCase().startsWith(expectedPrefix)) {
+        return err(c, 'INVALID_REQUEST', 'File key tidak cocok dengan laporan', 400)
+      }
+
+      const mediaCount = await db.media.count({ where: { reportId: id, mediaType } })
+      if (mediaCount >= mediaLimitFor(mediaType)) {
+        const max = mediaLimitFor(mediaType)
+        const label = mediaType === 'photo' ? 'photos' : 'video'
+        return err(c, 'INVALID_REQUEST', `Maximum ${max} ${label} allowed per report`, 400)
       }
 
       // Create media record
       const media = await db.media.create({
         data: {
           reportId: id,
+          uploaderId: user?.sub ?? null,
           fileUrl: getPublicUrl(fileKey),
           fileKey: fileKey,
           mediaType,
+          sortOrder: mediaCount,
         },
         select: {
           id: true,
@@ -664,11 +669,7 @@ reports.post('/:id/vote', authMiddleware, zValidator('param', reportIdSchema), a
       await updateBadgeProgress(updatedReport.reporterId, 'popular-reporter', totalUpvotes)
     }
 
-    return c.json({
-      data: {
-        upvoteCount: updatedReport.upvoteCount,
-      },
-    })
+    return ok(c, { upvoteCount: updatedReport.upvoteCount })
   } catch (error) {
     console.error('Vote error:', error)
     return err(c, 'INTERNAL_ERROR', 'Gagal memberikan vote', 500)
@@ -709,11 +710,7 @@ reports.delete('/:id/vote', authMiddleware, zValidator('param', reportIdSchema),
       },
     })
 
-    return c.json({
-      data: {
-        upvoteCount: updatedReport.upvoteCount,
-      },
-    })
+    return ok(c, { upvoteCount: updatedReport.upvoteCount })
   } catch (error) {
     console.error('Remove vote error:', error)
     return err(c, 'INTERNAL_ERROR', 'Gagal menghapus vote', 500)

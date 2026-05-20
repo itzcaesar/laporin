@@ -47,19 +47,10 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await login(email, password);
-      
-      // Get role from cookie
-      const roleFromCookie = document.cookie
-        .split("; ")
-        .find((row) => row.startsWith("laporin_role="))
-        ?.split("=")[1];
-      
-      console.log("Role from cookie:", roleFromCookie);
-      
+      const user = await login(email, password);
+
       // Use window.location for hard redirect to ensure page loads fresh
-      const dest = roleFromCookie === "citizen" ? "/citizen" : "/gov";
-      console.log("Redirecting to:", dest);
+      const dest = user.role === "citizen" ? "/citizen" : "/gov";
       window.location.href = dest;
     } catch (err) {
       const message =
@@ -78,9 +69,9 @@ export default function LoginPage() {
     setForgotSending(true);
     setForgotError("");
     try {
-      await api.post("/auth/forgot-password", { email: forgotEmail.trim() }, { skipAuth: true });
+      await api.post("/auth/password/forgot", { email: forgotEmail.trim() }, { skipAuth: true });
     } catch (err) {
-      // If endpoint doesn't exist yet (404/500), still show success to avoid enumeration
+      // Still show success for missing emails to avoid account enumeration.
       if (!(err instanceof ApiClientError) || err.status >= 500) {
         // silently continue
       } else if (err.status !== 404) {

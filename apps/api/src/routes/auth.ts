@@ -10,8 +10,9 @@ import { signToken, signRefreshToken, verifyRefreshToken } from '../lib/jwt.js'
 import { encrypt } from '../lib/crypto.js'
 import { generateOtp } from '../lib/crypto.js'
 import { authMiddleware, type AuthVariables } from '../middleware/auth.js'
+import { rateLimit } from '../middleware/rateLimit.js'
 import { ok, err } from '../lib/response.js'
-import { sendOtpEmail } from '../services/notification.service.js'
+import { generateEmailHTML, sendEmail, sendOtpEmail } from '../services/notification.service.js'
 import {
   registerSchema,
   loginSchema,
@@ -19,6 +20,8 @@ import {
   logoutSchema,
   sendOtpSchema,
   verifyOtpSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
   changePasswordSchema,
 } from '../validators/auth.validator.js'
 import { redis } from '../lib/redis.js'
@@ -29,7 +32,7 @@ import type { Context } from 'hono'
 
 const COOKIE_SECURE = env.NODE_ENV === 'production'
 const COOKIE_SAME_SITE = env.NODE_ENV === 'production' ? 'None' : 'Lax'
-const COOKIE_DOMAIN = env.NODE_ENV === 'production' ? '.laporin.site' : undefined
+const COOKIE_DOMAIN = env.NODE_ENV === 'production' ? env.COOKIE_DOMAIN || '.laporin.site' : undefined
 
 /**
  * Set HttpOnly auth cookies after successful authentication.
@@ -73,19 +76,24 @@ function setAuthCookies(
  * Clear all auth cookies on logout.
  */
 function clearAuthCookies(c: Context) {
-  deleteCookie(c, 'laporin_token', { path: '/' })
-  deleteCookie(c, 'laporin_refresh', { path: '/' })
-  deleteCookie(c, 'laporin_role', { path: '/' })
+  deleteCookie(c, 'laporin_token', { path: '/', ...(COOKIE_DOMAIN && { domain: COOKIE_DOMAIN }) })
+  deleteCookie(c, 'laporin_refresh', { path: '/', ...(COOKIE_DOMAIN && { domain: COOKIE_DOMAIN }) })
+  deleteCookie(c, 'laporin_role', { path: '/', ...(COOKIE_DOMAIN && { domain: COOKIE_DOMAIN }) })
 }
 
 const auth = new Hono<{ Variables: AuthVariables }>()
+
+const registerRateLimit = rateLimit({ max: 3, windowSeconds: 3600, keyPrefix: 'ratelimit:auth:register' })
+const loginRateLimit = rateLimit({ max: 5, windowSeconds: 900, keyPrefix: 'ratelimit:auth:login' })
+const otpRateLimit = rateLimit({ max: 3, windowSeconds: 600, keyPrefix: 'ratelimit:auth:otp' })
+const passwordResetRateLimit = rateLimit({ max: 3, windowSeconds: 900, keyPrefix: 'ratelimit:auth:password-reset' })
 
 
 /**
  * POST /auth/register
  * Register a new citizen account
  */
-auth.post('/register', zValidator('json', registerSchema), async (c) => {
+auth.post('/register', registerRateLimit, zValidator('json', registerSchema), async (c) => {
   const { email, password, name, nik, phone } = c.req.valid('json')
 
   try {
@@ -166,7 +174,7 @@ auth.post('/register', zValidator('json', registerSchema), async (c) => {
  * POST /auth/login
  * Login with email and password
  */
-auth.post('/login', zValidator('json', loginSchema), async (c) => {
+auth.post('/login', loginRateLimit, zValidator('json', loginSchema), async (c) => {
   const { email, password } = c.req.valid('json')
 
   try {
@@ -369,10 +377,92 @@ auth.post('/logout', zValidator('json', logoutSchema.partial()), async (c) => {
 })
 
 /**
+ * POST /auth/password/forgot
+ * Request a password reset link without revealing whether an email exists.
+ */
+auth.post('/password/forgot', passwordResetRateLimit, zValidator('json', forgotPasswordSchema), async (c) => {
+  const { email } = c.req.valid('json')
+
+  try {
+    const user = await db.user.findUnique({
+      where: { email },
+      select: { id: true, email: true, name: true, isActive: true },
+    })
+
+    if (user?.isActive) {
+      const token = crypto.randomUUID()
+      const resetKey = `password-reset:${token}`
+      await redis.setex(resetKey, 15 * 60, user.id)
+
+      const origin = (env.ALLOWED_ORIGINS.split(',')[0]?.trim() || 'http://localhost:3000').replace(/\/$/, '')
+      const resetUrl = `${origin}/reset-password?token=${encodeURIComponent(token)}`
+      const title = 'Reset Kata Sandi Laporin'
+      const content = `
+        <p>Halo ${user.name || 'Pengguna'},</p>
+        <p>Kami menerima permintaan reset kata sandi untuk akun Anda.</p>
+        <p>Tautan ini berlaku selama <strong>15 menit</strong>.</p>
+        <p>Jika Anda tidak meminta reset kata sandi, abaikan email ini.</p>
+      `
+
+      const emailResult = await sendEmail(
+        user.email,
+        title,
+        generateEmailHTML(title, content, 'Reset Kata Sandi', resetUrl)
+      )
+      if (!emailResult.success) {
+        console.warn(`Failed to send password reset email to ${email}:`, emailResult.error)
+      }
+
+      if (env.NODE_ENV === 'development') {
+        console.log(`Password reset URL for ${email}: ${resetUrl}`)
+      }
+    }
+
+    return ok(c, { message: 'Jika email terdaftar, tautan reset kata sandi akan dikirim.' })
+  } catch (error) {
+    console.error('Forgot password error:', error)
+    return err(c, 'INTERNAL_ERROR', 'Gagal memproses reset kata sandi', 500)
+  }
+})
+
+/**
+ * POST /auth/password/reset
+ * Reset password with a valid reset token.
+ */
+auth.post('/password/reset', passwordResetRateLimit, zValidator('json', resetPasswordSchema), async (c) => {
+  const { token, password } = c.req.valid('json')
+  const resetKey = `password-reset:${token}`
+
+  try {
+    const userId = await redis.get(resetKey)
+    if (!userId) {
+      return err(c, 'INVALID_TOKEN', 'Token reset tidak valid atau sudah kedaluwarsa', 400)
+    }
+
+    const passwordHash = await hashPassword(password)
+    await db.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    })
+
+    await db.refreshToken.updateMany({
+      where: { userId, isRevoked: false },
+      data: { isRevoked: true },
+    })
+    await redis.del(resetKey)
+
+    return ok(c, { message: 'Password berhasil direset. Silakan login kembali.' })
+  } catch (error) {
+    console.error('Reset password error:', error)
+    return err(c, 'INTERNAL_ERROR', 'Gagal mereset password', 500)
+  }
+})
+
+/**
  * POST /auth/otp/send
  * Send OTP to email for verification
  */
-auth.post('/otp/send', zValidator('json', sendOtpSchema), async (c) => {
+auth.post('/otp/send', otpRateLimit, zValidator('json', sendOtpSchema), async (c) => {
   const { email } = c.req.valid('json')
 
   try {
@@ -408,13 +498,11 @@ auth.post('/otp/send', zValidator('json', sendOtpSchema), async (c) => {
       console.log(`📧 OTP for ${email}: ${otp}`)
     }
 
-    return c.json({
-      data: {
-        message: 'OTP sent to email',
-        expiresIn: 600, // seconds
-        // In development, include OTP in response
-        ...(env.NODE_ENV === 'development' && { otp }),
-      },
+    return ok(c, {
+      message: 'OTP sent to email',
+      expiresIn: 600, // seconds
+      // In development, include OTP in response
+      ...(env.NODE_ENV === 'development' && { otp }),
     })
   } catch (error) {
     console.error('Send OTP error:', error)
@@ -426,7 +514,7 @@ auth.post('/otp/send', zValidator('json', sendOtpSchema), async (c) => {
  * POST /auth/otp/verify
  * Verify OTP code and mark email as verified
  */
-auth.post('/otp/verify', zValidator('json', verifyOtpSchema), async (c) => {
+auth.post('/otp/verify', otpRateLimit, zValidator('json', verifyOtpSchema), async (c) => {
   const { email, otp } = c.req.valid('json')
 
   try {
@@ -483,12 +571,10 @@ auth.post('/otp/verify', zValidator('json', verifyOtpSchema), async (c) => {
     // Set HttpOnly auth cookies
     setAuthCookies(c, accessToken, refreshToken, user.role)
 
-    return c.json({
-      data: {
-        user,
-        accessToken,
-        refreshToken,
-      },
+    return ok(c, {
+      user,
+      accessToken,
+      refreshToken,
     })
   } catch (error) {
     console.error('Verify OTP error:', error)
@@ -589,9 +675,7 @@ auth.patch('/password/change', authMiddleware, zValidator('json', changePassword
       data: { isRevoked: true },
     })
 
-    return c.json({
-      data: { message: 'Password changed successfully. Please login again.' },
-    })
+    return ok(c, { message: 'Password changed successfully. Please login again.' })
   } catch (error) {
     console.error('Change password error:', error)
     return err(c, 'INTERNAL_ERROR', 'Gagal change password', 500)

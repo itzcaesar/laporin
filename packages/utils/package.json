@@ -15,7 +15,8 @@
   },
   "scripts": {
     "build": "tsup",
-    "dev": "tsup --watch"
+    "dev": "tsup --watch",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "clsx": "^2.1.1",

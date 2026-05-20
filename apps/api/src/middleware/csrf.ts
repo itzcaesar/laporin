@@ -6,6 +6,8 @@ import { Context, Next } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
 import { env } from '../env.js'
 
+const COOKIE_DOMAIN = env.NODE_ENV === 'production' ? env.COOKIE_DOMAIN || '.laporin.site' : undefined
+
 /**
  * Generate a cryptographically random CSRF token.
  */
@@ -41,7 +43,7 @@ export async function csrfMiddleware(c: Context, next: Next) {
       sameSite: env.NODE_ENV === 'production' ? 'None' : 'Lax',
       path: '/',
       maxAge: 7 * 24 * 60 * 60, // 7 days
-      ...(env.NODE_ENV === 'production' && { domain: '.laporin.site' }),
+      ...(COOKIE_DOMAIN && { domain: COOKIE_DOMAIN }),
     })
   }
 

@@ -244,7 +244,7 @@ export interface GovDashboardStats {
 
 // ── Analytics Types ─────────────────────────────────────────────────────
 
-export type AnalyticsPeriod = '30' | '90' | '365';
+export type AnalyticsPeriod = '30d' | '90d' | '365d';
 
 export interface TrendDataPoint {
   date: string;
